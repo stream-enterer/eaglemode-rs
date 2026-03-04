@@ -343,20 +343,44 @@ The C++ model types map as follows under the hybrid approach:
 | `emFileModel` | `FileModel<T>` | `ResourceCache<FileModel<T>>` keyed by path |
 | `emCoreConfig` | `CoreConfig` | Typed singleton on root context |
 
-#### 3.3.3 Record System (`emRec`)
+#### 3.3.3 Record System (`emRec`) → KDL Serialization
 
-**Behavioral contract:**
+**Decision #6: KDL replaces emRec.**
+
+The C++ emRec was a custom text format (`key = value`, `{ }` nesting, `#` comments, `#%rec:TypeName%#` headers). We have no backward compatibility requirement — we never read Eagle Mode config files. Rather than porting the custom parser or using RON/TOML/JSON, we use **KDL** (KDL Document Language) via the `kdl` crate.
+
+KDL's node-based syntax maps naturally to emRec's patterns:
+
+```kdl
+// emRec: AlarmHour = 7
+// KDL:
+alarm-hour 7
+
+// emRec: ClockBorderColor = {187 170 102 255}
+// KDL:
+clock-border-color 187 170 102 255
+
+// emRec: colors = { { color = "black" fade = 20 } { color = "blue" fade = 0 } }
+// KDL:
+colors {
+    color "black" fade=20
+    color "blue" fade=0
+}
+```
+
+**Behavioral contract (preserved from emRec):**
 - Hierarchical serializable data structures with change notification
-- Leaf types: `bool`, `int`, `double`, `string`, `color`
-- Container types: arrays (`emTArrayRec<T>`), structs (`emStructRec`)
-- Text-based serialization format (key-value with nesting)
-- Incremental I/O (load/save in steps for async operation)
-- Change listeners propagate modifications up the tree
+- Leaf types: `bool`, `int`, `f64`, `String`, `Color`
+- Container types: structs (KDL nodes with properties), arrays (KDL children)
+- Human-readable, hand-editable, supports comments
+- Change listeners propagate modifications up the tree via Signal system
 
-**Rust design:** Use `serde` for serialization with a custom text format matching the emRec format. Change notification via the Signal system.
+**Rust design:** Use `kdl` crate for parsing/serialization. Config structs derive or implement a KDL mapping. Change notification via the Signal system.
 
 ```
-pub trait Record: Serialize + Deserialize {
+pub trait Record {
+    fn from_kdl(node: &kdl::KdlNode) -> Result<Self, ConfigError> where Self: Sized;
+    fn to_kdl(&self) -> kdl::KdlNode;
     fn set_to_default(&mut self);
     fn is_default(&self) -> bool;
     fn change_signal(&self) -> &Signal;
