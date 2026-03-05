@@ -1,0 +1,16 @@
+[package]
+name = "zuicchini"
+version = "0.1.0"
+edition = "2021"
+description = "A zoomable UI framework inspired by Eagle Mode's emCore"
+license = "MIT"
+
+[dependencies]
+bitflags = "2"
+bytemuck = { version = "1", features = ["derive"] }
+kdl = "6"
+log = "0.4"
+pollster = "0.4"
+slotmap = "1"
+wgpu = "28"
+winit = "0.30"
