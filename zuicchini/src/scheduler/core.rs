@@ -128,11 +128,7 @@ impl EngineScheduler {
     // ── Engine API ──────────────────────────────────────────────────
 
     /// Register an engine with the given priority and behavior. Starts sleeping.
-    pub fn register_engine(
-        &mut self,
-        priority: Priority,
-        behavior: Box<dyn Engine>,
-    ) -> EngineId {
+    pub fn register_engine(&mut self, priority: Priority, behavior: Box<dyn Engine>) -> EngineId {
         self.inner.engines.insert(EngineData {
             priority,
             awake_state: -1, // sleeping
@@ -200,12 +196,7 @@ impl EngineScheduler {
 
     /// Create a timer that fires the given signal after `interval_ms`.
     /// If `periodic` is true, the timer repeats.
-    pub fn create_timer(
-        &mut self,
-        signal: SignalId,
-        interval_ms: u64,
-        periodic: bool,
-    ) -> TimerId {
+    pub fn create_timer(&mut self, signal: SignalId, interval_ms: u64, periodic: bool) -> TimerId {
         self.inner
             .timer_central
             .create_timer(signal, interval_ms, periodic)
@@ -319,8 +310,7 @@ impl EngineScheduler {
                     // Engine wants to stay awake and wasn't re-woken during cycle.
                     // Queue for next time slice (not current, to prevent infinite loop).
                     eng.awake_state = next_parity;
-                    let queue_idx =
-                        (eng.priority as usize) * 2 + (next_parity as usize);
+                    let queue_idx = (eng.priority as usize) * 2 + (next_parity as usize);
                     self.inner.wake_queues[queue_idx].push(engine_id);
                 }
             }

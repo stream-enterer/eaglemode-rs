@@ -60,7 +60,13 @@ impl CheckBox {
         if !self.label.is_empty() {
             let text_x = BOX_SIZE + BOX_LABEL_GAP;
             let text_y = y_off + 1.0;
-            painter.paint_text(text_x, text_y, &self.label, self.look.fg_color);
+            painter.paint_text(
+                text_x,
+                text_y,
+                &self.label,
+                FontCache::DEFAULT_SIZE_PX,
+                self.look.fg_color,
+            );
         }
     }
 
@@ -82,11 +88,12 @@ impl CheckBox {
         Cursor::Hand
     }
 
-    pub fn preferred_size(&self) -> (f64, f64) {
+    pub fn preferred_size(&self, font_cache: &FontCache) -> (f64, f64) {
         let w = if self.label.is_empty() {
             BOX_SIZE
         } else {
-            BOX_SIZE + BOX_LABEL_GAP + FontCache::measure_text(&self.label).0 as f64
+            let size_px = FontCache::quantize_size(FontCache::DEFAULT_SIZE_PX);
+            BOX_SIZE + BOX_LABEL_GAP + font_cache.measure_text(&self.label, 0, size_px).0
         };
         (w, BOX_SIZE)
     }
@@ -117,10 +124,11 @@ mod tests {
     #[test]
     fn checkbox_preferred_size() {
         let look = Look::new();
+        let fc = FontCache::new();
         let cb = CheckBox::new("Hi", look);
-        let (w, h) = cb.preferred_size();
-        // 9 (box) + 4 (gap) + 11 (2 chars * 6 - 1)
-        assert_eq!(w, 24.0);
+        let (w, h) = cb.preferred_size(&fc);
+        // 9 (box) + 4 (gap) + measured text width
+        assert!(w > 13.0, "Should include box + gap + text width");
         assert_eq!(h, 9.0);
     }
 }

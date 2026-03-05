@@ -76,10 +76,17 @@ impl ScalarField {
 
         // Value text
         let text = format!("{:.prec$}", self.value, prec = self.precision);
-        let tw = FontCache::measure_text(&text).0 as f64;
+        let size_px = FontCache::quantize_size(FontCache::DEFAULT_SIZE_PX);
+        let tw = painter.font_cache().measure_text(&text, 0, size_px).0;
         let tx = cx + (cw - tw) / 2.0;
-        let ty = cy + (ch - FontCache::GLYPH_HEIGHT as f64) / 2.0;
-        painter.paint_text(tx, ty, &text, self.look.fg_color);
+        let ty = cy + (ch - FontCache::DEFAULT_SIZE_PX) / 2.0;
+        painter.paint_text(
+            tx,
+            ty,
+            &text,
+            FontCache::DEFAULT_SIZE_PX,
+            self.look.fg_color,
+        );
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {
@@ -131,9 +138,9 @@ impl ScalarField {
         Cursor::ResizeEW
     }
 
-    pub fn preferred_size(&self) -> (f64, f64) {
+    pub fn preferred_size(&self, _font_cache: &FontCache) -> (f64, f64) {
         let cw = 100.0;
-        let ch = FontCache::GLYPH_HEIGHT as f64 + 4.0;
+        let ch = FontCache::DEFAULT_SIZE_PX + 4.0;
         self.border.preferred_size_for_content(cw, ch)
     }
 

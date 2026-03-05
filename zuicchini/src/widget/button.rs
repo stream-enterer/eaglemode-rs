@@ -112,9 +112,10 @@ impl Button {
         Cursor::Hand
     }
 
-    pub fn preferred_size(&self) -> (f64, f64) {
-        let tw = FontCache::measure_text(&self.border.caption).0 as f64;
-        let th = FontCache::GLYPH_HEIGHT as f64;
+    pub fn preferred_size(&self, font_cache: &FontCache) -> (f64, f64) {
+        let size_px = FontCache::quantize_size(FontCache::DEFAULT_SIZE_PX);
+        let tw = font_cache.measure_text(&self.border.caption, 0, size_px).0;
+        let th = FontCache::DEFAULT_SIZE_PX;
         self.border.preferred_size_for_content(tw + 8.0, th + 4.0)
     }
 }

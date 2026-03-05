@@ -98,8 +98,7 @@ impl LinearLayout {
         let cell_count = children.len().max(self.min_cell_count);
         let gap_count = cell_count.saturating_sub(1);
         let available_main =
-            (main_total - margin_main_start - margin_main_end - inner * gap_count as f64)
-                .max(0.0);
+            (main_total - margin_main_start - margin_main_end - inner * gap_count as f64).max(0.0);
         let cross_available = (cross_total - margin_cross_start - margin_cross_end).max(0.0);
 
         // Compute weighted distribution

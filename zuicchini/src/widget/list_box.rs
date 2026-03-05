@@ -7,7 +7,7 @@ use crate::render::Painter;
 use super::border::{Border, InnerBorderType, OuterBorderType};
 use super::look::Look;
 
-const ROW_HEIGHT: f64 = 11.0;
+const ROW_HEIGHT: f64 = FontCache::DEFAULT_SIZE_PX + 4.0;
 
 type SelectionCb = Box<dyn FnMut(&[usize])>;
 
@@ -89,7 +89,13 @@ impl ListBox {
             }
 
             let text_y = y + 2.0;
-            painter.paint_text(cx + 2.0, text_y, item, self.look.fg_color);
+            painter.paint_text(
+                cx + 2.0,
+                text_y,
+                item,
+                FontCache::DEFAULT_SIZE_PX,
+                self.look.fg_color,
+            );
         }
 
         painter.pop_state();
@@ -168,11 +174,12 @@ impl ListBox {
         }
     }
 
-    pub fn preferred_size(&self) -> (f64, f64) {
+    pub fn preferred_size(&self, font_cache: &FontCache) -> (f64, f64) {
+        let size_px = FontCache::quantize_size(FontCache::DEFAULT_SIZE_PX);
         let max_w = self
             .items
             .iter()
-            .map(|s| FontCache::measure_text(s).0 as f64)
+            .map(|s| font_cache.measure_text(s, 0, size_px).0)
             .fold(0.0f64, f64::max);
         let h = self.items.len() as f64 * ROW_HEIGHT;
         self.border.preferred_size_for_content(max_w + 4.0, h)

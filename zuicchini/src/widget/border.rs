@@ -5,7 +5,7 @@ use super::look::Look;
 
 /// Height allocated for caption and description text, derived from font metrics.
 /// Uses glyph height + 4px padding.
-const TEXT_ROW_HEIGHT: f64 = FontCache::GLYPH_HEIGHT as f64 + 4.0;
+const TEXT_ROW_HEIGHT: f64 = FontCache::DEFAULT_SIZE_PX + 4.0;
 
 /// Outer border style.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -68,7 +68,11 @@ impl Border {
     /// Compute the content area after border and label insets.
     pub fn content_rect(&self, w: f64, h: f64, _look: &Look) -> (f64, f64, f64, f64) {
         let (ox, oy, ow, oh) = self.outer_insets();
-        let caption_h = if self.caption.is_empty() { 0.0 } else { TEXT_ROW_HEIGHT };
+        let caption_h = if self.caption.is_empty() {
+            0.0
+        } else {
+            TEXT_ROW_HEIGHT
+        };
         let desc_h = if self.description.is_empty() {
             0.0
         } else {
@@ -86,7 +90,11 @@ impl Border {
     /// Preferred size to fit the given content size.
     pub fn preferred_size_for_content(&self, cw: f64, ch: f64) -> (f64, f64) {
         let (_, _, ow, oh) = self.outer_insets();
-        let caption_h = if self.caption.is_empty() { 0.0 } else { TEXT_ROW_HEIGHT };
+        let caption_h = if self.caption.is_empty() {
+            0.0
+        } else {
+            TEXT_ROW_HEIGHT
+        };
         let desc_h = if self.description.is_empty() {
             0.0
         } else {
@@ -165,7 +173,11 @@ impl Border {
 
         // Inner border
         let (ox, oy, _, _) = self.outer_insets();
-        let caption_h = if self.caption.is_empty() { 0.0 } else { TEXT_ROW_HEIGHT };
+        let caption_h = if self.caption.is_empty() {
+            0.0
+        } else {
+            TEXT_ROW_HEIGHT
+        };
         let ix = ox;
         let iy = oy + caption_h;
         let iw = w - ox * 2.0;
@@ -216,13 +228,25 @@ impl Border {
 
         // Caption
         if !self.caption.is_empty() {
-            painter.paint_text(ox + 2.0, oy + 2.0, &self.caption, look.fg_color);
+            painter.paint_text(
+                ox + 2.0,
+                oy + 2.0,
+                &self.caption,
+                FontCache::DEFAULT_SIZE_PX,
+                look.fg_color,
+            );
         }
 
         // Description
         if !self.description.is_empty() {
             let desc_y = h - oy - 9.0;
-            painter.paint_text(ox + 2.0, desc_y, &self.description, look.disabled_fg_color);
+            painter.paint_text(
+                ox + 2.0,
+                desc_y,
+                &self.description,
+                FontCache::DEFAULT_SIZE_PX,
+                look.disabled_fg_color,
+            );
         }
     }
 
@@ -281,9 +305,9 @@ mod tests {
         let border = Border::new(OuterBorderType::Rect).with_caption("Test");
         let (x, y, cw, ch) = border.content_rect(100.0, 50.0, &test_look());
         assert_eq!(x, 1.0);
-        assert_eq!(y, 12.0); // 1 (outer) + 11 (caption)
+        assert_eq!(y, 1.0 + TEXT_ROW_HEIGHT); // outer + caption
         assert_eq!(cw, 98.0);
-        assert_eq!(ch, 37.0); // 50 - 2 (outer) - 11 (caption)
+        assert_eq!(ch, 50.0 - 2.0 - TEXT_ROW_HEIGHT); // total - outer - caption
     }
 
     #[test]
@@ -301,9 +325,9 @@ mod tests {
             .with_inner(InnerBorderType::InputField);
         let (x, y, cw, ch) = border.content_rect(100.0, 80.0, &test_look());
         assert_eq!(x, 3.0 + 2.0); // outer + inner
-        assert_eq!(y, 3.0 + 11.0 + 2.0); // outer + caption + inner
+        assert_eq!(y, 3.0 + TEXT_ROW_HEIGHT + 2.0); // outer + caption + inner
         assert_eq!(cw, 100.0 - 6.0 - 4.0); // w - outer_w - inner_w
-        assert_eq!(ch, 80.0 - 6.0 - 11.0 - 4.0); // h - outer_h - caption - inner_h
+        assert_eq!(ch, 80.0 - 6.0 - TEXT_ROW_HEIGHT - 4.0); // h - outer_h - caption - inner_h
     }
 
     #[test]

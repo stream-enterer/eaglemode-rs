@@ -94,8 +94,7 @@ impl PanelTree {
     /// Create a child panel under the given parent.
     pub fn create_child(&mut self, parent: PanelId, name: &str) -> PanelId {
         let id = self.panels.insert(PanelData::new(name.to_string()));
-        self.name_index
-            .insert((parent, name.to_string()), id);
+        self.name_index.insert((parent, name.to_string()), id);
 
         // Link into parent's child list
         self.panels[id].parent = Some(parent);
@@ -184,9 +183,7 @@ impl PanelTree {
 
     /// Look up a child panel by parent and name.
     pub fn find_child_by_name(&self, parent: PanelId, name: &str) -> Option<PanelId> {
-        self.name_index
-            .get(&(parent, name.to_string()))
-            .copied()
+        self.name_index.get(&(parent, name.to_string())).copied()
     }
 
     /// Look up a panel by name (searches all panels).

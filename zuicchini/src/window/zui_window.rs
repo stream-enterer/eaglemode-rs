@@ -4,7 +4,7 @@ use bitflags::bitflags;
 
 use crate::input::{InputEvent, InputKey, InputVariant};
 use crate::panel::{PanelId, View};
-use crate::render::{TileCache, WgpuCompositor};
+use crate::render::{FontCache, TileCache, WgpuCompositor};
 use crate::scheduler::SignalId;
 
 use super::app::GpuContext;
@@ -29,6 +29,7 @@ pub struct ZuiWindow {
     surface_config: wgpu::SurfaceConfiguration,
     compositor: WgpuCompositor,
     tile_cache: TileCache,
+    font_cache: FontCache,
     view: View,
     pub flags: WindowFlags,
     pub close_signal: SignalId,
@@ -94,6 +95,7 @@ impl ZuiWindow {
 
         let compositor = WgpuCompositor::new(&gpu.device, format, w, h);
         let tile_cache = TileCache::new(w, h, 256);
+        let font_cache = FontCache::new();
         let view = View::new(root_panel, w as f64, h as f64);
 
         Self {
@@ -102,6 +104,7 @@ impl ZuiWindow {
             surface_config,
             compositor,
             tile_cache,
+            font_cache,
             view,
             flags,
             close_signal,
@@ -134,7 +137,7 @@ impl ZuiWindow {
                     // Clear and repaint
                     tile.image.fill(crate::foundation::Color::BLACK);
                     {
-                        let mut painter = Painter::new(&mut tile.image);
+                        let mut painter = Painter::new(&mut tile.image, &mut self.font_cache);
                         // Offset painter to tile position
                         let tile_size = crate::render::TILE_SIZE as f64;
                         painter.translate(-(col as f64 * tile_size), -(row as f64 * tile_size));
@@ -151,6 +154,7 @@ impl ZuiWindow {
         }
 
         self.tile_cache.advance_frame();
+        self.font_cache.advance_frame();
 
         // Composite and present
         match self.compositor.render_frame(

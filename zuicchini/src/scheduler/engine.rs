@@ -84,8 +84,12 @@ impl EngineCtx<'_> {
     /// This is the Rust equivalent of the C++ `emEngine::IsSignaled()`.
     pub fn is_signaled(&self, signal: super::signal::SignalId) -> bool {
         if let Some(sig) = self.scheduler.signals.get(signal) {
-            sig.clock > self.scheduler.engines.get(self.engine_id)
-                .map_or(0, |e| e.clock)
+            sig.clock
+                > self
+                    .scheduler
+                    .engines
+                    .get(self.engine_id)
+                    .map_or(0, |e| e.clock)
         } else {
             false
         }

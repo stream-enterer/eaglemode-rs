@@ -7,8 +7,8 @@ use crate::render::Painter;
 use super::border::{Border, InnerBorderType, OuterBorderType};
 use super::look::Look;
 
-const CHAR_WIDTH: f64 = 6.0; // GLYPH_WIDTH + 1
 const TEXT_PADDING: f64 = 2.0;
+const TEXT_SIZE: f64 = FontCache::DEFAULT_SIZE_PX;
 
 type TextChangeCb = Box<dyn FnMut(&str)>;
 
@@ -89,25 +89,51 @@ impl TextField {
             self.text.clone()
         };
 
-        // Selection highlight
-        if let Some(anchor) = self.selection_anchor {
+        let size_px = FontCache::quantize_size(TEXT_SIZE);
+
+        // Pre-compute all measurements before painting.
+        let sel_rect = if let Some(anchor) = self.selection_anchor {
             let sel_start = anchor.min(self.cursor);
             let sel_end = anchor.max(self.cursor);
-            let start_chars = self.text[..sel_start].chars().count();
-            let end_chars = self.text[..sel_end].chars().count();
-            let sx = cx + TEXT_PADDING + start_chars as f64 * CHAR_WIDTH - self.scroll_x;
-            let sw = (end_chars - start_chars) as f64 * CHAR_WIDTH;
+            let sx_px = painter
+                .font_cache()
+                .measure_text(
+                    &display_text[..sel_start.min(display_text.len())],
+                    0,
+                    size_px,
+                )
+                .0;
+            let ex_px = painter
+                .font_cache()
+                .measure_text(&display_text[..sel_end.min(display_text.len())], 0, size_px)
+                .0;
+            Some((cx + TEXT_PADDING + sx_px - self.scroll_x, ex_px - sx_px))
+        } else {
+            None
+        };
+
+        let cursor_text = if self.password_mode {
+            "*".repeat(self.text[..self.cursor].chars().count())
+        } else {
+            self.text[..self.cursor].to_string()
+        };
+        let cursor_x_px = painter
+            .font_cache()
+            .measure_text(&cursor_text, 0, size_px)
+            .0;
+
+        // Selection highlight
+        if let Some((sx, sw)) = sel_rect {
             painter.paint_rect(sx, cy, sw, ch, self.look.selection_color);
         }
 
         // Text
         let text_x = cx + TEXT_PADDING - self.scroll_x;
-        let text_y = cy + (ch - FontCache::GLYPH_HEIGHT as f64) / 2.0;
-        painter.paint_text(text_x, text_y, &display_text, self.look.fg_color);
+        let text_y = cy + (ch - TEXT_SIZE) / 2.0;
+        painter.paint_text(text_x, text_y, &display_text, TEXT_SIZE, self.look.fg_color);
 
         // Cursor line
-        let cursor_chars = self.text[..self.cursor].chars().count();
-        let cursor_x = cx + TEXT_PADDING + cursor_chars as f64 * CHAR_WIDTH - self.scroll_x;
+        let cursor_x = cx + TEXT_PADDING + cursor_x_px - self.scroll_x;
         painter.paint_rect(cursor_x, cy + 1.0, 1.0, ch - 2.0, self.look.cursor_color);
 
         painter.pop_state();
@@ -208,9 +234,9 @@ impl TextField {
         Cursor::Text
     }
 
-    pub fn preferred_size(&self) -> (f64, f64) {
+    pub fn preferred_size(&self, _font_cache: &FontCache) -> (f64, f64) {
         let cw = 120.0; // default width
-        let ch = FontCache::GLYPH_HEIGHT as f64 + 4.0;
+        let ch = TEXT_SIZE + 4.0;
         self.border.preferred_size_for_content(cw, ch)
     }
 

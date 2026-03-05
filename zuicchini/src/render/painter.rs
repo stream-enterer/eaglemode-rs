@@ -1,4 +1,4 @@
-use super::font_cache::FontCache;
+use super::font_cache::{FontCache, GlyphCacheKey};
 use super::stroke::{Stroke, StrokeEnd, StrokeEndType};
 use crate::foundation::{Color, Image};
 
@@ -31,7 +31,7 @@ pub struct Painter<'a> {
     target: &'a mut Image,
     state: PainterState,
     state_stack: Vec<PainterState>,
-    font_cache: FontCache,
+    font_cache: &'a mut FontCache,
 }
 
 impl<'a> Painter<'a> {
@@ -39,7 +39,7 @@ impl<'a> Painter<'a> {
     ///
     /// # Panics
     /// Panics if the image is not 4-channel RGBA.
-    pub fn new(target: &'a mut Image) -> Self {
+    pub fn new(target: &'a mut Image, font_cache: &'a mut FontCache) -> Self {
         assert_eq!(
             target.channel_count(),
             4,
@@ -59,7 +59,7 @@ impl<'a> Painter<'a> {
                 alpha: 255,
             },
             state_stack: Vec::new(),
-            font_cache: FontCache::new(),
+            font_cache,
         }
     }
 
@@ -112,6 +112,11 @@ impl<'a> Painter<'a> {
         let nx2 = (px + pw).min(cx + cw);
         let ny2 = (py + ph).min(cy + ch);
         self.state.clip = (nx, ny, (nx2 - nx).max(0), (ny2 - ny).max(0));
+    }
+
+    /// Immutable access to the font cache (for measurement).
+    pub fn font_cache(&self) -> &FontCache {
+        self.font_cache
     }
 
     // --- Drawing API ---
@@ -207,8 +212,12 @@ impl<'a> Painter<'a> {
         let (clip_x, clip_y, clip_w, clip_h) = self.state.clip;
         let start_x = px.max(clip_x).max(0);
         let start_y = py.max(clip_y).max(0);
-        let end_x = (px + pw).min(clip_x + clip_w).min(self.target.width() as i32);
-        let end_y = (py + ph).min(clip_y + clip_h).min(self.target.height() as i32);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
 
         for row in start_y..end_y {
             for col in start_x..end_x {
@@ -299,12 +308,7 @@ impl<'a> Painter<'a> {
     }
 
     /// Draw a polyline (open path) outline by stroking each segment.
-    pub fn paint_polyline(
-        &mut self,
-        vertices: &[(f64, f64)],
-        stroke_color: Color,
-        thickness: f64,
-    ) {
+    pub fn paint_polyline(&mut self, vertices: &[(f64, f64)], stroke_color: Color, thickness: f64) {
         if vertices.len() < 2 {
             return;
         }
@@ -346,15 +350,7 @@ impl<'a> Painter<'a> {
     }
 
     /// Fill a rounded rectangle.
-    pub fn paint_round_rect(
-        &mut self,
-        x: f64,
-        y: f64,
-        w: f64,
-        h: f64,
-        radius: f64,
-        color: Color,
-    ) {
+    pub fn paint_round_rect(&mut self, x: f64, y: f64, w: f64, h: f64, radius: f64, color: Color) {
         let px = self.to_pixel_x(x);
         let py = self.to_pixel_y(y);
         let pw = (w * self.state.scale_x) as i32;
@@ -429,75 +425,154 @@ impl<'a> Painter<'a> {
         }
     }
 
-    /// Draw text at the given position using the built-in bitmap font.
-    pub fn paint_text(&mut self, x: f64, y: f64, text: &str, color: Color) {
-        let mut px = self.to_pixel_x(x);
-        let py = self.to_pixel_y(y);
-
-        for ch in text.chars() {
-            let glyph_data = self.font_cache.get_glyph(ch).copied();
-            if let Some(glyph) = glyph_data {
-                let gw = FontCache::GLYPH_WIDTH as i32;
-                let gh = FontCache::GLYPH_HEIGHT as i32;
-                for gy in 0..gh {
-                    for gx in 0..gw {
-                        if glyph[gy as usize] & (1 << (gw - 1 - gx)) != 0 {
-                            self.blend_pixel(px + gx, py + gy, color);
-                        }
-                    }
-                }
-                px += gw + 1;
-            } else {
-                px += FontCache::GLYPH_WIDTH as i32 + 1;
-            }
-        }
-    }
-
-    /// Get the size of text in user coordinates at the given char height.
-    /// Returns (width, height) scaled to match the requested char_height.
-    pub fn get_text_size(&self, text: &str, char_height: f64) -> (f64, f64) {
-        let (gw, gh) = FontCache::measure_text(text);
-        if gh == 0 {
-            return (0.0, 0.0);
-        }
-        let scale = char_height / gh as f64;
-        (gw as f64 * scale, char_height)
-    }
-
-    /// Draw text at the given position scaled to the specified character height.
-    pub fn paint_text_scaled(
+    /// Blit a 1-channel greyscale alpha mask using the given color.
+    /// Source region is (src_x, src_y, src_w, src_h) within the image.
+    #[allow(clippy::too_many_arguments)]
+    pub fn paint_image_colored(
         &mut self,
         x: f64,
         y: f64,
-        text: &str,
-        char_height: f64,
+        w: f64,
+        h: f64,
+        image: &Image,
+        src_x: u32,
+        src_y: u32,
+        src_w: u32,
+        src_h: u32,
         color: Color,
     ) {
-        let gh = FontCache::GLYPH_HEIGHT as f64;
-        let scale = char_height / gh;
-        self.push_state();
-        self.translate(x, y);
-        self.scale(scale, scale);
+        let px = self.to_pixel_x(x);
+        let py = self.to_pixel_y(y);
+        let pw = (w * self.state.scale_x) as i32;
+        let ph = (h * self.state.scale_y) as i32;
 
-        let mut px = 0.0;
-        for ch in text.chars() {
-            let glyph_data = self.font_cache.get_glyph(ch).copied();
-            if let Some(glyph) = glyph_data {
-                let gw = FontCache::GLYPH_WIDTH as i32;
-                let gh_i = FontCache::GLYPH_HEIGHT as i32;
-                for gy in 0..gh_i {
-                    for gx in 0..gw {
-                        if glyph[gy as usize] & (1 << (gw - 1 - gx)) != 0 {
-                            self.paint_rect(px + gx as f64, gy as f64, 1.0, 1.0, color);
+        let (clip_x, clip_y, clip_w, clip_h) = self.state.clip;
+        let start_x = px.max(clip_x).max(0);
+        let start_y = py.max(clip_y).max(0);
+        let end_x = (px + pw)
+            .min(clip_x + clip_w)
+            .min(self.target.width() as i32);
+        let end_y = (py + ph)
+            .min(clip_y + clip_h)
+            .min(self.target.height() as i32);
+
+        if pw <= 0 || ph <= 0 || src_w == 0 || src_h == 0 {
+            return;
+        }
+
+        for row in start_y..end_y {
+            for col in start_x..end_x {
+                // Map dest pixel to source coords (nearest neighbor)
+                let sx = src_x + ((col - px) as u32 * src_w / pw as u32).min(src_w - 1);
+                let sy = src_y + ((row - py) as u32 * src_h / ph as u32).min(src_h - 1);
+                let g = image.pixel(sx, sy)[0];
+                if g == 0 {
+                    continue;
+                }
+                let blended = Color::rgba(
+                    color.r(),
+                    color.g(),
+                    color.b(),
+                    (color.a() as u16 * g as u16 / 255) as u8,
+                );
+                self.blend_pixel(col, row, blended);
+            }
+        }
+    }
+
+    /// Draw text at the given position using the font system.
+    /// `size_px` is the text size in user coordinates.
+    pub fn paint_text(&mut self, x: f64, y: f64, text: &str, size_px: f64, color: Color) {
+        let quantized = FontCache::quantize_size(size_px * self.state.scale_y.abs());
+        if quantized < 2 {
+            // Too small — draw a solid rectangle as placeholder.
+            let (tw, th) = self.font_cache.measure_text(text, 0, 2);
+            let scale = size_px / 2.0;
+            self.paint_rect(x, y, tw * scale, th * scale, color);
+            return;
+        }
+
+        // Phase 1: shape and ensure all glyphs are cached (mutates font_cache).
+        let shaped = self.font_cache.shape_text(text, 0, quantized);
+        for sg in &shaped {
+            self.font_cache.ensure_glyph(0, quantized, sg.glyph_id);
+        }
+        let ascent = self.font_cache.ascent(0, quantized);
+
+        // Phase 2: render glyphs using disjoint field borrows.
+        // We borrow self.font_cache immutably and self.target/self.state mutably.
+        let px_x = (x * self.state.scale_x + self.state.offset_x) as i32;
+        let baseline_y = (y * self.state.scale_y + self.state.offset_y) as i32 + ascent;
+
+        let (cx, cy, cw, ch) = self.state.clip;
+        let canvas_color = self.state.canvas_color;
+        let global_alpha = self.state.alpha;
+        let tw = self.target.width() as i32;
+        let th = self.target.height() as i32;
+
+        let mut pen_x = 0i32;
+        for sg in &shaped {
+            let key = GlyphCacheKey {
+                font_id: 0,
+                size_px: quantized,
+                glyph_id: sg.glyph_id,
+            };
+            if let Some(glyph) = self.font_cache.get_cached_glyph(&key) {
+                if glyph.width > 0 && glyph.height > 0 {
+                    let gx = px_x + pen_x + sg.x_offset.round() as i32 + glyph.bearing_x;
+                    let gy = baseline_y - sg.y_offset.round() as i32 - glyph.bearing_y;
+
+                    let gw = glyph.width as i32;
+                    let gh = glyph.height as i32;
+
+                    // Compute visible bounds (clip early).
+                    let row_start = (cy - gy).max(0);
+                    let row_end = ((cy + ch) - gy).min(gh);
+                    let col_start = (cx - gx).max(0);
+                    let col_end = ((cx + cw) - gx).min(gw);
+
+                    for row in row_start..row_end {
+                        let py = gy + row;
+                        if py < 0 || py >= th {
+                            continue;
+                        }
+                        for col in col_start..col_end {
+                            let px = gx + col;
+                            if px < 0 || px >= tw {
+                                continue;
+                            }
+                            let a = glyph.bitmap[(row as u32 * glyph.width + col as u32) as usize];
+                            if a == 0 {
+                                continue;
+                            }
+                            let c = Color::rgba(
+                                color.r(),
+                                color.g(),
+                                color.b(),
+                                (color.a() as u16 * a as u16 / 255) as u8,
+                            );
+                            let existing = self.target.pixel(px as u32, py as u32);
+                            let bg =
+                                Color::rgba(existing[0], existing[1], existing[2], existing[3]);
+                            let result = bg.canvas_blend(c, canvas_color, global_alpha);
+                            let out = self.target.pixel_mut(px as u32, py as u32);
+                            out[0] = result.r();
+                            out[1] = result.g();
+                            out[2] = result.b();
+                            out[3] = result.a();
                         }
                     }
                 }
-                px += (gw + 1) as f64;
-            } else {
-                px += (FontCache::GLYPH_WIDTH + 1) as f64;
             }
+            pen_x += sg.x_advance.round() as i32;
         }
-        self.pop_state();
+    }
+
+    /// Get the size of text in user coordinates at the given size.
+    /// Returns (width, height).
+    pub fn get_text_size(&self, text: &str, size_px: f64) -> (f64, f64) {
+        let quantized = FontCache::quantize_size(size_px);
+        self.font_cache.measure_text(text, 0, quantized)
     }
 
     /// Draw a rectangle outline with a stroke.
@@ -540,10 +615,8 @@ impl<'a> Painter<'a> {
         let uny = udx;
 
         // Cut line at ends for decorations
-        let (ax0, ay0) =
-            Self::cut_line_at_end(x0, y0, -udx, -udy, stroke.width, &stroke.start_end);
-        let (ax1, ay1) =
-            Self::cut_line_at_end(x1, y1, udx, udy, stroke.width, &stroke.finish_end);
+        let (ax0, ay0) = Self::cut_line_at_end(x0, y0, -udx, -udy, stroke.width, &stroke.start_end);
+        let (ax1, ay1) = Self::cut_line_at_end(x1, y1, udx, udy, stroke.width, &stroke.finish_end);
 
         // Draw the line body as a filled polygon
         let half_w = stroke.width / 2.0;
@@ -581,7 +654,15 @@ impl<'a> Painter<'a> {
         // Draw finish end
         if stroke.finish_end.is_decorated() {
             self.paint_stroke_end(
-                x1, y1, unx, uny, udx, udy, stroke.width, stroke.color, &stroke.finish_end,
+                x1,
+                y1,
+                unx,
+                uny,
+                udx,
+                udy,
+                stroke.width,
+                stroke.color,
+                &stroke.finish_end,
                 rounded,
             );
         }
@@ -713,7 +794,11 @@ impl<'a> Painter<'a> {
                     // Semicircle cap
                     let half_t = thickness * 0.5;
                     let verts = Self::half_ellipse_vertices(
-                        (x, y), (half_t, half_t), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                        (x, y),
+                        (half_t, half_t),
+                        (nx, ny),
+                        (dx, dy),
+                        CIRCLE_SEGMENTS,
                     );
                     self.paint_polygon(&verts, stroke_color);
                 } else {
@@ -845,7 +930,11 @@ impl<'a> Painter<'a> {
             StrokeEndType::Circle => {
                 let center = (x + l * 0.5 * dx, y + l * 0.5 * dy);
                 let verts = Self::ellipse_vertices(
-                    center, (r, l * 0.5), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                    center,
+                    (r, l * 0.5),
+                    (nx, ny),
+                    (dx, dy),
+                    CIRCLE_SEGMENTS,
                 );
                 self.paint_polygon(&verts, stroke_color);
             }
@@ -853,7 +942,11 @@ impl<'a> Painter<'a> {
             StrokeEndType::ContourCircle => {
                 let center = (x + l * 0.5 * dx, y + l * 0.5 * dy);
                 let verts = Self::ellipse_vertices(
-                    center, (r, l * 0.5), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                    center,
+                    (r, l * 0.5),
+                    (nx, ny),
+                    (dx, dy),
+                    CIRCLE_SEGMENTS,
                 );
                 self.paint_polygon(&verts, stroke_end.inner_color);
                 self.paint_polygon_outlined(&verts, stroke_color, thickness);
@@ -861,7 +954,11 @@ impl<'a> Painter<'a> {
 
             StrokeEndType::HalfCircle => {
                 let verts = Self::half_ellipse_vertices(
-                    (x, y), (r, l * 0.5), (nx, ny), (dx, dy), CIRCLE_SEGMENTS,
+                    (x, y),
+                    (r, l * 0.5),
+                    (nx, ny),
+                    (dx, dy),
+                    CIRCLE_SEGMENTS,
                 );
                 self.paint_polyline(&verts, stroke_color, thickness);
             }

@@ -32,8 +32,9 @@ impl Label {
         self.border.paint_border(painter, w, h, &self.look, false);
     }
 
-    pub fn preferred_size(&self) -> (f64, f64) {
-        let tw = FontCache::measure_text(&self.border.caption).0 as f64;
+    pub fn preferred_size(&self, font_cache: &FontCache) -> (f64, f64) {
+        let size_px = FontCache::quantize_size(FontCache::DEFAULT_SIZE_PX);
+        let tw = font_cache.measure_text(&self.border.caption, 0, size_px).0;
         // Content is empty — the caption IS the label text, drawn by the border.
         // Add 4px to width for the 2px left/right padding the border uses when
         // painting the caption text (at ox + 2.0).
@@ -57,11 +58,12 @@ mod tests {
     #[test]
     fn label_preferred_size() {
         let look = Look::new();
+        let fc = FontCache::new();
         let label = Label::new("Test", look);
-        let (w, h) = label.preferred_size();
-        // "Test" = 4 chars * 6 - 1 = 23 pixels wide + 4px caption padding
-        // height = 11 (caption area only, no content)
-        assert_eq!(w, 27.0);
-        assert_eq!(h, 11.0);
+        let (w, h) = label.preferred_size(&fc);
+        // Width = measured text width + 4px padding
+        // Height = DEFAULT_SIZE_PX + 4.0 (caption row)
+        assert!(w > 4.0, "Label should have positive width");
+        assert_eq!(h, FontCache::DEFAULT_SIZE_PX + 4.0);
     }
 }

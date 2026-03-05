@@ -54,7 +54,13 @@ impl RadioBox {
         if !self.label.is_empty() {
             let text_x = CIRCLE_SIZE + CIRCLE_LABEL_GAP;
             let text_y = 1.0;
-            painter.paint_text(text_x, text_y, &self.label, self.look.fg_color);
+            painter.paint_text(
+                text_x,
+                text_y,
+                &self.label,
+                FontCache::DEFAULT_SIZE_PX,
+                self.look.fg_color,
+            );
         }
     }
 
@@ -76,11 +82,12 @@ impl RadioBox {
         Cursor::Hand
     }
 
-    pub fn preferred_size(&self) -> (f64, f64) {
+    pub fn preferred_size(&self, font_cache: &FontCache) -> (f64, f64) {
         let w = if self.label.is_empty() {
             CIRCLE_SIZE
         } else {
-            CIRCLE_SIZE + CIRCLE_LABEL_GAP + FontCache::measure_text(&self.label).0 as f64
+            let size_px = FontCache::quantize_size(FontCache::DEFAULT_SIZE_PX);
+            CIRCLE_SIZE + CIRCLE_LABEL_GAP + font_cache.measure_text(&self.label, 0, size_px).0
         };
         (w, CIRCLE_SIZE)
     }

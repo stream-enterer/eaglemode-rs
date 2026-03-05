@@ -42,7 +42,11 @@ impl Context {
 
     /// Number of live children (expired weak references are not counted).
     pub fn child_count(&self) -> usize {
-        self.children.borrow().iter().filter(|w| w.strong_count() > 0).count()
+        self.children
+            .borrow()
+            .iter()
+            .filter(|w| w.strong_count() > 0)
+            .count()
     }
 
     /// Purge expired weak references from the children list.

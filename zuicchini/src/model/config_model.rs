@@ -66,13 +66,17 @@ impl<T: Record> ConfigModel<T> {
 
     /// Load the configuration from disk. Parses KDL and deserializes.
     pub fn load(&mut self) -> Result<(), ConfigError> {
-        let contents = std::fs::read_to_string(&self.path)
-            .map_err(|e| ConfigError::ParseError(format!("failed to read {}: {e}", self.path.display())))?;
-        let doc: kdl::KdlDocument = contents.parse()
+        let contents = std::fs::read_to_string(&self.path).map_err(|e| {
+            ConfigError::ParseError(format!("failed to read {}: {e}", self.path.display()))
+        })?;
+        let doc: kdl::KdlDocument = contents
+            .parse()
             .map_err(|e| ConfigError::ParseError(format!("KDL parse error: {e}")))?;
 
         // Look for the first node in the document
-        let node = doc.nodes().first()
+        let node = doc
+            .nodes()
+            .first()
             .ok_or_else(|| ConfigError::ParseError("empty KDL document".into()))?;
 
         self.value = T::from_kdl(node)?;
@@ -93,8 +97,9 @@ impl<T: Record> ConfigModel<T> {
                 .map_err(|e| ConfigError::ParseError(format!("failed to create dir: {e}")))?;
         }
 
-        std::fs::write(&self.path, contents)
-            .map_err(|e| ConfigError::ParseError(format!("failed to write {}: {e}", self.path.display())))?;
+        std::fs::write(&self.path, contents).map_err(|e| {
+            ConfigError::ParseError(format!("failed to write {}: {e}", self.path.display()))
+        })?;
 
         self.dirty = false;
         Ok(())
