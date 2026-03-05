@@ -1,11 +1,13 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use super::engine::Engine;
+use slotmap::{new_key_type, SlotMap};
+
 use super::signal::SignalId;
 
-/// Handle to a timer managed by `TimerCentral`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct TimerId(pub(crate) usize);
+new_key_type! {
+    /// Handle to a timer managed by `TimerCentral`.
+    pub struct TimerId;
+}
 
 struct TimerEntry {
     signal_id: SignalId,
@@ -18,16 +20,13 @@ struct TimerEntry {
 /// An engine that manages timers. Each `cycle()` checks wall clock time
 /// and fires signals for elapsed timers.
 pub(crate) struct TimerCentral {
-    timers: Vec<TimerEntry>,
-    /// Signal IDs that need to be fired — collected during cycle, applied by scheduler.
-    pub(crate) signals_to_fire: Vec<SignalId>,
+    timers: SlotMap<TimerId, TimerEntry>,
 }
 
 impl TimerCentral {
     pub fn new() -> Self {
         Self {
-            timers: Vec::new(),
-            signals_to_fire: Vec::new(),
+            timers: SlotMap::with_key(),
         }
     }
 
@@ -38,52 +37,63 @@ impl TimerCentral {
         interval_ms: u64,
         periodic: bool,
     ) -> TimerId {
-        let id = TimerId(self.timers.len());
-        self.timers.push(TimerEntry {
+        self.timers.insert(TimerEntry {
             signal_id,
             interval_ms,
             periodic,
-            next_fire: Instant::now() + std::time::Duration::from_millis(interval_ms),
+            next_fire: Instant::now() + Duration::from_millis(interval_ms),
             active: true,
-        });
-        id
+        })
     }
 
     /// Cancel a timer.
     pub fn cancel_timer(&mut self, id: TimerId) {
-        if let Some(entry) = self.timers.get_mut(id.0) {
+        if let Some(entry) = self.timers.get_mut(id) {
             entry.active = false;
         }
     }
 
-    /// Check if any timers are still armed.
-    pub fn has_active_timers(&self) -> bool {
-        self.timers.iter().any(|t| t.active)
+    /// Remove a cancelled timer, freeing its slot.
+    pub fn remove_timer(&mut self, id: TimerId) {
+        self.timers.remove(id);
     }
-}
 
-impl Engine for TimerCentral {
-    fn cycle(&mut self) -> bool {
+    /// Run timer checks and collect signals to fire. Called directly
+    /// by the scheduler (not as a registered engine) at VERY_HIGH priority
+    /// equivalent position in the time slice.
+    pub fn check_and_collect(&mut self) -> Vec<SignalId> {
         let now = Instant::now();
-        self.signals_to_fire.clear();
+        let mut signals_to_fire = Vec::new();
 
-        for timer in &mut self.timers {
+        for (_, timer) in &mut self.timers {
             if !timer.active {
                 continue;
             }
             if now >= timer.next_fire {
-                self.signals_to_fire.push(timer.signal_id);
+                signals_to_fire.push(timer.signal_id);
                 if timer.periodic {
-                    timer.next_fire += std::time::Duration::from_millis(timer.interval_ms);
+                    timer.next_fire += Duration::from_millis(timer.interval_ms);
+                    // Clamp to current time to prevent burst catch-up
+                    // (matches C++: `if (st<ct) st=ct;`)
+                    if timer.next_fire < now {
+                        timer.next_fire = now;
+                    }
                 } else {
                     timer.active = false;
                 }
             }
         }
 
-        self.has_active_timers()
+        // Purge inactive timers to prevent unbounded growth
+        self.timers.retain(|_, t| t.active);
+
+        signals_to_fire
     }
 }
+
+// TimerCentral is no longer used as an Engine trait object.
+// It is called directly by the scheduler. This avoids the dead
+// timer_engine_id pattern.
 
 #[cfg(test)]
 mod tests {
@@ -98,10 +108,10 @@ mod tests {
         let mut tc = TimerCentral::new();
         tc.create_timer(sig, 0, false); // 0ms = fires immediately
 
-        let stay_awake = tc.cycle();
-        assert!(!stay_awake); // one-shot, now inactive
-        assert_eq!(tc.signals_to_fire.len(), 1);
-        assert_eq!(tc.signals_to_fire[0], sig);
+        let fired = tc.check_and_collect();
+        assert_eq!(fired.len(), 1);
+        assert_eq!(fired[0], sig);
+        assert!(tc.timers.is_empty()); // one-shot purged after fire
     }
 
     #[test]
@@ -112,9 +122,9 @@ mod tests {
         let mut tc = TimerCentral::new();
         tc.create_timer(sig, 0, true); // periodic, fires immediately
 
-        let stay_awake = tc.cycle();
-        assert!(stay_awake); // periodic stays active
-        assert_eq!(tc.signals_to_fire.len(), 1);
+        let fired = tc.check_and_collect();
+        assert_eq!(fired.len(), 1);
+        assert!(!tc.timers.is_empty()); // periodic stays
     }
 
     #[test]
@@ -126,8 +136,7 @@ mod tests {
         let id = tc.create_timer(sig, 0, false);
         tc.cancel_timer(id);
 
-        let stay_awake = tc.cycle();
-        assert!(!stay_awake);
-        assert!(tc.signals_to_fire.is_empty());
+        let fired = tc.check_and_collect();
+        assert!(fired.is_empty());
     }
 }

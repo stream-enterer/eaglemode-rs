@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::scheduler::{Engine, EngineScheduler, Priority};
+use zuicchini::scheduler::{Engine, EngineCtx, EngineScheduler, Priority, SignalId};
 
 struct RecordingEngine {
     label: &'static str,
@@ -10,7 +10,7 @@ struct RecordingEngine {
 }
 
 impl Engine for RecordingEngine {
-    fn cycle(&mut self) -> bool {
+    fn cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
         self.log.borrow_mut().push(self.label);
         self.stay_awake
     }
@@ -124,4 +124,90 @@ fn remove_engine_cleans_up() {
     sched.do_time_slice();
 
     assert!(log.borrow().is_empty());
+}
+
+#[test]
+fn instant_signal_chaining_via_engine() {
+    // Engine A fires a signal during its cycle. Engine B (connected to that signal)
+    // must run within the SAME time slice.
+    let mut sched = EngineScheduler::new();
+    let sig = sched.create_signal();
+    let log = Rc::new(RefCell::new(Vec::<&str>::new()));
+
+    struct FiringEngine {
+        sig: SignalId,
+        log: Rc<RefCell<Vec<&'static str>>>,
+    }
+    impl Engine for FiringEngine {
+        fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
+            self.log.borrow_mut().push("A_fires");
+            ctx.fire(self.sig);
+            false
+        }
+    }
+
+    let eng_b = sched.register_engine(
+        Priority::Medium,
+        Box::new(RecordingEngine {
+            label: "B_runs",
+            log: Rc::clone(&log),
+            stay_awake: false,
+        }),
+    );
+    sched.connect(sig, eng_b);
+
+    let eng_a = sched.register_engine(
+        Priority::High,
+        Box::new(FiringEngine {
+            sig,
+            log: Rc::clone(&log),
+        }),
+    );
+    sched.wake_up(eng_a);
+
+    sched.do_time_slice();
+
+    let executed = log.borrow();
+    assert_eq!(*executed, vec!["A_fires", "B_runs"]);
+}
+
+#[test]
+fn is_signaled_distinguishes_signals() {
+    let mut sched = EngineScheduler::new();
+    let sig_a = sched.create_signal();
+    let sig_b = sched.create_signal();
+
+    struct CheckSignalEngine {
+        sig_a: SignalId,
+        sig_b: SignalId,
+        a_fired: Rc<RefCell<bool>>,
+        b_fired: Rc<RefCell<bool>>,
+    }
+    impl Engine for CheckSignalEngine {
+        fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
+            *self.a_fired.borrow_mut() = ctx.is_signaled(self.sig_a);
+            *self.b_fired.borrow_mut() = ctx.is_signaled(self.sig_b);
+            false
+        }
+    }
+
+    let a_fired = Rc::new(RefCell::new(false));
+    let b_fired = Rc::new(RefCell::new(false));
+    let eng = sched.register_engine(
+        Priority::Medium,
+        Box::new(CheckSignalEngine {
+            sig_a,
+            sig_b,
+            a_fired: Rc::clone(&a_fired),
+            b_fired: Rc::clone(&b_fired),
+        }),
+    );
+    sched.connect(sig_a, eng);
+    sched.connect(sig_b, eng);
+
+    // Fire only signal A
+    sched.fire(sig_a);
+    sched.do_time_slice();
+    assert!(*a_fired.borrow(), "Signal A should have been detected");
+    assert!(!*b_fired.borrow(), "Signal B should NOT have been detected");
 }
