@@ -23,5 +23,5 @@ Tracked here so they don't get forgotten. Sourced from EMCORE_FEATURE_CONTRACT.m
 - [ ] Hinted rasterization — skrifa's `HintingInstance` requires per-size instances; currently using `DrawSettings::unhinted`. Add hinting for crisper text at small sizes (no API changes needed)
 - [ ] Thread FontCache through PanelBehavior/PanelCtx — when widgets start implementing `PanelBehavior::preferred_size` via the trait (not just inherent methods), the trait signature and PanelCtx need `&FontCache`
 - [ ] Variable font weight selection — Inter Variable is embedded but always renders at default weight; expose weight axis via `skrifa::instance::Location`
-- [ ] Text scroll in TextField — `scroll_x` isn't updated when cursor moves past visible area with proportional fonts
+- [x] Text scroll in TextField — `scroll_x` updated in `paint()` to keep cursor visible
 - [ ] i18n shaping verification — rustybuzz handles Arabic/Devanagari/CJK but needs testing with actual multilingual text

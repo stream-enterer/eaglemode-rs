@@ -75,7 +75,7 @@ impl TextField {
         self.max_length = max;
     }
 
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
         self.border.paint_border(painter, w, h, &self.look, false);
 
         let (cx, cy, cw, ch) = self.border.content_rect(w, h, &self.look);
@@ -121,6 +121,18 @@ impl TextField {
             .font_cache()
             .measure_text(&cursor_text, 0, size_px)
             .0;
+
+        // Update scroll_x so the cursor stays visible
+        let visible_w = cw - 2.0 * TEXT_PADDING;
+        if cursor_x_px - self.scroll_x > visible_w {
+            self.scroll_x = cursor_x_px - visible_w;
+        }
+        if cursor_x_px - self.scroll_x < 0.0 {
+            self.scroll_x = cursor_x_px;
+        }
+        if self.scroll_x < 0.0 {
+            self.scroll_x = 0.0;
+        }
 
         // Selection highlight
         if let Some((sx, sw)) = sel_rect {
