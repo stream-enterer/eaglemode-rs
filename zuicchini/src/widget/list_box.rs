@@ -85,7 +85,7 @@ impl ListBox {
             }
 
             if self.selected.contains(&i) {
-                painter.paint_rect(cx, y, cw, ROW_HEIGHT, self.look.selection_color);
+                painter.paint_rect(cx, y, cw, ROW_HEIGHT, self.look.input_hl_color);
             }
 
             let text_y = y + 2.0;

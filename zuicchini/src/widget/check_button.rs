@@ -35,9 +35,9 @@ impl CheckButton {
 
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
         let face_color = if self.checked {
-            self.look.button_press_color
+            self.look.button_pressed()
         } else {
-            self.look.button_color
+            self.look.button_bg_color
         };
         painter.paint_round_rect(1.0, 1.0, w - 2.0, h - 2.0, 3.0, face_color);
         self.border.paint_border(painter, w, h, &self.look, false);

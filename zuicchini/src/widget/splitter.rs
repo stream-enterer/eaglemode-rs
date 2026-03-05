@@ -57,7 +57,7 @@ impl Splitter {
         self.last_h = h;
 
         let resolved = self.orientation.resolve(w, h);
-        let color = self.look.border_color;
+        let color = self.look.border_tint();
 
         match resolved {
             ResolvedOrientation::Horizontal => {

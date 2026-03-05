@@ -97,6 +97,16 @@ impl Color {
         (h, s, max)
     }
 
+    /// Lighten the color by mixing with white. `amount` in [0.0, 1.0].
+    pub fn lighten(self, amount: f64) -> Color {
+        self.lerp(Color::WHITE, amount)
+    }
+
+    /// Darken the color by mixing with black. `amount` in [0.0, 1.0].
+    pub fn darken(self, amount: f64) -> Color {
+        self.lerp(Color::BLACK, amount)
+    }
+
     /// Standard alpha blend: `self` over `other` using `alpha` (0–255).
     pub fn blend(self, other: Color, alpha: u8) -> Color {
         let a = alpha as u16;

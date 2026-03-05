@@ -48,11 +48,11 @@ impl Button {
         self.last_w = w;
         self.last_h = h;
         let face_color = if self.pressed {
-            self.look.button_press_color
+            self.look.button_pressed()
         } else if self.hovered {
-            self.look.button_hover_color
+            self.look.button_hover()
         } else {
-            self.look.button_color
+            self.look.button_bg_color
         };
 
         painter.paint_round_rect(1.0, 1.0, w - 2.0, h - 2.0, 3.0, face_color);

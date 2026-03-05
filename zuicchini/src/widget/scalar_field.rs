@@ -64,13 +64,13 @@ impl ScalarField {
             // Fill bar
             let fill_frac = (self.value - self.min) / range;
             let fill_w = cw * fill_frac;
-            painter.paint_rect(cx, cy, fill_w, ch, self.look.selection_color);
+            painter.paint_rect(cx, cy, fill_w, ch, self.look.input_hl_color);
 
             // Scale marks
             let mark_count = 10;
             for i in 1..mark_count {
                 let mx = cx + cw * i as f64 / mark_count as f64;
-                painter.paint_rect(mx, cy, 1.0, ch, self.look.scale_mark_color);
+                painter.paint_rect(mx, cy, 1.0, ch, self.look.disabled_fg());
             }
         }
 

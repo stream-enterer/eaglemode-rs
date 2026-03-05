@@ -123,51 +123,45 @@ impl Border {
             }
             OuterBorderType::Rect => {
                 let color = if focused {
-                    look.focus_color
+                    look.focus_tint()
                 } else {
-                    look.border_color
+                    look.border_tint()
                 };
                 painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(color, 1.0));
             }
             OuterBorderType::RoundRect => {
                 let color = if focused {
-                    look.focus_color
+                    look.focus_tint()
                 } else {
-                    look.border_color
+                    look.border_tint()
                 };
                 painter.paint_round_rect(0.0, 0.0, w, h, 3.0, look.bg_color);
                 painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(color, 1.0));
             }
             OuterBorderType::Group => {
-                painter.paint_rect_outlined(
-                    0.0,
-                    0.0,
-                    w,
-                    h,
-                    &Stroke::new(look.group_border_color, 1.0),
-                );
+                painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(look.border_tint(), 1.0));
             }
             OuterBorderType::Instrument => {
                 painter.paint_round_rect(0.0, 0.0, w, h, 4.0, look.bg_color);
                 let color = if focused {
-                    look.focus_color
+                    look.focus_tint()
                 } else {
-                    look.border_color
+                    look.border_tint()
                 };
                 painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(color, 1.0));
             }
             OuterBorderType::InstrumentMoreRound => {
                 painter.paint_round_rect(0.0, 0.0, w, h, 6.0, look.bg_color);
                 let color = if focused {
-                    look.focus_color
+                    look.focus_tint()
                 } else {
-                    look.border_color
+                    look.border_tint()
                 };
                 painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(color, 1.0));
             }
             OuterBorderType::PopupRoot => {
                 painter.paint_rect(0.0, 0.0, w, h, look.bg_color);
-                painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(look.border_color, 2.0));
+                painter.paint_rect_outlined(0.0, 0.0, w, h, &Stroke::new(look.border_tint(), 2.0));
             }
         }
 
@@ -193,36 +187,18 @@ impl Border {
         match self.inner {
             InnerBorderType::None => {}
             InnerBorderType::Group => {
-                painter.paint_rect_outlined(
-                    ix,
-                    iy,
-                    iw,
-                    ih,
-                    &Stroke::new(look.group_border_color, 1.0),
-                );
+                painter.paint_rect_outlined(ix, iy, iw, ih, &Stroke::new(look.border_tint(), 1.0));
             }
             InnerBorderType::InputField => {
                 painter.paint_rect(ix, iy, iw, ih, look.input_bg_color);
-                painter.paint_rect_outlined(
-                    ix,
-                    iy,
-                    iw,
-                    ih,
-                    &Stroke::new(look.input_border_color, 1.0),
-                );
+                painter.paint_rect_outlined(ix, iy, iw, ih, &Stroke::new(look.border_tint(), 1.0));
             }
             InnerBorderType::OutputField => {
                 painter.paint_rect(ix, iy, iw, ih, look.output_bg_color);
-                painter.paint_rect_outlined(
-                    ix,
-                    iy,
-                    iw,
-                    ih,
-                    &Stroke::new(look.input_border_color, 1.0),
-                );
+                painter.paint_rect_outlined(ix, iy, iw, ih, &Stroke::new(look.border_tint(), 1.0));
             }
             InnerBorderType::CustomRect => {
-                painter.paint_rect_outlined(ix, iy, iw, ih, &Stroke::new(look.border_color, 1.0));
+                painter.paint_rect_outlined(ix, iy, iw, ih, &Stroke::new(look.border_tint(), 1.0));
             }
         }
 
@@ -245,7 +221,7 @@ impl Border {
                 desc_y,
                 &self.description,
                 FontCache::DEFAULT_SIZE_PX,
-                look.disabled_fg_color,
+                look.disabled_fg(),
             );
         }
     }

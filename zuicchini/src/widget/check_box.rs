@@ -45,12 +45,12 @@ impl CheckBox {
             y_off,
             BOX_SIZE,
             BOX_SIZE,
-            &crate::render::Stroke::new(self.look.input_border_color, 1.0),
+            &crate::render::Stroke::new(self.look.border_tint(), 1.0),
         );
 
         // Draw checkmark when checked
         if self.checked {
-            let c = self.look.check_color;
+            let c = self.look.input_hl_color;
             // Two lines forming a checkmark
             painter.paint_line(2.0, y_off + 4.0, 4.0, y_off + 7.0, c);
             painter.paint_line(4.0, y_off + 7.0, 7.0, y_off + 1.0, c);

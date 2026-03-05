@@ -136,7 +136,7 @@ impl TextField {
 
         // Selection highlight
         if let Some((sx, sw)) = sel_rect {
-            painter.paint_rect(sx, cy, sw, ch, self.look.selection_color);
+            painter.paint_rect(sx, cy, sw, ch, self.look.input_hl_color);
         }
 
         // Text
@@ -146,7 +146,7 @@ impl TextField {
 
         // Cursor line
         let cursor_x = cx + TEXT_PADDING + cursor_x_px - self.scroll_x;
-        painter.paint_rect(cursor_x, cy + 1.0, 1.0, ch - 2.0, self.look.cursor_color);
+        painter.paint_rect(cursor_x, cy + 1.0, 1.0, ch - 2.0, self.look.input_fg_color);
 
         painter.pop_state();
     }
