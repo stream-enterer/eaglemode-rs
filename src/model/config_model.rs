@@ -4,9 +4,11 @@ use crate::scheduler::SignalId;
 
 use super::record::{ConfigError, Record};
 
-/// A configuration record backed by a file path.
+/// A configuration record backed by a file path with KDL serialization.
 ///
-/// `load()` and `save()` are stubs — real I/O is deferred to a later phase.
+/// Tracks a dirty flag for unsaved changes. `load()` reads from disk,
+/// `save()` writes to disk. `load_or_install()` handles first-run by
+/// creating a default config file if none exists.
 pub struct ConfigModel<T: Record> {
     value: T,
     path: PathBuf,
@@ -62,13 +64,51 @@ impl<T: Record> ConfigModel<T> {
         true
     }
 
-    /// Stub — real I/O deferred.
+    /// Load the configuration from disk. Parses KDL and deserializes.
     pub fn load(&mut self) -> Result<(), ConfigError> {
-        Err(ConfigError::ParseError("load not yet implemented".into()))
+        let contents = std::fs::read_to_string(&self.path)
+            .map_err(|e| ConfigError::ParseError(format!("failed to read {}: {e}", self.path.display())))?;
+        let doc: kdl::KdlDocument = contents.parse()
+            .map_err(|e| ConfigError::ParseError(format!("KDL parse error: {e}")))?;
+
+        // Look for the first node in the document
+        let node = doc.nodes().first()
+            .ok_or_else(|| ConfigError::ParseError("empty KDL document".into()))?;
+
+        self.value = T::from_kdl(node)?;
+        self.dirty = false;
+        Ok(())
     }
 
-    /// Stub — real I/O deferred.
-    pub fn save(&self) -> Result<(), ConfigError> {
-        Err(ConfigError::ParseError("save not yet implemented".into()))
+    /// Save the configuration to disk as KDL.
+    pub fn save(&mut self) -> Result<(), ConfigError> {
+        let node = self.value.to_kdl();
+        let mut doc = kdl::KdlDocument::new();
+        doc.nodes_mut().push(node);
+        let contents = doc.to_string();
+
+        // Ensure parent directory exists
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| ConfigError::ParseError(format!("failed to create dir: {e}")))?;
+        }
+
+        std::fs::write(&self.path, contents)
+            .map_err(|e| ConfigError::ParseError(format!("failed to write {}: {e}", self.path.display())))?;
+
+        self.dirty = false;
+        Ok(())
+    }
+
+    /// Load from disk, or create a default config file if none exists.
+    pub fn load_or_install(&mut self) -> Result<(), ConfigError> {
+        if self.path.exists() {
+            self.load()
+        } else {
+            // Create default config and save it
+            self.value.set_to_default();
+            self.dirty = true;
+            self.save()
+        }
     }
 }

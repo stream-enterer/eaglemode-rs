@@ -52,27 +52,76 @@ fn context_parent_child_tree() {
 }
 
 #[test]
+fn context_children_are_weak() {
+    // Children stored as Weak references -- dropping the child Rc
+    // should reduce the parent's child_count.
+    let root = Context::new_root();
+    let child = Context::new_child(&root);
+    assert_eq!(root.child_count(), 1);
+    drop(child);
+    // Weak ref is now dead
+    assert_eq!(root.child_count(), 0);
+}
+
+#[test]
 fn file_model_state_machine() {
     let sig = make_signal();
     let mut fm = FileModel::<Vec<u8>>::new(PathBuf::from("/tmp/test"), sig);
 
     assert_eq!(*fm.state(), FileState::Waiting);
-    assert_eq!(fm.progress(), 0);
+    assert_eq!(fm.progress(), 0.0);
 
+    // Waiting -> Loading
     assert!(fm.request_load());
     assert!(matches!(*fm.state(), FileState::Loading { .. }));
 
-    assert!(fm.try_continue_loading());
+    // Loading -> LoadError
+    fm.fail_load("test error".into());
     assert!(matches!(*fm.state(), FileState::LoadError(_)));
 
+    // LoadError -> Loading (retry)
+    assert!(fm.request_load());
+    assert!(matches!(*fm.state(), FileState::Loading { .. }));
+
+    // Loading -> Loaded
+    fm.complete_load(vec![1, 2, 3]);
+    assert_eq!(*fm.state(), FileState::Loaded);
+    assert_eq!(fm.data().unwrap(), &vec![1, 2, 3]);
+    assert_eq!(fm.progress(), 100.0);
+
+    // Loaded -> Unsaved
+    fm.mark_unsaved();
+    assert_eq!(*fm.state(), FileState::Unsaved);
+
+    // Unsaved -> Saving
+    assert!(fm.request_save());
+    assert_eq!(*fm.state(), FileState::Saving);
+
+    // Saving -> Loaded (save complete)
+    fm.complete_save();
+    assert_eq!(*fm.state(), FileState::Loaded);
+
+    // Reset
     assert!(fm.reset());
     assert_eq!(*fm.state(), FileState::Waiting);
+    assert!(fm.data().is_none());
+}
+
+#[test]
+fn file_model_too_costly() {
+    let sig = make_signal();
+    let mut fm = FileModel::<String>::new(PathBuf::from("/tmp/test"), sig);
+
+    fm.mark_too_costly();
+    assert_eq!(*fm.state(), FileState::TooCostly);
+
+    // Can retry from TooCostly
+    assert!(fm.request_load());
+    assert!(matches!(*fm.state(), FileState::Loading { .. }));
 }
 
 #[test]
 fn record_kdl_round_trip() {
-    // The round-trip test lives as a unit test in record.rs.
-    // This test verifies the ConfigModel skeleton works.
     use zuicchini::model::ConfigError;
 
     let err = ConfigError::MissingField("test".into());

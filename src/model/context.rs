@@ -3,30 +3,20 @@ use std::rc::{Rc, Weak};
 
 /// A tree node for service/singleton lookup.
 ///
-/// # Typed-singleton pattern (for later phases)
+/// Typed singletons (e.g. `Clipboard`, `CoreConfig`) are added as
+/// `RefCell<Option<Rc<T>>>` fields with getter methods that walk the parent
+/// chain (inherited lookup). Dynamic resources use `ResourceCache<V>` stored
+/// as typed singletons.
 ///
-/// Each concrete singleton (e.g. `Clipboard`, `CoreConfig`) will be added as:
-///
-/// ```ignore
-/// // Field on Context:
-/// clipboard: RefCell<Option<Rc<Clipboard>>>,
-///
-/// // Getter walking parent chain:
-/// pub fn clipboard(&self) -> Option<Rc<Clipboard>> {
-///     if let Some(val) = self.clipboard.borrow().clone() {
-///         return Some(val);
-///     }
-///     self.parent().and_then(|p| p.clipboard())
-/// }
-///
-/// // Setter:
-/// pub fn set_clipboard(&self, val: Rc<Clipboard>) {
-///     *self.clipboard.borrow_mut() = Some(val);
-/// }
-/// ```
+/// Children are stored as `Weak` references to avoid memory leaks.
+/// The child `Rc` is owned by whoever created it (typically a View or Panel).
 pub struct Context {
     parent: Option<Weak<Context>>,
-    children: RefCell<Vec<Rc<Context>>>,
+    children: RefCell<Vec<Weak<Context>>>,
+    // Typed singletons will be added here as the framework develops.
+    // Example:
+    //   clipboard: RefCell<Option<Rc<Clipboard>>>,
+    //   core_config: RefCell<Option<Rc<CoreConfig>>>,
 }
 
 impl Context {
@@ -42,7 +32,7 @@ impl Context {
             parent: Some(Rc::downgrade(parent)),
             children: RefCell::new(Vec::new()),
         });
-        parent.children.borrow_mut().push(child.clone());
+        parent.children.borrow_mut().push(Rc::downgrade(&child));
         child
     }
 
@@ -50,7 +40,13 @@ impl Context {
         self.parent.as_ref().and_then(|w| w.upgrade())
     }
 
+    /// Number of live children (expired weak references are not counted).
     pub fn child_count(&self) -> usize {
-        self.children.borrow().len()
+        self.children.borrow().iter().filter(|w| w.strong_count() > 0).count()
+    }
+
+    /// Purge expired weak references from the children list.
+    pub fn purge_dead_children(&self) {
+        self.children.borrow_mut().retain(|w| w.strong_count() > 0);
     }
 }
