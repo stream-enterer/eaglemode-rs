@@ -28,6 +28,35 @@ impl Image {
         }
     }
 
+    /// Create an image from pre-existing pixel data.
+    ///
+    /// # Panics
+    /// Panics if `channel_count` is not 1, 2, 3, or 4, or if `data.len()`
+    /// does not equal `width * height * channel_count`.
+    pub fn from_raw(width: u32, height: u32, channel_count: u8, data: Vec<u8>) -> Self {
+        assert!(
+            (1..=4).contains(&channel_count),
+            "channel_count must be 1, 2, 3, or 4"
+        );
+        let expected = width as usize * height as usize * channel_count as usize;
+        assert_eq!(
+            data.len(),
+            expected,
+            "data length {} does not match {}x{}x{}={}",
+            data.len(),
+            width,
+            height,
+            channel_count,
+            expected,
+        );
+        Self {
+            width,
+            height,
+            channel_count,
+            data,
+        }
+    }
+
     #[inline]
     pub fn width(&self) -> u32 {
         self.width
@@ -127,6 +156,20 @@ mod tests {
     fn fill_non_rgba() {
         let mut img = Image::new(1, 1, 3);
         img.fill(Color::BLACK);
+    }
+
+    #[test]
+    fn from_raw_valid() {
+        let data = vec![10, 20, 30, 255, 40, 50, 60, 128];
+        let img = Image::from_raw(2, 1, 4, data);
+        assert_eq!(img.pixel(0, 0), &[10, 20, 30, 255]);
+        assert_eq!(img.pixel(1, 0), &[40, 50, 60, 128]);
+    }
+
+    #[test]
+    #[should_panic(expected = "does not match")]
+    fn from_raw_wrong_length() {
+        Image::from_raw(2, 2, 4, vec![0; 15]);
     }
 
     #[test]
