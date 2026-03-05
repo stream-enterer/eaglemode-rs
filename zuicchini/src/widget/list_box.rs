@@ -94,7 +94,7 @@ impl ListBox {
                 text_y,
                 item,
                 FontCache::DEFAULT_SIZE_PX,
-                self.look.fg_color,
+                self.look.input_fg_color,
             );
         }
 

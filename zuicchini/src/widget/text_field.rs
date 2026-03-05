@@ -142,7 +142,13 @@ impl TextField {
         // Text
         let text_x = cx + TEXT_PADDING - self.scroll_x;
         let text_y = cy + (ch - TEXT_SIZE) / 2.0;
-        painter.paint_text(text_x, text_y, &display_text, TEXT_SIZE, self.look.fg_color);
+        painter.paint_text(
+            text_x,
+            text_y,
+            &display_text,
+            TEXT_SIZE,
+            self.look.input_fg_color,
+        );
 
         // Cursor line
         let cursor_x = cx + TEXT_PADDING + cursor_x_px - self.scroll_x;
