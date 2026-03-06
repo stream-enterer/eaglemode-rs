@@ -10,8 +10,14 @@ use super::look::Look;
 
 const TEXT_PADDING: f64 = 2.0;
 const TEXT_SIZE: f64 = FontCache::DEFAULT_SIZE_PX;
+const LINE_HEIGHT: f64 = TEXT_SIZE + 2.0;
+const DOUBLE_CLICK_MS: u128 = 500;
+const DOUBLE_CLICK_DIST: f64 = 3.0;
 
 type TextChangeCb = Box<dyn FnMut(&str)>;
+type ValidateCb = Box<dyn FnMut(&str) -> bool>;
+type ClipboardCopyCb = Box<dyn Fn(&str)>;
+type ClipboardPasteCb = Box<dyn Fn() -> String>;
 
 /// Snapshot of text state for undo/redo.
 #[derive(Clone, Debug)]
@@ -20,7 +26,18 @@ struct UndoEntry {
     cursor: usize,
 }
 
-/// Single-line text input widget.
+/// Mouse drag mode (matching C++ DM_* enum).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum DragMode {
+    None,
+    SelectChars,
+    SelectWords,
+    SelectRows,
+    Insert,
+    Move,
+}
+
+/// Single-line or multi-line text input widget.
 pub struct TextField {
     border: Border,
     look: Rc<Look>,
@@ -33,6 +50,27 @@ pub struct TextField {
     undo_stack: Vec<UndoEntry>,
     redo_stack: Vec<UndoEntry>,
     pub on_text: Option<TextChangeCb>,
+
+    // Phase 1 fields
+    editable: bool,
+    multi_line: bool,
+    overwrite_mode: bool,
+    scroll_y: f64,
+    visible_rows: usize,
+    drag_mode: DragMode,
+    click_count: u8,
+    last_click_time: Option<std::time::Instant>,
+    last_click_x: f64,
+    last_click_y: f64,
+    last_w: f64,
+    last_h: f64,
+    char_positions: Vec<f64>,
+    row_y_positions: Vec<f64>,
+    magic_col: Option<usize>,
+    pub on_selection: Option<Box<dyn FnMut(usize, usize)>>,
+    pub on_validate: Option<ValidateCb>,
+    pub on_clipboard_copy: Option<ClipboardCopyCb>,
+    pub on_clipboard_paste: Option<ClipboardPasteCb>,
 }
 
 const MAX_UNDO: usize = 100;
@@ -51,8 +89,29 @@ impl TextField {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             on_text: None,
+            editable: true,
+            multi_line: false,
+            overwrite_mode: false,
+            scroll_y: 0.0,
+            visible_rows: 4,
+            drag_mode: DragMode::None,
+            click_count: 0,
+            last_click_time: None,
+            last_click_x: 0.0,
+            last_click_y: 0.0,
+            last_w: 0.0,
+            last_h: 0.0,
+            char_positions: Vec::new(),
+            row_y_positions: Vec::new(),
+            magic_col: None,
+            on_selection: None,
+            on_validate: None,
+            on_clipboard_copy: None,
+            on_clipboard_paste: None,
         }
     }
+
+    // ── Property accessors ──────────────────────────────────────────────
 
     pub fn text(&self) -> &str {
         &self.text
@@ -70,17 +129,546 @@ impl TextField {
         self.cursor
     }
 
+    pub fn set_cursor_index(&mut self, idx: usize) {
+        self.cursor = self.clamp_to_boundary(idx);
+        self.selection_anchor = None;
+    }
+
+    pub fn text_len(&self) -> usize {
+        self.text.len()
+    }
+
     pub fn set_password_mode(&mut self, enabled: bool) {
         self.password_mode = enabled;
+    }
+
+    pub fn password_mode(&self) -> bool {
+        self.password_mode
     }
 
     pub fn set_max_length(&mut self, max: usize) {
         self.max_length = max;
     }
 
+    pub fn set_editable(&mut self, editable: bool) {
+        self.editable = editable;
+        self.border.inner = if editable {
+            InnerBorderType::InputField
+        } else {
+            InnerBorderType::OutputField
+        };
+    }
+
+    pub fn is_editable(&self) -> bool {
+        self.editable
+    }
+
+    pub fn set_multi_line(&mut self, multi_line: bool) {
+        self.multi_line = multi_line;
+        self.scroll_y = 0.0;
+    }
+
+    pub fn is_multi_line(&self) -> bool {
+        self.multi_line
+    }
+
+    pub fn set_overwrite_mode(&mut self, mode: bool) {
+        self.overwrite_mode = mode;
+    }
+
+    pub fn is_overwrite_mode(&self) -> bool {
+        self.overwrite_mode
+    }
+
+    // ── Selection API ───────────────────────────────────────────────────
+
+    pub fn select(&mut self, start: usize, end: usize) {
+        let start = self.clamp_to_boundary(start);
+        let end = self.clamp_to_boundary(end);
+        if start == end {
+            self.selection_anchor = None;
+            self.cursor = start;
+        } else {
+            self.selection_anchor = Some(start);
+            self.cursor = end;
+        }
+        self.fire_selection_change();
+    }
+
+    pub fn select_all(&mut self) {
+        self.select(0, self.text.len());
+    }
+
+    pub fn deselect(&mut self) {
+        self.selection_anchor = None;
+        self.fire_selection_change();
+    }
+
+    pub fn selection_start(&self) -> usize {
+        match self.selection_anchor {
+            Some(anchor) => anchor.min(self.cursor),
+            None => self.cursor,
+        }
+    }
+
+    pub fn selection_end(&self) -> usize {
+        match self.selection_anchor {
+            Some(anchor) => anchor.max(self.cursor),
+            None => self.cursor,
+        }
+    }
+
+    pub fn is_selection_empty(&self) -> bool {
+        self.selection_anchor.is_none() || self.selection_start() == self.selection_end()
+    }
+
+    pub fn selected_text(&self) -> &str {
+        let start = self.selection_start();
+        let end = self.selection_end();
+        &self.text[start..end]
+    }
+
+    fn modify_selection(&mut self, new_cursor: usize, extend: bool) {
+        let old_start = self.selection_start();
+        let old_end = self.selection_end();
+        if extend {
+            if self.selection_anchor.is_none() {
+                self.selection_anchor = Some(self.cursor);
+            }
+            self.cursor = new_cursor;
+        } else {
+            self.selection_anchor = None;
+            self.cursor = new_cursor;
+        }
+        let new_start = self.selection_start();
+        let new_end = self.selection_end();
+        if old_start != new_start || old_end != new_end {
+            self.fire_selection_change();
+        }
+    }
+
+    fn fire_selection_change(&mut self) {
+        if self.on_selection.is_some() {
+            let start = self.selection_start();
+            let end = self.selection_end();
+            if let Some(cb) = &mut self.on_selection {
+                cb(start, end);
+            }
+        }
+    }
+
+    // ── Undo/Redo ───────────────────────────────────────────────────────
+
+    pub fn can_undo(&self) -> bool {
+        !self.undo_stack.is_empty()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        !self.redo_stack.is_empty()
+    }
+
+    pub fn clear_undo(&mut self) {
+        self.undo_stack.clear();
+    }
+
+    pub fn clear_redo(&mut self) {
+        self.redo_stack.clear();
+    }
+
+    fn save_undo(&mut self) {
+        self.undo_stack.push(UndoEntry {
+            text: self.text.clone(),
+            cursor: self.cursor,
+        });
+        if self.undo_stack.len() > MAX_UNDO {
+            self.undo_stack.remove(0);
+        }
+        self.redo_stack.clear();
+    }
+
+    pub fn undo(&mut self) -> bool {
+        if let Some(entry) = self.undo_stack.pop() {
+            self.redo_stack.push(UndoEntry {
+                text: self.text.clone(),
+                cursor: self.cursor,
+            });
+            self.text = entry.text;
+            self.cursor = entry.cursor;
+            self.selection_anchor = None;
+            self.fire_change();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn redo(&mut self) -> bool {
+        if let Some(entry) = self.redo_stack.pop() {
+            self.undo_stack.push(UndoEntry {
+                text: self.text.clone(),
+                cursor: self.cursor,
+            });
+            self.text = entry.text;
+            self.cursor = entry.cursor;
+            self.selection_anchor = None;
+            self.fire_change();
+            true
+        } else {
+            false
+        }
+    }
+
+    // ── Word/Line Navigation (Phase 2) ──────────────────────────────────
+
+    fn is_word_char(ch: char) -> bool {
+        ch.is_alphanumeric() || ch == '_'
+    }
+
+    fn next_word_boundary(&self, pos: usize) -> usize {
+        let bytes = self.text.as_bytes();
+        let len = self.text.len();
+        let mut p = pos;
+        // Skip word chars
+        while p < len {
+            let ch = self.char_at(p);
+            if !Self::is_word_char(ch) {
+                break;
+            }
+            p += ch.len_utf8();
+        }
+        // Skip non-word chars
+        while p < len {
+            let ch = self.char_at(p);
+            if Self::is_word_char(ch) {
+                break;
+            }
+            p += ch.len_utf8();
+        }
+        let _ = bytes;
+        p
+    }
+
+    fn prev_word_boundary(&self, pos: usize) -> usize {
+        let mut p = pos;
+        // Skip non-word chars backward
+        while p > 0 {
+            let prev = self.prev_char_boundary(p);
+            let ch = self.char_at(prev);
+            if Self::is_word_char(ch) {
+                break;
+            }
+            p = prev;
+        }
+        // Skip word chars backward
+        while p > 0 {
+            let prev = self.prev_char_boundary(p);
+            let ch = self.char_at(prev);
+            if !Self::is_word_char(ch) {
+                break;
+            }
+            p = prev;
+        }
+        p
+    }
+
+    fn word_start(&self, pos: usize) -> usize {
+        let mut p = pos;
+        while p > 0 {
+            let prev = self.prev_char_boundary(p);
+            if !Self::is_word_char(self.char_at(prev)) {
+                break;
+            }
+            p = prev;
+        }
+        p
+    }
+
+    fn word_end(&self, pos: usize) -> usize {
+        let mut p = pos;
+        while p < self.text.len() {
+            let ch = self.char_at(p);
+            if !Self::is_word_char(ch) {
+                break;
+            }
+            p += ch.len_utf8();
+        }
+        p
+    }
+
+    fn row_start(&self, pos: usize) -> usize {
+        if pos == 0 {
+            return 0;
+        }
+        match self.text[..pos].rfind('\n') {
+            Some(i) => i + 1,
+            None => 0,
+        }
+    }
+
+    fn row_end(&self, pos: usize) -> usize {
+        match self.text[pos..].find('\n') {
+            Some(i) => pos + i,
+            None => self.text.len(),
+        }
+    }
+
+    fn index_to_col_row(&self, pos: usize) -> (usize, usize) {
+        let before = &self.text[..pos.min(self.text.len())];
+        let row = before.matches('\n').count();
+        let col = match before.rfind('\n') {
+            Some(nl) => before.len() - nl - 1,
+            None => before.len(),
+        };
+        (col, row)
+    }
+
+    pub fn col_row_to_index(&self, col: usize, row: usize) -> usize {
+        let mut current_row = 0;
+        let mut row_start = 0;
+        for (i, ch) in self.text.char_indices() {
+            if current_row == row {
+                break;
+            }
+            if ch == '\n' {
+                current_row += 1;
+                row_start = i + 1;
+            }
+        }
+        if current_row < row {
+            return self.text.len();
+        }
+        // Find start of target row
+        if row > 0 {
+            let mut r = 0;
+            row_start = 0;
+            for (i, ch) in self.text.char_indices() {
+                if r == row {
+                    row_start = i;
+                    break;
+                }
+                if ch == '\n' {
+                    r += 1;
+                    if r == row {
+                        row_start = i + 1;
+                        break;
+                    }
+                }
+            }
+            if r < row {
+                return self.text.len();
+            }
+        }
+        // Advance `col` chars within the row
+        let mut idx = row_start;
+        let mut c = 0;
+        while c < col && idx < self.text.len() {
+            let ch = self.char_at(idx);
+            if ch == '\n' {
+                break;
+            }
+            idx += ch.len_utf8();
+            c += 1;
+        }
+        idx
+    }
+
+    pub fn total_rows(&self) -> usize {
+        self.text.matches('\n').count() + 1
+    }
+
+    fn next_row_index(&self, pos: usize, target_col: usize) -> usize {
+        let row_e = self.row_end(pos);
+        if row_e >= self.text.len() {
+            return pos; // no next row
+        }
+        let next_row_start = row_e + 1;
+        let next_row_end = self.row_end(next_row_start);
+        let mut idx = next_row_start;
+        let mut c = 0;
+        while c < target_col && idx < next_row_end {
+            let ch = self.char_at(idx);
+            if ch == '\n' {
+                break;
+            }
+            idx += ch.len_utf8();
+            c += 1;
+        }
+        idx
+    }
+
+    fn prev_row_index(&self, pos: usize, target_col: usize) -> usize {
+        let row_s = self.row_start(pos);
+        if row_s == 0 {
+            return pos; // no prev row
+        }
+        let prev_row_end = row_s - 1; // the \n
+        let prev_row_start = self.row_start(prev_row_end);
+        let mut idx = prev_row_start;
+        let mut c = 0;
+        while c < target_col && idx < prev_row_end {
+            let ch = self.char_at(idx);
+            if ch == '\n' {
+                break;
+            }
+            idx += ch.len_utf8();
+            c += 1;
+        }
+        idx
+    }
+
+    fn next_paragraph_index(&self, pos: usize) -> usize {
+        let mut p = pos;
+        let len = self.text.len();
+        // Skip current non-blank lines
+        while p < len {
+            if self.text[p..].starts_with('\n') {
+                let next = p + 1;
+                if next >= len || self.text[next..].starts_with('\n') {
+                    // Found blank line
+                    p = next;
+                    break;
+                }
+            }
+            match self.text[p..].find('\n') {
+                Some(i) => p += i + 1,
+                None => return len,
+            }
+        }
+        // Skip blank lines
+        while p < len && self.text[p..].starts_with('\n') {
+            p += 1;
+        }
+        p
+    }
+
+    fn prev_paragraph_index(&self, pos: usize) -> usize {
+        if pos == 0 {
+            return 0;
+        }
+        let mut p = if pos > 0 && self.text.as_bytes().get(pos.saturating_sub(1)) == Some(&b'\n') {
+            pos.saturating_sub(1)
+        } else {
+            pos
+        };
+        // Skip blank lines backward
+        while p > 0 && self.text.as_bytes().get(p.saturating_sub(1)) == Some(&b'\n') {
+            p -= 1;
+        }
+        // Skip non-blank lines backward
+        while p > 0 {
+            let prev = p - 1;
+            if self.text.as_bytes()[prev] == b'\n' {
+                // Check if line before this is blank
+                if prev == 0 || self.text.as_bytes()[prev - 1] == b'\n' {
+                    break;
+                }
+            }
+            p = prev;
+        }
+        // Get to the start of this line
+        self.row_start(p)
+    }
+
+    // ── Coordinate conversion (Phase 5) ─────────────────────────────────
+
+    fn x_to_index_single_line(&self, x: f64) -> usize {
+        if self.char_positions.is_empty() {
+            return 0;
+        }
+        let adjusted_x = x + self.scroll_x - TEXT_PADDING;
+        if adjusted_x <= 0.0 {
+            return 0;
+        }
+        for (i, &pos) in self.char_positions.iter().enumerate() {
+            if i + 1 < self.char_positions.len() {
+                let mid = (pos + self.char_positions[i + 1]) / 2.0;
+                if adjusted_x < mid {
+                    return self.char_index_at(i);
+                }
+            }
+        }
+        self.text.len()
+    }
+
+    fn char_index_at(&self, char_idx: usize) -> usize {
+        self.text
+            .char_indices()
+            .nth(char_idx)
+            .map(|(i, _)| i)
+            .unwrap_or(self.text.len())
+    }
+
+    // ── Clipboard (Phase 4) ─────────────────────────────────────────────
+
+    fn copy_to_clipboard(&self) {
+        if self.is_selection_empty() {
+            return;
+        }
+        if let Some(cb) = &self.on_clipboard_copy {
+            let text = if self.password_mode {
+                "*".repeat(self.selected_text().chars().count())
+            } else {
+                self.selected_text().to_string()
+            };
+            cb(&text);
+        }
+    }
+
+    fn cut_to_clipboard(&mut self) {
+        if !self.editable || self.is_selection_empty() {
+            return;
+        }
+        self.copy_to_clipboard();
+        self.delete_selection();
+        self.fire_change();
+    }
+
+    fn paste_from_clipboard(&mut self) {
+        if !self.editable {
+            return;
+        }
+        let text = if let Some(cb) = &self.on_clipboard_paste {
+            cb()
+        } else {
+            return;
+        };
+        self.paste_text(&text);
+    }
+
+    pub fn paste_text(&mut self, text: &str) {
+        if !self.editable {
+            return;
+        }
+        if !self.delete_selection() {
+            self.save_undo();
+        }
+        for ch in text.chars() {
+            if ch.is_control() && ch != '\n' {
+                continue;
+            }
+            if ch == '\n' && !self.multi_line {
+                continue;
+            }
+            if self.text.chars().count() >= self.max_length {
+                break;
+            }
+            self.text.insert(self.cursor, ch);
+            self.cursor += ch.len_utf8();
+        }
+        if !self.validate_text() {
+            return;
+        }
+        self.fire_change();
+    }
+
+    // ── Paint ───────────────────────────────────────────────────────────
+
     pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+        self.last_w = w;
+        self.last_h = h;
+
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, self.editable);
 
         let Rect {
             x: cx,
@@ -92,15 +680,49 @@ impl TextField {
         painter.push_state();
         painter.clip_rect(cx, cy, cw, ch);
 
+        let size_px = FontCache::quantize_size(TEXT_SIZE);
+
+        if self.multi_line {
+            self.paint_multi_line(painter, cx, cy, cw, ch, size_px);
+        } else {
+            self.paint_single_line(painter, cx, cy, cw, ch, size_px);
+        }
+
+        painter.pop_state();
+    }
+
+    fn paint_single_line(
+        &mut self,
+        painter: &mut Painter,
+        cx: f64,
+        cy: f64,
+        cw: f64,
+        ch: f64,
+        size_px: u16,
+    ) {
         let display_text = if self.password_mode {
             "*".repeat(self.text.chars().count())
         } else {
             self.text.clone()
         };
 
-        let size_px = FontCache::quantize_size(TEXT_SIZE);
+        // Build char_positions
+        self.char_positions.clear();
+        self.char_positions.push(0.0);
+        for (i, _ch) in display_text.char_indices() {
+            let next = display_text[..=i]
+                .chars()
+                .last()
+                .map(|c| c.len_utf8())
+                .unwrap_or(1);
+            let end = i + next;
+            let (w_px, _) = painter
+                .font_cache()
+                .measure_text(&display_text[..end], 0, size_px);
+            self.char_positions.push(w_px);
+        }
 
-        // Pre-compute all measurements before painting.
+        // Pre-compute selection rect
         let sel_rect = if let Some(anchor) = self.selection_anchor {
             let sel_start = anchor.min(self.cursor);
             let sel_end = anchor.max(self.cursor);
@@ -148,26 +770,26 @@ impl TextField {
             painter.paint_rect(sx, cy, sw, ch, self.look.input_hl_color);
         }
 
-        // Text — render in segments with swapped color for selected region
+        // Text
         let text_x = cx + TEXT_PADDING - self.scroll_x;
         let text_y = cy + (ch - TEXT_SIZE) / 2.0;
+
+        let fg = if self.editable {
+            self.look.input_fg_color
+        } else {
+            self.look
+                .input_fg_color
+                .lerp(self.look.input_bg_color, 0.80)
+        };
 
         if let Some(anchor) = self.selection_anchor {
             let sel_start = anchor.min(self.cursor).min(display_text.len());
             let sel_end = anchor.max(self.cursor).min(display_text.len());
 
             if sel_start != sel_end {
-                // Before selection
                 if sel_start > 0 {
-                    painter.paint_text(
-                        text_x,
-                        text_y,
-                        &display_text[..sel_start],
-                        TEXT_SIZE,
-                        self.look.input_fg_color,
-                    );
+                    painter.paint_text(text_x, text_y, &display_text[..sel_start], TEXT_SIZE, fg);
                 }
-                // Selected text (fg/bg swapped)
                 let sel_x_offset = painter
                     .font_cache()
                     .measure_text(&display_text[..sel_start], 0, size_px)
@@ -179,7 +801,6 @@ impl TextField {
                     TEXT_SIZE,
                     self.look.input_bg_color,
                 );
-                // After selection
                 if sel_end < display_text.len() {
                     let after_x_offset = painter
                         .font_cache()
@@ -190,122 +811,394 @@ impl TextField {
                         text_y,
                         &display_text[sel_end..],
                         TEXT_SIZE,
-                        self.look.input_fg_color,
+                        fg,
                     );
                 }
             } else {
-                painter.paint_text(
-                    text_x,
-                    text_y,
-                    &display_text,
-                    TEXT_SIZE,
-                    self.look.input_fg_color,
-                );
+                painter.paint_text(text_x, text_y, &display_text, TEXT_SIZE, fg);
             }
         } else {
-            painter.paint_text(
-                text_x,
-                text_y,
-                &display_text,
-                TEXT_SIZE,
-                self.look.input_fg_color,
-            );
+            painter.paint_text(text_x, text_y, &display_text, TEXT_SIZE, fg);
         }
 
-        // Cursor line
+        // Cursor
         let cursor_x = cx + TEXT_PADDING + cursor_x_px - self.scroll_x;
-        painter.paint_rect(cursor_x, cy + 1.0, 1.0, ch - 2.0, self.look.input_fg_color);
-
-        painter.pop_state();
+        if self.overwrite_mode && self.cursor < self.text.len() {
+            // Box cursor
+            let ch_w = if self.cursor < display_text.len() {
+                let next = self.next_char_boundary(self.cursor);
+                let next_text = if self.password_mode {
+                    "*".repeat(self.text[..next].chars().count())
+                } else {
+                    self.text[..next].to_string()
+                };
+                let next_x = painter.font_cache().measure_text(&next_text, 0, size_px).0;
+                next_x - cursor_x_px
+            } else {
+                8.0
+            };
+            painter.paint_rect(cursor_x, cy + 1.0, ch_w, ch - 2.0, fg.with_alpha(80));
+        } else {
+            painter.paint_rect(cursor_x, cy + 1.0, 1.0, ch - 2.0, fg);
+        }
     }
 
+    fn paint_multi_line(
+        &mut self,
+        painter: &mut Painter,
+        cx: f64,
+        cy: f64,
+        _cw: f64,
+        ch: f64,
+        size_px: u16,
+    ) {
+        let rows: Vec<&str> = self.text.split('\n').collect();
+        let total_rows = rows.len();
+
+        // Update row_y_positions
+        self.row_y_positions.clear();
+        for i in 0..total_rows {
+            self.row_y_positions.push(i as f64 * LINE_HEIGHT);
+        }
+
+        let (cursor_col, cursor_row) = self.index_to_col_row(self.cursor);
+        let cursor_y_px = cursor_row as f64 * LINE_HEIGHT;
+
+        // Scroll to keep cursor visible
+        let visible_h = ch;
+        if cursor_y_px - self.scroll_y + LINE_HEIGHT > visible_h {
+            self.scroll_y = cursor_y_px + LINE_HEIGHT - visible_h;
+        }
+        if cursor_y_px - self.scroll_y < 0.0 {
+            self.scroll_y = cursor_y_px;
+        }
+        if self.scroll_y < 0.0 {
+            self.scroll_y = 0.0;
+        }
+
+        let fg = if self.editable {
+            self.look.input_fg_color
+        } else {
+            self.look
+                .input_fg_color
+                .lerp(self.look.input_bg_color, 0.80)
+        };
+
+        let sel_start = self.selection_start();
+        let sel_end = self.selection_end();
+        let has_selection = !self.is_selection_empty();
+
+        let mut byte_offset = 0usize;
+        for (row_idx, row_text) in rows.iter().enumerate() {
+            let row_y = cy + row_idx as f64 * LINE_HEIGHT - self.scroll_y;
+            if row_y + LINE_HEIGHT < cy || row_y > cy + ch {
+                byte_offset += row_text.len() + 1; // +1 for \n
+                continue;
+            }
+
+            let row_byte_start = byte_offset;
+            let row_byte_end = byte_offset + row_text.len();
+
+            // Selection highlight for this row
+            if has_selection && sel_start < row_byte_end && sel_end > row_byte_start {
+                let hl_start = sel_start.max(row_byte_start) - row_byte_start;
+                let hl_end = sel_end.min(row_byte_end) - row_byte_start;
+                let sx = painter
+                    .font_cache()
+                    .measure_text(&row_text[..hl_start], 0, size_px)
+                    .0;
+                let ex = painter
+                    .font_cache()
+                    .measure_text(&row_text[..hl_end], 0, size_px)
+                    .0;
+                painter.paint_rect(
+                    cx + TEXT_PADDING + sx,
+                    row_y,
+                    ex - sx,
+                    LINE_HEIGHT,
+                    self.look.input_hl_color,
+                );
+            }
+
+            // Text
+            let text_x = cx + TEXT_PADDING;
+            painter.paint_text(text_x, row_y, row_text, TEXT_SIZE, fg);
+
+            byte_offset = row_byte_end + 1; // +1 for \n
+        }
+
+        // Cursor
+        let cursor_row_start = self.row_start(self.cursor);
+        let cursor_in_row = &self.text[cursor_row_start..self.cursor];
+        let cursor_x_px = painter
+            .font_cache()
+            .measure_text(cursor_in_row, 0, size_px)
+            .0;
+        let cursor_x = cx + TEXT_PADDING + cursor_x_px;
+        let cursor_screen_y = cy + cursor_row as f64 * LINE_HEIGHT - self.scroll_y;
+        let _ = cursor_col;
+
+        if self.overwrite_mode && self.cursor < self.text.len() && self.char_at(self.cursor) != '\n'
+        {
+            let next = self.next_char_boundary(self.cursor);
+            let ch_text = &self.text[self.cursor..next];
+            let ch_w = painter.font_cache().measure_text(ch_text, 0, size_px).0;
+            painter.paint_rect(
+                cursor_x,
+                cursor_screen_y,
+                ch_w,
+                LINE_HEIGHT,
+                fg.with_alpha(80),
+            );
+        } else {
+            painter.paint_rect(cursor_x, cursor_screen_y, 1.0, LINE_HEIGHT, fg);
+        }
+    }
+
+    // ── Input ───────────────────────────────────────────────────────────
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
+        // Handle mouse events
+        if self.handle_mouse(event) {
+            return true;
+        }
+
         match event.variant {
             InputVariant::Press | InputVariant::Repeat => {}
             InputVariant::Release | InputVariant::Move => return false,
         }
 
+        let shift = event.shift;
+        let ctrl = event.ctrl;
+
         match event.key {
+            // ── Navigation ──────────────────────────────────────────
             InputKey::ArrowLeft => {
-                if self.cursor > 0 {
-                    self.cursor = self.prev_char_boundary(self.cursor);
-                }
-                self.selection_anchor = None;
+                self.magic_col = None;
+                let new_pos = if ctrl {
+                    self.prev_word_boundary(self.cursor)
+                } else if self.cursor > 0 {
+                    self.prev_char_boundary(self.cursor)
+                } else {
+                    self.cursor
+                };
+                self.modify_selection(new_pos, shift);
                 true
             }
             InputKey::ArrowRight => {
-                if self.cursor < self.text.len() {
-                    self.cursor = self.next_char_boundary(self.cursor);
-                }
-                self.selection_anchor = None;
+                self.magic_col = None;
+                let new_pos = if ctrl {
+                    self.next_word_boundary(self.cursor)
+                } else if self.cursor < self.text.len() {
+                    self.next_char_boundary(self.cursor)
+                } else {
+                    self.cursor
+                };
+                self.modify_selection(new_pos, shift);
                 true
             }
             InputKey::Home => {
-                self.cursor = 0;
-                self.selection_anchor = None;
+                self.magic_col = None;
+                let new_pos = if ctrl || !self.multi_line {
+                    0
+                } else {
+                    self.row_start(self.cursor)
+                };
+                self.modify_selection(new_pos, shift);
                 true
             }
             InputKey::End => {
-                self.cursor = self.text.len();
-                self.selection_anchor = None;
+                self.magic_col = None;
+                let new_pos = if ctrl || !self.multi_line {
+                    self.text.len()
+                } else {
+                    self.row_end(self.cursor)
+                };
+                self.modify_selection(new_pos, shift);
                 true
             }
-            // Ctrl+Z = undo, Ctrl+Y = redo (detected via character input)
-            InputKey::Key('z') if event.chars.is_empty() => {
-                // Ctrl+Z (no char generated = modifier held)
-                self.undo();
+            InputKey::ArrowUp if self.multi_line => {
+                let (col, _row) = self.index_to_col_row(self.cursor);
+                let target_col = self.magic_col.unwrap_or(col);
+                self.magic_col = Some(target_col);
+                let new_pos = if ctrl {
+                    self.prev_paragraph_index(self.cursor)
+                } else {
+                    self.prev_row_index(self.cursor, target_col)
+                };
+                self.modify_selection(new_pos, shift);
                 true
             }
-            InputKey::Key('y') if event.chars.is_empty() => {
-                // Ctrl+Y
-                self.redo();
+            InputKey::ArrowDown if self.multi_line => {
+                let (col, _row) = self.index_to_col_row(self.cursor);
+                let target_col = self.magic_col.unwrap_or(col);
+                self.magic_col = Some(target_col);
+                let new_pos = if ctrl {
+                    self.next_paragraph_index(self.cursor)
+                } else {
+                    self.next_row_index(self.cursor, target_col)
+                };
+                self.modify_selection(new_pos, shift);
                 true
             }
+
+            // ── Editing (guarded by editable) ───────────────────────
+            InputKey::Key('z') if ctrl && !shift => {
+                if self.editable {
+                    self.undo();
+                }
+                true
+            }
+            InputKey::Key('y') if ctrl => {
+                if self.editable {
+                    self.redo();
+                }
+                true
+            }
+            InputKey::Key('z') if ctrl && shift => {
+                // Ctrl+Shift+Z = redo
+                if self.editable {
+                    self.redo();
+                }
+                true
+            }
+            InputKey::Key('a') if ctrl && !shift => {
+                self.select_all();
+                true
+            }
+            InputKey::Key('a') if ctrl && shift => {
+                self.deselect();
+                true
+            }
+
+            // Clipboard
+            InputKey::Key('c') if ctrl => {
+                self.copy_to_clipboard();
+                true
+            }
+            InputKey::Key('x') if ctrl => {
+                self.cut_to_clipboard();
+                true
+            }
+            InputKey::Key('v') if ctrl => {
+                self.paste_from_clipboard();
+                true
+            }
+            InputKey::Insert if ctrl => {
+                self.copy_to_clipboard();
+                true
+            }
+            InputKey::Insert if shift => {
+                self.paste_from_clipboard();
+                true
+            }
+            InputKey::Delete if shift && !ctrl => {
+                self.cut_to_clipboard();
+                true
+            }
+
+            InputKey::Insert if !ctrl && !shift => {
+                if self.editable {
+                    self.overwrite_mode = !self.overwrite_mode;
+                }
+                true
+            }
+
             InputKey::Backspace => {
+                if !self.editable {
+                    return true;
+                }
                 if self.delete_selection() {
                     self.fire_change();
                     return true;
                 }
                 if self.cursor > 0 {
                     self.save_undo();
-                    let prev = self.prev_char_boundary(self.cursor);
-                    self.text.drain(prev..self.cursor);
-                    self.cursor = prev;
-                    self.fire_change();
+                    let target = if ctrl && shift {
+                        self.row_start(self.cursor)
+                    } else if ctrl {
+                        self.prev_word_boundary(self.cursor)
+                    } else {
+                        self.prev_char_boundary(self.cursor)
+                    };
+                    self.text.drain(target..self.cursor);
+                    self.cursor = target;
+                    if self.validate_text() {
+                        self.fire_change();
+                    }
                 }
+                self.magic_col = None;
                 true
             }
             InputKey::Delete => {
+                if !self.editable {
+                    return true;
+                }
                 if self.delete_selection() {
                     self.fire_change();
                     return true;
                 }
                 if self.cursor < self.text.len() {
                     self.save_undo();
-                    let next = self.next_char_boundary(self.cursor);
-                    self.text.drain(self.cursor..next);
+                    let target = if ctrl && shift {
+                        self.row_end(self.cursor)
+                    } else if ctrl {
+                        self.next_word_boundary(self.cursor)
+                    } else {
+                        self.next_char_boundary(self.cursor)
+                    };
+                    self.text.drain(self.cursor..target);
+                    if self.validate_text() {
+                        self.fire_change();
+                    }
+                }
+                self.magic_col = None;
+                true
+            }
+
+            InputKey::Enter if self.multi_line && self.editable => {
+                self.magic_col = None;
+                if !self.delete_selection() {
+                    self.save_undo();
+                }
+                self.text.insert(self.cursor, '\n');
+                self.cursor += 1;
+                if self.validate_text() {
                     self.fire_change();
                 }
                 true
             }
+
             _ => {
-                if !event.chars.is_empty() {
-                    // save_undo once: delete_selection saves internally if
-                    // there was a selection, otherwise we save before inserting.
+                if !event.chars.is_empty() && self.editable {
+                    self.magic_col = None;
                     if !self.delete_selection() {
                         self.save_undo();
                     }
                     for ch in event.chars.chars() {
                         if ch.is_control() {
-                            continue;
+                            if ch == '\n' && self.multi_line {
+                                // allow
+                            } else {
+                                continue;
+                            }
                         }
                         if self.text.chars().count() >= self.max_length {
                             break;
                         }
+                        if self.overwrite_mode
+                            && self.cursor < self.text.len()
+                            && self.char_at(self.cursor) != '\n'
+                        {
+                            let next = self.next_char_boundary(self.cursor);
+                            self.text.drain(self.cursor..next);
+                        }
                         self.text.insert(self.cursor, ch);
                         self.cursor += ch.len_utf8();
                     }
-                    self.fire_change();
+                    if self.validate_text() {
+                        self.fire_change();
+                    }
                     return true;
                 }
                 false
@@ -313,14 +1206,222 @@ impl TextField {
         }
     }
 
+    fn handle_mouse(&mut self, event: &InputEvent) -> bool {
+        match event.key {
+            InputKey::MouseLeft => {}
+            _ => return false,
+        }
+
+        match event.variant {
+            InputVariant::Press => self.handle_mouse_press(event),
+            InputVariant::Move => self.handle_mouse_move(event),
+            InputVariant::Release => self.handle_mouse_release(event),
+            _ => false,
+        }
+    }
+
+    fn handle_mouse_press(&mut self, event: &InputEvent) -> bool {
+        let now = std::time::Instant::now();
+
+        // Multi-click detection
+        let is_multi_click = if let Some(last_time) = self.last_click_time {
+            let elapsed = now.duration_since(last_time).as_millis();
+            let dx = (event.mouse_x - self.last_click_x).abs();
+            let dy = (event.mouse_y - self.last_click_y).abs();
+            elapsed < DOUBLE_CLICK_MS && dx < DOUBLE_CLICK_DIST && dy < DOUBLE_CLICK_DIST
+        } else {
+            false
+        };
+
+        if is_multi_click {
+            self.click_count = (self.click_count + 1).min(4);
+        } else {
+            self.click_count = 1;
+        }
+        self.last_click_time = Some(now);
+        self.last_click_x = event.mouse_x;
+        self.last_click_y = event.mouse_y;
+
+        let pos = self.x_to_index_single_line(event.mouse_x);
+
+        if event.ctrl && self.editable {
+            // Ctrl+click: insert or move mode
+            if !self.is_selection_empty()
+                && pos >= self.selection_start()
+                && pos <= self.selection_end()
+            {
+                self.drag_mode = DragMode::Move;
+            } else {
+                self.cursor = pos;
+                self.selection_anchor = None;
+                self.drag_mode = DragMode::Insert;
+            }
+            return true;
+        }
+
+        match self.click_count {
+            1 => {
+                // Single click
+                if event.shift {
+                    self.modify_selection(pos, true);
+                } else {
+                    self.modify_selection(pos, false);
+                }
+                self.drag_mode = DragMode::SelectChars;
+            }
+            2 => {
+                // Double click: select word
+                let ws = self.word_start(pos);
+                let we = self.word_end(pos);
+                if event.shift {
+                    // Extend to word boundary
+                    let anchor = self.selection_anchor.unwrap_or(self.cursor);
+                    if pos < anchor {
+                        self.selection_anchor = Some(self.word_end(anchor));
+                        self.cursor = ws;
+                    } else {
+                        self.selection_anchor = Some(self.word_start(anchor));
+                        self.cursor = we;
+                    }
+                } else {
+                    self.selection_anchor = Some(ws);
+                    self.cursor = we;
+                }
+                self.fire_selection_change();
+                self.drag_mode = DragMode::SelectWords;
+            }
+            3 => {
+                // Triple click: select row
+                let rs = self.row_start(pos);
+                let re = self.row_end(pos);
+                if event.shift {
+                    let anchor = self.selection_anchor.unwrap_or(self.cursor);
+                    if pos < anchor {
+                        self.selection_anchor = Some(self.row_end(anchor));
+                        self.cursor = rs;
+                    } else {
+                        self.selection_anchor = Some(self.row_start(anchor));
+                        self.cursor = if re < self.text.len() { re + 1 } else { re };
+                    }
+                } else {
+                    self.selection_anchor = Some(rs);
+                    self.cursor = if re < self.text.len() { re + 1 } else { re };
+                }
+                self.fire_selection_change();
+                self.drag_mode = DragMode::SelectRows;
+            }
+            _ => {
+                // Quad+ click: select all
+                self.select_all();
+                self.drag_mode = DragMode::SelectChars;
+            }
+        }
+        self.magic_col = None;
+        true
+    }
+
+    fn handle_mouse_move(&mut self, event: &InputEvent) -> bool {
+        match self.drag_mode {
+            DragMode::None => false,
+            DragMode::SelectChars => {
+                let pos = self.x_to_index_single_line(event.mouse_x);
+                if self.selection_anchor.is_none() {
+                    self.selection_anchor = Some(self.cursor);
+                }
+                self.cursor = pos;
+                self.fire_selection_change();
+                true
+            }
+            DragMode::SelectWords => {
+                let pos = self.x_to_index_single_line(event.mouse_x);
+                if let Some(anchor) = self.selection_anchor {
+                    let anchor_ws = self.word_start(anchor);
+                    let anchor_we = self.word_end(anchor);
+                    if pos < anchor_ws {
+                        self.selection_anchor = Some(anchor_we);
+                        self.cursor = self.word_start(pos);
+                    } else {
+                        self.selection_anchor = Some(anchor_ws);
+                        self.cursor = self.word_end(pos);
+                    }
+                    self.fire_selection_change();
+                }
+                true
+            }
+            DragMode::SelectRows => {
+                let pos = self.x_to_index_single_line(event.mouse_x);
+                if let Some(anchor) = self.selection_anchor {
+                    let anchor_rs = self.row_start(anchor);
+                    let anchor_re = self.row_end(anchor);
+                    if pos < anchor_rs {
+                        let end = if anchor_re < self.text.len() {
+                            anchor_re + 1
+                        } else {
+                            anchor_re
+                        };
+                        self.selection_anchor = Some(end);
+                        self.cursor = self.row_start(pos);
+                    } else {
+                        self.selection_anchor = Some(anchor_rs);
+                        let re = self.row_end(pos);
+                        self.cursor = if re < self.text.len() { re + 1 } else { re };
+                    }
+                    self.fire_selection_change();
+                }
+                true
+            }
+            DragMode::Insert | DragMode::Move => true,
+        }
+    }
+
+    fn handle_mouse_release(&mut self, event: &InputEvent) -> bool {
+        let was_dragging = self.drag_mode != DragMode::None;
+
+        if self.drag_mode == DragMode::Move && self.editable {
+            let pos = self.x_to_index_single_line(event.mouse_x);
+            let sel_start = self.selection_start();
+            let sel_end = self.selection_end();
+            if pos < sel_start || pos > sel_end {
+                let selected = self.text[sel_start..sel_end].to_string();
+                self.save_undo();
+                // Remove selection first
+                self.text.drain(sel_start..sel_end);
+                // Adjust insert position
+                let insert_pos = if pos > sel_end {
+                    pos - (sel_end - sel_start)
+                } else {
+                    pos
+                };
+                self.text.insert_str(insert_pos, &selected);
+                self.cursor = insert_pos + selected.len();
+                self.selection_anchor = Some(insert_pos);
+                self.fire_change();
+                self.fire_selection_change();
+            }
+        }
+
+        self.drag_mode = DragMode::None;
+        was_dragging
+    }
+
     pub fn get_cursor(&self) -> Cursor {
         Cursor::Text
     }
 
     pub fn preferred_size(&self, _font_cache: &FontCache) -> (f64, f64) {
-        let cw = 120.0; // default width
-        let ch = TEXT_SIZE + 4.0;
+        let cw = 120.0;
+        let ch = if self.multi_line {
+            LINE_HEIGHT * self.visible_rows as f64
+        } else {
+            TEXT_SIZE + 4.0
+        };
         self.border.preferred_size_for_content(cw, ch)
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+
+    fn char_at(&self, pos: usize) -> char {
+        self.text[pos..].chars().next().unwrap_or('\0')
     }
 
     fn prev_char_boundary(&self, pos: usize) -> usize {
@@ -339,6 +1440,19 @@ impl TextField {
         p
     }
 
+    fn clamp_to_boundary(&self, pos: usize) -> usize {
+        let pos = pos.min(self.text.len());
+        if pos == 0 || self.text.is_char_boundary(pos) {
+            return pos;
+        }
+        // Walk backward to find a valid boundary
+        let mut p = pos;
+        while p > 0 && !self.text.is_char_boundary(p) {
+            p -= 1;
+        }
+        p
+    }
+
     fn delete_selection(&mut self) -> bool {
         if let Some(anchor) = self.selection_anchor.take() {
             let start = anchor.min(self.cursor);
@@ -353,50 +1467,18 @@ impl TextField {
         false
     }
 
-    /// Save current state to undo stack before a mutation.
-    fn save_undo(&mut self) {
-        self.undo_stack.push(UndoEntry {
-            text: self.text.clone(),
-            cursor: self.cursor,
-        });
-        if self.undo_stack.len() > MAX_UNDO {
-            self.undo_stack.remove(0);
+    fn validate_text(&mut self) -> bool {
+        if let Some(cb) = &mut self.on_validate {
+            if !cb(&self.text) {
+                // Revert via undo
+                if let Some(entry) = self.undo_stack.pop() {
+                    self.text = entry.text;
+                    self.cursor = entry.cursor;
+                }
+                return false;
+            }
         }
-        self.redo_stack.clear();
-    }
-
-    /// Undo the last text change.
-    pub fn undo(&mut self) -> bool {
-        if let Some(entry) = self.undo_stack.pop() {
-            self.redo_stack.push(UndoEntry {
-                text: self.text.clone(),
-                cursor: self.cursor,
-            });
-            self.text = entry.text;
-            self.cursor = entry.cursor;
-            self.selection_anchor = None;
-            self.fire_change();
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Redo a previously undone change.
-    pub fn redo(&mut self) -> bool {
-        if let Some(entry) = self.redo_stack.pop() {
-            self.undo_stack.push(UndoEntry {
-                text: self.text.clone(),
-                cursor: self.cursor,
-            });
-            self.text = entry.text;
-            self.cursor = entry.cursor;
-            self.selection_anchor = None;
-            self.fire_change();
-            true
-        } else {
-            false
-        }
+        true
     }
 
     fn fire_change(&mut self) {
@@ -417,6 +1499,22 @@ mod tests {
 
     fn char_press(ch: char) -> InputEvent {
         InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string())
+    }
+
+    fn ctrl_key(key: InputKey) -> InputEvent {
+        InputEvent::press(key).with_ctrl()
+    }
+
+    fn shift_key(key: InputKey) -> InputEvent {
+        InputEvent::press(key).with_shift()
+    }
+
+    fn ctrl_char(ch: char) -> InputEvent {
+        InputEvent::press(InputKey::Key(ch)).with_ctrl()
+    }
+
+    fn shift_ctrl_key(key: InputKey) -> InputEvent {
+        InputEvent::press(key).with_shift_ctrl()
     }
 
     #[test]
@@ -496,8 +1594,8 @@ mod tests {
         let mut tf = TextField::new(look);
         tf.set_password_mode(true);
         tf.set_text("secret");
-        // Internal state preserved
         assert_eq!(tf.text(), "secret");
+        assert!(tf.password_mode());
     }
 
     #[test]
@@ -526,9 +1624,558 @@ mod tests {
         tf.redo();
         assert_eq!(tf.text(), "AB");
 
-        // New edit clears redo stack
         tf.input(&char_press('X'));
         assert_eq!(tf.text(), "ABX");
-        assert!(!tf.redo()); // redo stack cleared
+        assert!(!tf.redo());
+    }
+
+    // ── Phase 1 tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn select_deselect_select_all() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("Hello World");
+
+        tf.select(0, 5);
+        assert_eq!(tf.selected_text(), "Hello");
+        assert_eq!(tf.selection_start(), 0);
+        assert_eq!(tf.selection_end(), 5);
+        assert!(!tf.is_selection_empty());
+
+        tf.deselect();
+        assert!(tf.is_selection_empty());
+
+        tf.select_all();
+        assert_eq!(tf.selected_text(), "Hello World");
+    }
+
+    #[test]
+    fn modify_selection_extend() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("ABCDEF");
+        tf.set_cursor_index(2);
+
+        // Extend right
+        tf.modify_selection(4, true);
+        assert_eq!(tf.selected_text(), "CD");
+
+        // Extend further
+        tf.modify_selection(6, true);
+        assert_eq!(tf.selected_text(), "CDEF");
+
+        // Without extend: clears selection
+        tf.modify_selection(0, false);
+        assert!(tf.is_selection_empty());
+        assert_eq!(tf.cursor_pos(), 0);
+    }
+
+    #[test]
+    fn editable_toggle() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        assert!(tf.is_editable());
+
+        tf.set_editable(false);
+        assert!(!tf.is_editable());
+
+        tf.set_text("readonly");
+        tf.input(&char_press('X'));
+        assert_eq!(tf.text(), "readonly"); // no change
+    }
+
+    #[test]
+    fn can_undo_redo() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        assert!(!tf.can_undo());
+        assert!(!tf.can_redo());
+
+        tf.input(&char_press('A'));
+        assert!(tf.can_undo());
+        assert!(!tf.can_redo());
+
+        tf.undo();
+        assert!(!tf.can_undo());
+        assert!(tf.can_redo());
+    }
+
+    // ── Phase 2 tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn word_boundary_navigation() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world_test foo");
+
+        // Forward from start
+        let b1 = tf.next_word_boundary(0);
+        assert_eq!(&tf.text()[..b1], "hello ");
+
+        let b2 = tf.next_word_boundary(b1);
+        assert_eq!(&tf.text()[..b2], "hello world_test ");
+
+        // Backward from end
+        let len = tf.text_len();
+        let b3 = tf.prev_word_boundary(len);
+        assert_eq!(b3, 17); // start of "foo"
+    }
+
+    #[test]
+    fn word_boundary_edge_cases() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+
+        // Empty string
+        tf.set_text("");
+        assert_eq!(tf.next_word_boundary(0), 0);
+        assert_eq!(tf.prev_word_boundary(0), 0);
+
+        // Consecutive spaces
+        tf.set_text("a  b");
+        let b = tf.next_word_boundary(0);
+        assert_eq!(b, 3); // skip "a", then skip "  "
+    }
+
+    #[test]
+    fn row_navigation_multi_line() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("abc\ndefgh\nij");
+
+        assert_eq!(tf.row_start(5), 4); // 'd' is at 4
+        assert_eq!(tf.row_end(5), 9); // end of "defgh"
+
+        let (col, row) = tf.index_to_col_row(5);
+        assert_eq!(row, 1);
+        assert_eq!(col, 1);
+
+        assert_eq!(tf.col_row_to_index(1, 2), 11); // 'j'
+    }
+
+    #[test]
+    fn row_nav_up_down() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("abc\ndefgh\nij");
+
+        // From position 5 ("e" in row 1, col 1), go to row 0 col 1 = "b" at index 1
+        let prev = tf.prev_row_index(5, 1);
+        assert_eq!(prev, 1);
+
+        // From position 1 ("b" in row 0), go to row 1 col 1 = "e" at index 5
+        let next = tf.next_row_index(1, 1);
+        assert_eq!(next, 5);
+
+        // Clamp to row end: row 2 only has "ij", col 4 clamps to end
+        let next2 = tf.next_row_index(5, 4);
+        assert_eq!(next2, 12); // end of "ij"
+    }
+
+    // ── Phase 3 tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn ctrl_left_right_word_nav() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world");
+        tf.set_cursor_index(0);
+
+        tf.input(&ctrl_key(InputKey::ArrowRight));
+        assert_eq!(tf.cursor_pos(), 6); // after "hello "
+
+        tf.input(&ctrl_key(InputKey::ArrowLeft));
+        assert_eq!(tf.cursor_pos(), 0);
+    }
+
+    #[test]
+    fn shift_selection() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("ABCDEF");
+        tf.set_cursor_index(2);
+
+        tf.input(&shift_key(InputKey::ArrowRight));
+        assert_eq!(tf.selected_text(), "C");
+
+        tf.input(&shift_key(InputKey::ArrowRight));
+        assert_eq!(tf.selected_text(), "CD");
+
+        // Without shift: clears selection
+        tf.input(&key_press(InputKey::ArrowRight));
+        assert!(tf.is_selection_empty());
+    }
+
+    #[test]
+    fn ctrl_shift_word_selection() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world");
+        tf.set_cursor_index(0);
+
+        tf.input(&shift_ctrl_key(InputKey::ArrowRight));
+        assert_eq!(tf.selected_text(), "hello ");
+    }
+
+    #[test]
+    fn editable_false_blocks_editing_not_nav() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("test");
+        tf.set_editable(false);
+
+        // Nav works
+        tf.input(&key_press(InputKey::Home));
+        assert_eq!(tf.cursor_pos(), 0);
+
+        tf.input(&key_press(InputKey::End));
+        assert_eq!(tf.cursor_pos(), 4);
+
+        // Edit blocked
+        tf.input(&key_press(InputKey::Backspace));
+        assert_eq!(tf.text(), "test");
+
+        tf.input(&char_press('X'));
+        assert_eq!(tf.text(), "test");
+    }
+
+    #[test]
+    fn overwrite_mode() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("ABC");
+        tf.set_cursor_index(0);
+        tf.set_overwrite_mode(true);
+
+        tf.input(&char_press('X'));
+        assert_eq!(tf.text(), "XBC");
+        assert_eq!(tf.cursor_pos(), 1);
+
+        tf.input(&char_press('Y'));
+        assert_eq!(tf.text(), "XYC");
+    }
+
+    #[test]
+    fn ctrl_backspace_delete_word() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world");
+        tf.set_cursor_index(11);
+
+        tf.input(&ctrl_key(InputKey::Backspace));
+        assert_eq!(tf.text(), "hello ");
+    }
+
+    #[test]
+    fn ctrl_delete_word() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world");
+        tf.set_cursor_index(0);
+
+        tf.input(&ctrl_key(InputKey::Delete));
+        assert_eq!(tf.text(), "world");
+    }
+
+    #[test]
+    fn select_all_ctrl_a() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("test");
+
+        tf.input(&ctrl_char('a'));
+        assert_eq!(tf.selected_text(), "test");
+
+        // Ctrl+Shift+A = deselect
+        tf.input(&InputEvent::press(InputKey::Key('a')).with_shift_ctrl());
+        assert!(tf.is_selection_empty());
+    }
+
+    #[test]
+    fn validation_rejects_change() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("123");
+        tf.on_validate = Some(Box::new(|text| text.chars().all(|c| c.is_ascii_digit())));
+
+        // Numeric input accepted
+        tf.input(&char_press('4'));
+        assert_eq!(tf.text(), "1234");
+
+        // Non-numeric rejected
+        tf.input(&char_press('x'));
+        assert_eq!(tf.text(), "1234");
+    }
+
+    #[test]
+    fn magic_column_up_down() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_multi_line(true);
+        tf.set_text("abcde\nfg\nhijklm");
+        // cursor at end of "abcde" (col 5, row 0)
+        tf.set_cursor_index(5);
+
+        // Down: col 5 but row 1 only has "fg" (len 2), so clamps to end of row 1 (idx 8)
+        tf.input(&key_press(InputKey::ArrowDown));
+        assert_eq!(tf.cursor_pos(), 8);
+
+        // Down again: col 5 in row 2 "hijklm" → index 9+5=14
+        tf.input(&key_press(InputKey::ArrowDown));
+        assert_eq!(tf.cursor_pos(), 14);
+    }
+
+    #[test]
+    fn enter_multi_line() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_multi_line(true);
+        tf.set_text("ab");
+        tf.set_cursor_index(1);
+
+        tf.input(&key_press(InputKey::Enter));
+        assert_eq!(tf.text(), "a\nb");
+        assert_eq!(tf.cursor_pos(), 2);
+    }
+
+    #[test]
+    fn enter_single_line_noop() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("ab");
+        tf.set_cursor_index(1);
+
+        tf.input(&key_press(InputKey::Enter));
+        assert_eq!(tf.text(), "ab"); // unchanged
+    }
+
+    // ── Phase 4 tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn clipboard_copy_paste() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        let clipboard = Rc::new(RefCell::new(String::new()));
+
+        let clip_w = clipboard.clone();
+        tf.on_clipboard_copy = Some(Box::new(move |text| {
+            *clip_w.borrow_mut() = text.to_string();
+        }));
+
+        let clip_r = clipboard.clone();
+        tf.on_clipboard_paste = Some(Box::new(move || clip_r.borrow().clone()));
+
+        tf.set_text("Hello World");
+        tf.select(0, 5);
+
+        // Copy
+        tf.input(&ctrl_char('c'));
+        assert_eq!(*clipboard.borrow(), "Hello");
+
+        // Move to end, paste
+        tf.input(&key_press(InputKey::End));
+        tf.input(&ctrl_char('v'));
+        assert_eq!(tf.text(), "Hello WorldHello");
+    }
+
+    #[test]
+    fn clipboard_cut() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        let clipboard = Rc::new(RefCell::new(String::new()));
+
+        let clip_w = clipboard.clone();
+        tf.on_clipboard_copy = Some(Box::new(move |text| {
+            *clip_w.borrow_mut() = text.to_string();
+        }));
+
+        tf.set_text("ABCDEF");
+        tf.select(2, 4);
+
+        tf.input(&ctrl_char('x'));
+        assert_eq!(*clipboard.borrow(), "CD");
+        assert_eq!(tf.text(), "ABEF");
+    }
+
+    #[test]
+    fn paste_respects_max_length() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_max_length(5);
+
+        let clip = Rc::new(RefCell::new("ABCDEFGH".to_string()));
+        let clip_r = clip.clone();
+        tf.on_clipboard_paste = Some(Box::new(move || clip_r.borrow().clone()));
+
+        tf.input(&ctrl_char('v'));
+        assert_eq!(tf.text(), "ABCDE");
+    }
+
+    #[test]
+    fn password_mode_copies_asterisks() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_password_mode(true);
+        let clipboard = Rc::new(RefCell::new(String::new()));
+
+        let clip_w = clipboard.clone();
+        tf.on_clipboard_copy = Some(Box::new(move |text| {
+            *clip_w.borrow_mut() = text.to_string();
+        }));
+
+        tf.set_text("secret");
+        tf.select_all();
+        tf.copy_to_clipboard();
+        assert_eq!(*clipboard.borrow(), "******");
+    }
+
+    // ── Phase 5 tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn double_click_selects_word() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world");
+        // Populate char_positions manually for testing
+        tf.char_positions = vec![
+            0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0, 56.0, 64.0, 72.0, 80.0, 88.0,
+        ];
+
+        let now = std::time::Instant::now();
+
+        // First click at x position for 'e' (approximately char 1)
+        let click1 = InputEvent::press(InputKey::MouseLeft).with_mouse(10.0, 5.0);
+        tf.input(&click1);
+
+        // Simulate second click (double) by setting last_click_time
+        tf.last_click_time = Some(now);
+        tf.last_click_x = 10.0;
+        tf.last_click_y = 5.0;
+        tf.click_count = 1;
+
+        let click2 = InputEvent::press(InputKey::MouseLeft).with_mouse(10.0, 5.0);
+        tf.input(&click2);
+
+        // Should have selected "hello"
+        assert_eq!(tf.selected_text(), "hello");
+    }
+
+    #[test]
+    fn move_mode_relocates_text() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("ABCDEF");
+        tf.char_positions = vec![0.0, 8.0, 16.0, 24.0, 32.0, 40.0, 48.0];
+
+        // Select "CD" (indices 2..4)
+        tf.select(2, 4);
+
+        // Ctrl+click inside selection to start move
+        let click = InputEvent::press(InputKey::MouseLeft)
+            .with_mouse(20.0, 5.0) // inside "CD"
+            .with_ctrl();
+        tf.input(&click);
+        assert_eq!(tf.drag_mode, DragMode::Move);
+
+        // Release at position after 'F' (x=50 → past mid of last char)
+        let release = InputEvent::release(InputKey::MouseLeft).with_mouse(50.0, 5.0);
+        tf.input(&release);
+        assert_eq!(tf.text(), "ABEFCD");
+    }
+
+    // ── Phase 6 tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn preferred_size_multi_line() {
+        let look = Look::new();
+        let fc = FontCache::new();
+        let mut tf = TextField::new(look);
+
+        let (_w1, h1) = tf.preferred_size(&fc);
+
+        tf.set_multi_line(true);
+        let (_w2, h2) = tf.preferred_size(&fc);
+
+        assert!(h2 > h1, "multi-line should be taller");
+    }
+
+    #[test]
+    fn total_rows() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("a\nb\nc");
+        assert_eq!(tf.total_rows(), 3);
+
+        tf.set_text("");
+        assert_eq!(tf.total_rows(), 1);
+    }
+
+    #[test]
+    fn insert_toggle() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        assert!(!tf.is_overwrite_mode());
+
+        tf.input(&key_press(InputKey::Insert));
+        assert!(tf.is_overwrite_mode());
+
+        tf.input(&key_press(InputKey::Insert));
+        assert!(!tf.is_overwrite_mode());
+    }
+
+    #[test]
+    fn text_len() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello");
+        assert_eq!(tf.text_len(), 5);
+    }
+
+    #[test]
+    fn ctrl_shift_backspace_delete_to_row_start() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world");
+        tf.set_cursor_index(7); // at "o" in "world"
+
+        tf.input(&shift_ctrl_key(InputKey::Backspace));
+        assert_eq!(tf.text(), "orld");
+    }
+
+    #[test]
+    fn ctrl_shift_delete_to_row_end() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_text("hello world");
+        tf.set_cursor_index(5);
+
+        tf.input(&shift_ctrl_key(InputKey::Delete));
+        assert_eq!(tf.text(), "hello");
+    }
+
+    #[test]
+    fn home_end_multi_line_row_vs_text() {
+        let look = Look::new();
+        let mut tf = TextField::new(look);
+        tf.set_multi_line(true);
+        tf.set_text("abc\ndef\nghi");
+        tf.set_cursor_index(5); // 'e' in row 1
+
+        // Home goes to row start
+        tf.input(&key_press(InputKey::Home));
+        assert_eq!(tf.cursor_pos(), 4); // start of "def"
+
+        // End goes to row end
+        tf.input(&key_press(InputKey::End));
+        assert_eq!(tf.cursor_pos(), 7); // end of "def"
+
+        // Ctrl+Home goes to text start
+        tf.input(&ctrl_key(InputKey::Home));
+        assert_eq!(tf.cursor_pos(), 0);
+
+        // Ctrl+End goes to text end
+        tf.input(&ctrl_key(InputKey::End));
+        assert_eq!(tf.cursor_pos(), 11);
     }
 }

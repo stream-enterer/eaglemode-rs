@@ -203,6 +203,10 @@ mod tests {
             is_repeat: false,
             mouse_x: 70.0,
             mouse_y: 10.0,
+            shift: false,
+            ctrl: false,
+            alt: false,
+            meta: false,
         };
         sp.input(&drag);
         assert!((sp.position() - 0.7).abs() < 0.01);

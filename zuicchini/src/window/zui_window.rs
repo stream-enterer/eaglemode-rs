@@ -253,6 +253,10 @@ impl ZuiWindow {
                     is_repeat: event.repeat,
                     mouse_x: 0.0,
                     mouse_y: 0.0,
+                    shift: false,
+                    ctrl: false,
+                    alt: false,
+                    meta: false,
                 };
                 if let Some(ref text) = event.text {
                     input_event.chars = text.to_string();
@@ -279,6 +283,10 @@ impl ZuiWindow {
                     is_repeat: false,
                     mouse_x: 0.0,
                     mouse_y: 0.0,
+                    shift: false,
+                    ctrl: false,
+                    alt: false,
+                    meta: false,
                 })
             }
             WindowEvent::CursorMoved { position, .. } => Some(InputEvent {
@@ -288,6 +296,10 @@ impl ZuiWindow {
                 is_repeat: false,
                 mouse_x: position.x,
                 mouse_y: position.y,
+                shift: false,
+                ctrl: false,
+                alt: false,
+                meta: false,
             }),
             WindowEvent::MouseWheel { delta, .. } => {
                 let (dx, dy) = match delta {
@@ -307,6 +319,10 @@ impl ZuiWindow {
                         is_repeat: false,
                         mouse_x: dx,
                         mouse_y: dy,
+                        shift: false,
+                        ctrl: false,
+                        alt: false,
+                        meta: false,
                     })
                 } else if dx.abs() > 0.0 {
                     Some(InputEvent {
@@ -320,6 +336,10 @@ impl ZuiWindow {
                         is_repeat: false,
                         mouse_x: dx,
                         mouse_y: dy,
+                        shift: false,
+                        ctrl: false,
+                        alt: false,
+                        meta: false,
                     })
                 } else {
                     None
@@ -353,10 +373,13 @@ impl ZuiWindow {
             }
         }
 
+        // Stamp modifier keys from InputState onto the event
+        let ev = event.clone().with_modifiers(state);
+
         // Dispatch to active panel's behavior
         if let Some(active) = self.view.active() {
             if let Some(mut behavior) = tree.take_behavior(active) {
-                behavior.input(event);
+                behavior.input(&ev);
                 tree.put_behavior(active, behavior);
             }
         }

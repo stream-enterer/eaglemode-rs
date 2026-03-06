@@ -83,6 +83,11 @@ pub struct InputEvent {
     pub mouse_x: f64,
     /// Mouse Y position in panel coordinates.
     pub mouse_y: f64,
+    /// Modifier key states at the time of the event.
+    pub shift: bool,
+    pub ctrl: bool,
+    pub alt: bool,
+    pub meta: bool,
 }
 
 impl InputEvent {
@@ -94,6 +99,10 @@ impl InputEvent {
             is_repeat: false,
             mouse_x: 0.0,
             mouse_y: 0.0,
+            shift: false,
+            ctrl: false,
+            alt: false,
+            meta: false,
         }
     }
 
@@ -105,6 +114,10 @@ impl InputEvent {
             is_repeat: false,
             mouse_x: 0.0,
             mouse_y: 0.0,
+            shift: false,
+            ctrl: false,
+            alt: false,
+            meta: false,
         }
     }
 
@@ -116,6 +129,30 @@ impl InputEvent {
     pub fn with_mouse(mut self, x: f64, y: f64) -> Self {
         self.mouse_x = x;
         self.mouse_y = y;
+        self
+    }
+
+    pub fn with_modifiers(mut self, state: &super::InputState) -> Self {
+        self.shift = state.shift();
+        self.ctrl = state.ctrl();
+        self.alt = state.alt();
+        self.meta = state.meta();
+        self
+    }
+
+    pub fn with_shift(mut self) -> Self {
+        self.shift = true;
+        self
+    }
+
+    pub fn with_ctrl(mut self) -> Self {
+        self.ctrl = true;
+        self
+    }
+
+    pub fn with_shift_ctrl(mut self) -> Self {
+        self.shift = true;
+        self.ctrl = true;
         self
     }
 }
