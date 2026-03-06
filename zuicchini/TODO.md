@@ -16,7 +16,7 @@ Tracked here so they don't get forgotten. Sourced from EMCORE_FEATURE_CONTRACT.m
 
 ## Structural Refactors
 
-- [ ] Restrict PanelData field visibility — make computed fields (`enabled`, `pending_notices`) and tree-managed fields (`parent`, `first_child`, etc.) non-public after the fix pass settles their access patterns
+- [x] Restrict PanelData field visibility — make computed fields (`enabled`, `pending_notices`) and tree-managed fields (`parent`, `first_child`, etc.) non-public after the fix pass settles their access patterns
 
 ## Rendering
 

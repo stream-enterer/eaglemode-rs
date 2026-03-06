@@ -12,49 +12,49 @@ new_key_type! {
 }
 
 /// Data stored for each panel in the arena.
-pub struct PanelData {
-    /// Parent panel (None for root).
-    pub parent: Option<PanelId>,
-    /// First child panel.
-    pub first_child: Option<PanelId>,
-    /// Last child panel.
-    pub last_child: Option<PanelId>,
-    /// Next sibling.
-    pub next_sibling: Option<PanelId>,
-    /// Previous sibling.
-    pub prev_sibling: Option<PanelId>,
-    /// Panel name (for lookup).
-    pub name: String,
-    /// Layout rectangle relative to parent.
-    pub layout_rect: Rect,
-    /// Canvas color for this panel.
-    pub canvas_color: Color,
-    /// Whether the panel is visible.
-    pub visible: bool,
-    /// Whether the panel can receive input focus.
-    pub focusable: bool,
-    /// Per-panel enable switch (ANDed with ancestors to compute enabled).
-    pub enable_switch: bool,
+///
+/// Fields are crate-internal. Use accessor methods on [`PanelTree`] for reading
+/// panel state, and dedicated setters (e.g. `set_layout_rect`, `set_visible`)
+/// for mutation.
+pub(crate) struct PanelData {
+    // Tree-managed linkage
+    pub(crate) parent: Option<PanelId>,
+    pub(crate) first_child: Option<PanelId>,
+    pub(crate) last_child: Option<PanelId>,
+    pub(crate) next_sibling: Option<PanelId>,
+    pub(crate) prev_sibling: Option<PanelId>,
+
+    // Identity
+    pub(crate) name: String,
+
+    // Layout & appearance
+    pub(crate) layout_rect: Rect,
+    pub(crate) canvas_color: Color,
+    pub(crate) visible: bool,
+    pub(crate) focusable: bool,
+
+    // Enable state
+    pub(crate) enable_switch: bool,
     /// Computed: true if this panel and all ancestors have enable_switch=true.
-    pub enabled: bool,
-    /// Pending notice flags.
-    pub pending_notices: NoticeFlags,
-    /// The behavior implementation (extracted for mutation).
-    pub behavior: Option<Box<dyn PanelBehavior>>,
+    pub(crate) enabled: bool,
+
+    // Notices & behavior
+    pub(crate) pending_notices: NoticeFlags,
+    pub(crate) behavior: Option<Box<dyn PanelBehavior>>,
 
     // Viewing state (set by View::update_viewing each frame)
-    pub viewed: bool,
-    pub in_viewed_path: bool,
-    pub in_active_path: bool,
-    pub is_active: bool,
-    pub viewed_x: f64,
-    pub viewed_y: f64,
-    pub viewed_width: f64,
-    pub viewed_height: f64,
-    pub clip_x: f64,
-    pub clip_y: f64,
-    pub clip_w: f64,
-    pub clip_h: f64,
+    pub(crate) viewed: bool,
+    pub(crate) in_viewed_path: bool,
+    pub(crate) in_active_path: bool,
+    pub(crate) is_active: bool,
+    pub(crate) viewed_x: f64,
+    pub(crate) viewed_y: f64,
+    pub(crate) viewed_width: f64,
+    pub(crate) viewed_height: f64,
+    pub(crate) clip_x: f64,
+    pub(crate) clip_y: f64,
+    pub(crate) clip_w: f64,
+    pub(crate) clip_h: f64,
 }
 
 impl PanelData {
@@ -207,14 +207,70 @@ impl PanelTree {
         self.root
     }
 
-    /// Get a panel's data.
-    pub fn get(&self, id: PanelId) -> Option<&PanelData> {
+    /// Get a panel's data (crate-internal).
+    pub(crate) fn get(&self, id: PanelId) -> Option<&PanelData> {
         self.panels.get(id)
     }
 
-    /// Get a panel's data mutably.
-    pub fn get_mut(&mut self, id: PanelId) -> Option<&mut PanelData> {
+    /// Get a panel's data mutably (crate-internal).
+    pub(crate) fn get_mut(&mut self, id: PanelId) -> Option<&mut PanelData> {
         self.panels.get_mut(id)
+    }
+
+    // ── Public read accessors ──────────────────────────────────────────
+
+    /// Get the panel's name.
+    pub fn name(&self, id: PanelId) -> Option<&str> {
+        self.panels.get(id).map(|p| p.name.as_str())
+    }
+
+    /// Get the layout rectangle.
+    pub fn layout_rect(&self, id: PanelId) -> Option<Rect> {
+        self.panels.get(id).map(|p| p.layout_rect)
+    }
+
+    /// Get the canvas color.
+    pub fn canvas_color(&self, id: PanelId) -> Option<Color> {
+        self.panels.get(id).map(|p| p.canvas_color)
+    }
+
+    /// Whether the panel is visible.
+    pub fn visible(&self, id: PanelId) -> bool {
+        self.panels.get(id).map(|p| p.visible).unwrap_or(false)
+    }
+
+    /// Whether the panel can receive input focus.
+    pub fn focusable(&self, id: PanelId) -> bool {
+        self.panels.get(id).map(|p| p.focusable).unwrap_or(false)
+    }
+
+    /// Whether the panel is enabled (computed from enable_switch and ancestors).
+    pub fn enabled(&self, id: PanelId) -> bool {
+        self.panels.get(id).map(|p| p.enabled).unwrap_or(false)
+    }
+
+    /// Get pending notice flags.
+    pub fn pending_notices(&self, id: PanelId) -> NoticeFlags {
+        self.panels
+            .get(id)
+            .map(|p| p.pending_notices)
+            .unwrap_or_else(NoticeFlags::empty)
+    }
+
+    // ── Public write accessors ─────────────────────────────────────────
+
+    /// Set whether the panel is visible.
+    pub fn set_visible(&mut self, id: PanelId, visible: bool) {
+        if let Some(panel) = self.panels.get_mut(id) {
+            panel.visible = visible;
+        }
+    }
+
+    /// Set whether the panel can receive input focus.
+    pub fn set_focusable(&mut self, id: PanelId, focusable: bool) {
+        if let Some(panel) = self.panels.get_mut(id) {
+            panel.focusable = focusable;
+        }
     }
 
     /// Look up a child panel by parent and name.

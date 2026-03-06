@@ -1,5 +1,6 @@
 use zuicchini::foundation::{Color, Rect};
 use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelTree, View, ViewFlags};
+
 use zuicchini::render::Painter;
 
 struct TestBehavior {
@@ -87,7 +88,7 @@ fn panel_ctx_operations() {
     }
 
     let child_id = tree.find_by_name("child_via_ctx").unwrap();
-    let layout = tree.get(child_id).unwrap().layout_rect;
+    let layout = tree.layout_rect(child_id).unwrap();
     assert_eq!(layout, Rect::new(10.0, 20.0, 100.0, 50.0));
 }
 
@@ -101,17 +102,15 @@ fn notice_flag_propagation() {
     let _child = tree.create_child(root, "child");
 
     // Verify notice is pending before delivery
-    let panel = tree.get(root).unwrap();
-    assert!(panel
-        .pending_notices
+    assert!(tree
+        .pending_notices(root)
         .contains(NoticeFlags::CHILDREN_CHANGED));
 
     // Deliver notices
     tree.deliver_notices();
 
     // Verify notices were cleared after delivery
-    let panel = tree.get(root).unwrap();
-    assert!(panel.pending_notices.is_empty());
+    assert!(tree.pending_notices(root).is_empty());
 }
 
 #[test]
@@ -197,9 +196,15 @@ fn layout_rect_and_canvas_color() {
     tree.set_layout_rect(root, 10.0, 20.0, 300.0, 200.0);
     tree.set_canvas_color(root, Color::rgb(128, 128, 128));
 
-    let panel = tree.get(root).unwrap();
-    assert_eq!(panel.layout_rect, Rect::new(10.0, 20.0, 300.0, 200.0));
-    assert_eq!(panel.canvas_color, Color::rgb(128, 128, 128));
-    assert!(panel.pending_notices.contains(NoticeFlags::LAYOUT_CHANGED));
-    assert!(panel.pending_notices.contains(NoticeFlags::CANVAS_CHANGED));
+    assert_eq!(
+        tree.layout_rect(root).unwrap(),
+        Rect::new(10.0, 20.0, 300.0, 200.0)
+    );
+    assert_eq!(tree.canvas_color(root).unwrap(), Color::rgb(128, 128, 128));
+    assert!(tree
+        .pending_notices(root)
+        .contains(NoticeFlags::LAYOUT_CHANGED));
+    assert!(tree
+        .pending_notices(root)
+        .contains(NoticeFlags::CANVAS_CHANGED));
 }
