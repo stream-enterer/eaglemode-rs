@@ -129,7 +129,7 @@ impl Default for ChildConstraint {
             weight: 1.0,
             min_main: 0.0,
             max_main: f64::INFINITY,
-            preferred_tallness: 1.0,
+            preferred_tallness: 0.2,
             min_tallness: 1e-4,
             max_tallness: 1e4,
         }

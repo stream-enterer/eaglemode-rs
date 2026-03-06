@@ -40,11 +40,28 @@ impl PackLayout {
         }
 
         let sp = &self.spacing;
+
+        // Proportional spacing: convert margins and gap from proportions to pixels.
+        // Content is 1.0 proportion-unit in each axis.
+        let denom_x = sp.margin_left + sp.margin_right + 1.0;
+        let denom_y = sp.margin_top + sp.margin_bottom + 1.0;
+
+        if denom_x < 1e-100 || denom_y < 1e-100 {
+            return;
+        }
+
+        let sx = w / denom_x;
+        let sy = h / denom_y;
+        let actual_ml = sp.margin_left * sx;
+        let actual_mt = sp.margin_top * sy;
+        let content_w = sx; // 1.0 * sx
+        let content_h = sy; // 1.0 * sy
+
         let rect = PackRect {
-            x: sp.margin_left,
-            y: sp.margin_top,
-            w: (w - sp.margin_left - sp.margin_right).max(0.0),
-            h: (h - sp.margin_top - sp.margin_bottom).max(0.0),
+            x: actual_ml,
+            y: actual_mt,
+            w: content_w,
+            h: content_h,
         };
 
         // Build items with weights and preferred tallness
@@ -61,8 +78,8 @@ impl PackLayout {
             .collect();
 
         let mut assignments = Vec::with_capacity(items.len());
-        // Pack uses a single gap since it splits in both orientations.
-        let gap = self.spacing.inner_h.max(self.spacing.inner_v);
+        // Pack uses a single gap. Convert inner spacing to absolute using min scale.
+        let gap = sp.inner_h.max(sp.inner_v) * sx.min(sy);
         self.partition(&items, rect, gap, &mut assignments);
 
         for (id, r) in assignments {
@@ -202,20 +219,32 @@ impl PackLayout {
         }
     }
 
-    /// Score = sum of |actual_tallness - preferred_tallness| weighted by item count.
+    /// Rate a single cell's tallness deviation using ratio-cubed scoring (C++ RateCell).
+    fn rate_cell(tallness: f64, preferred_tallness: f64) -> f64 {
+        if preferred_tallness <= 0.0 || tallness <= 0.0 {
+            return f64::INFINITY;
+        }
+        let mut error = tallness / preferred_tallness;
+        if error < 1.0 {
+            error = 1.0 / error;
+        }
+        error * error * error - 1.0
+    }
+
+    /// Score a rectangle's fitness for the given items using ratio-cubed scoring.
     fn score_rect(items: &[PackItem], rect: PackRect) -> f64 {
         if items.is_empty() || rect.w <= 0.0 || rect.h <= 0.0 {
             return 0.0;
         }
         if items.len() == 1 {
             let tallness = rect.h / rect.w;
-            return (tallness - items[0].preferred_tallness).abs();
+            return Self::rate_cell(tallness, items[0].preferred_tallness);
         }
         // For multi-item groups, estimate by assuming uniform split
-        let avg_tallness = (rect.h * items.len() as f64) / rect.w;
+        let avg_tallness = rect.h / rect.w;
         items
             .iter()
-            .map(|item| (avg_tallness / items.len() as f64 - item.preferred_tallness).abs())
+            .map(|item| Self::rate_cell(avg_tallness, item.preferred_tallness))
             .sum()
     }
 }
@@ -324,15 +353,18 @@ mod tests {
 
     #[test]
     fn respects_margins() {
+        // Proportional: margin=0.5 means denom=0.5+0.5+1.0=2.0
+        // sx=400/2=200, sy=300/2=150
+        // actual_ml=100, actual_mt=75, content_w=200, content_h=150
         let (mut tree, root, children) = setup(1, 400.0, 300.0);
-        let mut layout = PackLayout::new().with_spacing(super::super::Spacing::uniform(10.0, 0.0));
+        let mut layout = PackLayout::new().with_spacing(super::super::Spacing::uniform(0.5, 0.0));
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         let r = tree.get(children[0]).unwrap().layout_rect;
-        assert!((r.x - 10.0).abs() < 0.01);
-        assert!((r.y - 10.0).abs() < 0.01);
-        assert!((r.w - 380.0).abs() < 0.01);
-        assert!((r.h - 280.0).abs() < 0.01);
+        assert!((r.x - 100.0).abs() < 0.01, "x: {}", r.x);
+        assert!((r.y - 75.0).abs() < 0.01, "y: {}", r.y);
+        assert!((r.w - 200.0).abs() < 0.01, "w: {}", r.w);
+        assert!((r.h - 150.0).abs() < 0.01, "h: {}", r.h);
     }
 
     #[test]
