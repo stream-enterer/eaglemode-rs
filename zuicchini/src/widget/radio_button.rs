@@ -68,7 +68,8 @@ impl RadioButton {
             self.look.button_bg_color
         };
         painter.paint_round_rect(1.0, 1.0, w - 2.0, h - 2.0, 3.0, face_color);
-        self.border.paint_border(painter, w, h, &self.look, false);
+        self.border
+            .paint_border(painter, w, h, &self.look, false, true);
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {

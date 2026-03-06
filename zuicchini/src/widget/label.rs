@@ -29,7 +29,8 @@ impl Label {
     }
 
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
-        self.border.paint_border(painter, w, h, &self.look, false);
+        self.border
+            .paint_border(painter, w, h, &self.look, false, true);
     }
 
     pub fn preferred_size(&self, font_cache: &FontCache) -> (f64, f64) {

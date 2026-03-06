@@ -72,7 +72,8 @@ impl ListBox {
     }
 
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
-        self.border.paint_border(painter, w, h, &self.look, false);
+        self.border
+            .paint_border(painter, w, h, &self.look, false, true);
 
         let Rect {
             x: cx,

@@ -82,6 +82,12 @@ impl Image {
         &mut self.data
     }
 
+    /// Returns `true` if either dimension is zero.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.width == 0 || self.height == 0
+    }
+
     fn pixel_offset(&self, x: u32, y: u32) -> usize {
         debug_assert!(x < self.width && y < self.height);
         (y as usize * self.width as usize + x as usize) * self.channel_count as usize

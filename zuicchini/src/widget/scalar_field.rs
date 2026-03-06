@@ -56,7 +56,8 @@ impl ScalarField {
 
     pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
         self.last_w = w;
-        self.border.paint_border(painter, w, h, &self.look, false);
+        self.border
+            .paint_border(painter, w, h, &self.look, false, true);
 
         let Rect {
             x: cx,

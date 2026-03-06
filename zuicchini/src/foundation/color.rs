@@ -118,6 +118,12 @@ impl Color {
         Color::rgba(r as u8, g as u8, b as u8, out_a as u8)
     }
 
+    /// Return a copy with the alpha channel replaced.
+    #[inline]
+    pub const fn with_alpha(self, a: u8) -> Color {
+        Color::rgba(self.r(), self.g(), self.b(), a)
+    }
+
     /// Linearly interpolate between `self` and `other` by factor `t` (0.0–1.0).
     pub fn lerp(self, other: Color, t: f64) -> Color {
         let t = t.clamp(0.0, 1.0);
