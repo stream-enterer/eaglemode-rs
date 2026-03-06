@@ -203,9 +203,12 @@ impl EngineScheduler {
             .create_timer(signal, interval_ms, periodic)
     }
 
-    /// Cancel a timer.
+    /// Cancel a timer and abort any already-queued signal.
+    /// Matches C++ emTimer::TriggerTimer(Cancel) which calls Signal.Abort().
     pub fn cancel_timer(&mut self, id: TimerId) {
-        self.inner.timer_central.cancel_timer(id);
+        if let Some(sig) = self.inner.timer_central.cancel_timer(id) {
+            self.abort(sig);
+        }
     }
 
     /// Remove a timer entirely, freeing its slot.

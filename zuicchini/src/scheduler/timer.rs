@@ -52,10 +52,14 @@ impl TimerCentral {
         })
     }
 
-    /// Cancel a timer.
-    pub fn cancel_timer(&mut self, id: TimerId) {
+    /// Cancel a timer. Returns the signal ID so the caller can abort
+    /// any already-queued signal.
+    pub fn cancel_timer(&mut self, id: TimerId) -> Option<SignalId> {
         if let Some(entry) = self.timers.get_mut(id) {
             entry.active = false;
+            Some(entry.signal_id)
+        } else {
+            None
         }
     }
 

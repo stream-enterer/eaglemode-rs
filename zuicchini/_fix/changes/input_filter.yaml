@@ -33,10 +33,21 @@ changes:
     extract_branches_addressed:
       - "check VF_NO_USER_NAVIGATION before processing"
 
+  - fix_id: VIF-NEW-001
+    action: MODIFIED
+    lines_before: 127-138
+    lines_after: 127-138
+    description: >
+      Added state.alt() guard to PageUp, PageDown, and Home keys,
+      matching C++ emDefaultTouchVIF which requires Alt for all keyboard
+      navigation. Consistent with the arrow key guards from VIF-001.
+    extract_branches_addressed:
+      - "requires Alt for PageUp/PageDown/Home keyboard navigation"
+
   - fix_id: VIF-004
-    action: BLOCKED
+    action: DEFERRED_TO_VIEW
     reason: >
       View::is_focused() does not exist. The View struct has
       focused: Option<PanelId> for panel-level focus, but no concept
-      of OS-level window focus. Adding window focus requires extending
-      View with a boolean flag set by the windowing layer.
+      of OS-level window focus. Requires ViewPort abstraction to bridge
+      windowing layer focus state into View. Part of VIEW-001.

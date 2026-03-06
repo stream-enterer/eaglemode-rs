@@ -12,13 +12,16 @@ changes:
       - "C++ clamps Period to 1 for periodic timers with millisecs=0"
 
   - fix_id: TIMER-002
-    action: RECLASSIFIED
-    reason: >
-      TimerCentral doesn't own the scheduler, so it cannot call
-      scheduler.abort(signal_id). Adding abort_signal requires either
-      passing a callback/reference to the scheduler, or restructuring
-      the API to return the signal_id so the caller can abort it.
-      This is an architectural decision, not a simple fix.
+    action: MODIFIED
+    lines_before: "timer.rs:56-60, core.rs:207-209"
+    lines_after: "timer.rs:56-63, core.rs:207-212"
+    description: >
+      cancel_timer on TimerCentral now returns Option<SignalId>.
+      EngineScheduler::cancel_timer calls abort() on the returned signal,
+      matching C++ emTimer::TriggerTimer(Cancel) which calls Signal.Abort().
+      Prevents stale signal dispatch after cancellation.
+    extract_branches_addressed:
+      - "cancel_timer aborts pending signal (C++ Signal.Abort)"
 
   - fix_id: TIMER-003
     action: ADDED

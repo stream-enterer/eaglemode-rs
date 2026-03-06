@@ -123,16 +123,16 @@ impl ViewInputFilter for KeyboardZoomScrollVIF {
                 view.scroll(self.scroll_speed, 0.0);
                 true
             }
-            // PageUp/Down zoom instead of scroll (matches C++ behavior)
-            InputKey::PageUp => {
+            // PageUp/Down zoom (matches C++ Alt requirement)
+            InputKey::PageUp if state.alt() => {
                 view.zoom(self.zoom_speed, 0.0, 0.0);
                 true
             }
-            InputKey::PageDown => {
+            InputKey::PageDown if state.alt() => {
                 view.zoom(1.0 / self.zoom_speed, 0.0, 0.0);
                 true
             }
-            InputKey::Home => {
+            InputKey::Home if state.alt() => {
                 view.go_home();
                 true
             }

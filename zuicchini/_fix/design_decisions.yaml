@@ -175,6 +175,9 @@ individual:
     context: >
       ~50 C++ methods absent. Major systems missing: coordinate transform,
       SVP, viewing flags, input dispatch, navigation. Needs design document.
+      Also subsumes PANEL-005 (set_focusable can't migrate active panel
+      because PanelCtx lacks View access) and VIF-004 (VIFs can't check
+      OS-level window focus — requires ViewPort abstraction).
     options:
       - "Incremental port (add features as game needs them)"
       - "Full port of core coordinate/SVP/navigation systems"
