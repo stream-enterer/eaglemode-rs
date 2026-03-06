@@ -4,7 +4,7 @@ mod image;
 mod rect;
 mod tga;
 
-pub use color::Color;
+pub use color::{Color, ColorParseError};
 pub use fixed::Fixed12;
 pub use image::Image;
 pub use rect::{PixelRect, Rect};
