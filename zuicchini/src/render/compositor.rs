@@ -2,7 +2,8 @@ use super::tile_cache::{Tile, TILE_SIZE};
 
 /// Per-tile GPU data.
 struct TileGpuData {
-    texture: wgpu::Texture,
+    _texture: wgpu::Texture,
+    _uniform_buffer: wgpu::Buffer,
     bind_group: wgpu::BindGroup,
 }
 
@@ -12,7 +13,6 @@ pub struct WgpuCompositor {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
-    uniform_buffer: wgpu::Buffer,
     tiles: Vec<Option<TileGpuData>>,
     cols: u32,
     rows: u32,
@@ -115,13 +115,6 @@ impl WgpuCompositor {
             ..Default::default()
         });
 
-        let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("tile_uniforms"),
-            size: std::mem::size_of::<TileUniforms>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-
         let cols = viewport_width.div_ceil(TILE_SIZE);
         let rows = viewport_height.div_ceil(TILE_SIZE);
         let count = (cols * rows) as usize;
@@ -132,7 +125,6 @@ impl WgpuCompositor {
             pipeline,
             bind_group_layout,
             sampler,
-            uniform_buffer,
             tiles,
             cols,
             rows,
@@ -155,7 +147,7 @@ impl WgpuCompositor {
             return;
         }
 
-        // Create texture if needed
+        // Create texture and per-tile uniform buffer if needed
         if self.tiles[idx].is_none() {
             let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("tile_tex"),
@@ -172,7 +164,24 @@ impl WgpuCompositor {
                 view_formats: &[],
             });
 
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let tex_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+            // Per-tile uniform buffer with pre-computed NDC position
+            let ndc_x = (col as f32 * TILE_SIZE as f32) / self.viewport_width as f32 * 2.0 - 1.0;
+            let ndc_y = 1.0 - (row as f32 * TILE_SIZE as f32) / self.viewport_height as f32 * 2.0;
+            let ndc_w = TILE_SIZE as f32 / self.viewport_width as f32 * 2.0;
+            let ndc_h = -(TILE_SIZE as f32 / self.viewport_height as f32 * 2.0);
+            let uniforms = TileUniforms {
+                offset_scale: [ndc_x, ndc_y, ndc_w, ndc_h],
+            };
+
+            let uniform_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("tile_uniforms"),
+                size: std::mem::size_of::<TileUniforms>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            queue.write_buffer(&uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("tile_bg"),
@@ -180,11 +189,11 @@ impl WgpuCompositor {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: self.uniform_buffer.as_entire_binding(),
+                        resource: uniform_buffer.as_entire_binding(),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&view),
+                        resource: wgpu::BindingResource::TextureView(&tex_view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -194,7 +203,8 @@ impl WgpuCompositor {
             });
 
             self.tiles[idx] = Some(TileGpuData {
-                texture,
+                _texture: texture,
+                _uniform_buffer: uniform_buffer,
                 bind_group,
             });
         }
@@ -203,7 +213,7 @@ impl WgpuCompositor {
         if let Some(gpu_tile) = &self.tiles[idx] {
             queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
-                    texture: &gpu_tile.texture,
+                    texture: &gpu_tile._texture,
                     mip_level: 0,
                     origin: wgpu::Origin3d::ZERO,
                     aspect: wgpu::TextureAspect::All,
@@ -262,20 +272,6 @@ impl WgpuCompositor {
                 for col in 0..self.cols {
                     let idx = (row * self.cols + col) as usize;
                     if let Some(gpu_tile) = &self.tiles[idx] {
-                        // Compute NDC position for this tile
-                        let ndc_x = (col as f32 * TILE_SIZE as f32) / self.viewport_width as f32
-                            * 2.0
-                            - 1.0;
-                        let ndc_y = 1.0
-                            - (row as f32 * TILE_SIZE as f32) / self.viewport_height as f32 * 2.0;
-                        let ndc_w = TILE_SIZE as f32 / self.viewport_width as f32 * 2.0;
-                        let ndc_h = -(TILE_SIZE as f32 / self.viewport_height as f32 * 2.0);
-
-                        let uniforms = TileUniforms {
-                            offset_scale: [ndc_x, ndc_y, ndc_w, ndc_h],
-                        };
-                        queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
-
                         pass.set_bind_group(0, &gpu_tile.bind_group, &[]);
                         pass.draw(0..6, 0..1);
                     }

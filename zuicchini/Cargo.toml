@@ -5,6 +5,9 @@ edition = "2021"
 description = "A zoomable UI framework inspired by Eagle Mode's emCore"
 license = "MIT"
 
+[dev-dependencies]
+rand = "0.9"
+
 [dependencies]
 bitflags = "2"
 bytemuck = { version = "1", features = ["derive"] }

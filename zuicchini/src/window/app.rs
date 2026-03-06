@@ -6,7 +6,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
 use crate::input::{InputState, InputVariant};
-use crate::panel::PanelTree;
+use crate::panel::{PanelTree, ViewFlags};
 use crate::scheduler::EngineScheduler;
 
 use super::screen::Screen;
@@ -202,6 +202,15 @@ impl ApplicationHandler for App {
         // Run one scheduler time slice
         self.scheduler.do_time_slice();
 
+        // Sync root layout_rect for ROOT_SAME_TALLNESS windows before layout
+        for win in self.windows.values() {
+            if win.view().flags.contains(ViewFlags::ROOT_SAME_TALLNESS) {
+                let tallness = win.view().pixel_tallness();
+                let root = win.view().root();
+                self.tree.set_layout_rect(root, 0.0, 0.0, 1.0, tallness);
+            }
+        }
+
         // Deliver notices (includes layout dispatch)
         self.tree.deliver_notices();
 
@@ -218,6 +227,7 @@ impl ApplicationHandler for App {
 
             // Update view (recompute viewing coords, auto-select active)
             win.view_mut().update(tree);
+            win.invalidate();
             win.request_redraw();
         }
     }

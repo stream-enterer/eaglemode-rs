@@ -419,9 +419,18 @@ impl View {
         let mut chain_rev: Vec<PanelId> = tree.ancestors(panel);
         chain_rev.reverse(); // [root, ..., parent, panel]
 
-        // Start from root which occupies the "full space"
+        // Start from root — width normalized to 1.0, height preserves layout_rect aspect
+        let root_lr = tree
+            .get(self.root)
+            .map(|p| p.layout_rect)
+            .unwrap_or_default();
+        let root_norm_h = if root_lr.w > MIN_DIMENSION {
+            (root_lr.h / root_lr.w).max(MIN_DIMENSION)
+        } else {
+            1.0
+        };
         let mut rects: Vec<(f64, f64, f64, f64)> = Vec::with_capacity(chain_rev.len());
-        rects.push((0.0, 0.0, 1.0, 1.0)); // root occupies full normalized space
+        rects.push((0.0, 0.0, 1.0, root_norm_h));
 
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
@@ -477,8 +486,17 @@ impl View {
         let mut chain_rev: Vec<PanelId> = chain;
         chain_rev.reverse();
 
+        let root_lr = tree
+            .get(self.root)
+            .map(|p| p.layout_rect)
+            .unwrap_or_default();
+        let root_norm_h = if root_lr.w > MIN_DIMENSION {
+            (root_lr.h / root_lr.w).max(MIN_DIMENSION)
+        } else {
+            1.0
+        };
         let mut rects: Vec<(f64, f64, f64, f64)> = Vec::with_capacity(chain_rev.len());
-        rects.push((0.0, 0.0, 1.0, 1.0));
+        rects.push((0.0, 0.0, 1.0, root_norm_h));
 
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
@@ -675,10 +693,16 @@ impl View {
         let mut chain_rev: Vec<PanelId> = chain;
         chain_rev.reverse(); // root .. visited
 
-        // Compute each panel's normalized rect relative to root
-        // Root occupies (0,0,1,1) in normalized space
+        // Compute each panel's normalized rect relative to root.
+        // Root width is normalized to 1.0; height preserves the layout_rect aspect.
+        let root_lr = tree.get(root).map(|p| p.layout_rect).unwrap_or_default();
+        let root_norm_h = if root_lr.w > MIN_DIMENSION {
+            (root_lr.h / root_lr.w).max(MIN_DIMENSION)
+        } else {
+            1.0
+        };
         let mut norm_rects: Vec<(f64, f64, f64, f64)> = Vec::with_capacity(chain_rev.len());
-        norm_rects.push((0.0, 0.0, 1.0, 1.0));
+        norm_rects.push((0.0, 0.0, 1.0, root_norm_h));
         for i in 1..chain_rev.len() {
             let id = chain_rev[i];
             let lr = tree.get(id).map(|p| p.layout_rect).unwrap_or_default();
