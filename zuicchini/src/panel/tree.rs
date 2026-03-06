@@ -848,7 +848,10 @@ impl PanelTree {
     }
 
     /// Deliver pending notices to all panels with behaviors.
-    pub fn deliver_notices(&mut self) {
+    /// Dispatch pending notices to panel behaviors. Returns `true` if any
+    /// notices were delivered (meaning visual state may have changed).
+    pub fn deliver_notices(&mut self) -> bool {
+        let mut delivered = false;
         let ids: Vec<PanelId> = self.panels.keys().collect();
         for id in ids {
             // Panel may have been removed by a prior callback in this loop.
@@ -859,6 +862,7 @@ impl PanelTree {
             if flags.is_empty() {
                 continue;
             }
+            delivered = true;
             self.panels[id].pending_notices = NoticeFlags::empty();
             if let Some(mut behavior) = self.take_behavior(id) {
                 behavior.notice(flags);
@@ -872,6 +876,7 @@ impl PanelTree {
                 }
             }
         }
+        delivered
     }
 
     /// Walk from `id` to root, returning ancestor chain (id first, root last).

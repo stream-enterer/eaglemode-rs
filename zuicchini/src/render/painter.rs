@@ -2647,7 +2647,10 @@ impl<'a> Painter<'a> {
             out[1] = color.g();
             out[2] = color.b();
             out[3] = 255;
-        } else {
+        } else if self.state.canvas_color.is_opaque() {
+            // Canvas blend: target += (source - canvas) * alpha / 255
+            // Used when the background color is known (opaque canvas), giving
+            // better anti-aliasing at shape edges. Matches Eagle Mode's emPainter.
             let px = self.target.pixel(x as u32, y as u32);
             let existing = Color::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, self.state.alpha);
@@ -2656,6 +2659,38 @@ impl<'a> Painter<'a> {
             out[1] = result.g();
             out[2] = result.b();
             out[3] = result.a();
+        } else {
+            // Standard source-over alpha compositing when canvas color is
+            // unknown (non-opaque). Avoids the additive artifacts that
+            // canvas_blend produces with TRANSPARENT canvas.
+            let ca = color.a() as u16;
+            let ea = if self.state.alpha == 255 {
+                ca
+            } else {
+                (ca * self.state.alpha as u16 + 127) / 255
+            };
+            if ea == 0 {
+                return;
+            }
+            let bg = self.target.pixel(x as u32, y as u32);
+            if ea >= 255 {
+                let out = self.target.pixel_mut(x as u32, y as u32);
+                out[0] = color.r();
+                out[1] = color.g();
+                out[2] = color.b();
+                out[3] = 255;
+            } else {
+                let inv = 255 - ea;
+                let r = (bg[0] as u16 * inv + color.r() as u16 * ea + 127) / 255;
+                let g = (bg[1] as u16 * inv + color.g() as u16 * ea + 127) / 255;
+                let b = (bg[2] as u16 * inv + color.b() as u16 * ea + 127) / 255;
+                let a = (bg[3] as u16 * inv + 255 * ea + 127) / 255;
+                let out = self.target.pixel_mut(x as u32, y as u32);
+                out[0] = r as u8;
+                out[1] = g as u8;
+                out[2] = b as u8;
+                out[3] = a as u8;
+            }
         }
     }
 

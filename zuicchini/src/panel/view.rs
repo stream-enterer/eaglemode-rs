@@ -1327,6 +1327,11 @@ impl View {
         self.control_panel_invalid = false;
     }
 
+    /// Check whether any dirty rectangles have been accumulated.
+    pub fn has_dirty_rects(&self) -> bool {
+        !self.dirty_rects.is_empty()
+    }
+
     /// Drain accumulated dirty rectangles.
     pub fn take_dirty_rects(&mut self) -> Vec<Rect> {
         std::mem::take(&mut self.dirty_rects)

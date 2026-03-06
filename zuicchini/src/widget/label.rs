@@ -36,10 +36,11 @@ impl Label {
     pub fn preferred_size(&self, font_cache: &FontCache) -> (f64, f64) {
         let size_px = FontCache::quantize_size(FontCache::DEFAULT_SIZE_PX);
         let tw = font_cache.measure_text(&self.border.caption, 0, size_px).0;
-        // Content is empty — the caption IS the label text, drawn by the border.
-        // Add 4px to width for the 2px left/right padding the border uses when
-        // painting the caption text (at ox + 2.0).
-        self.border.preferred_size_for_content(tw + 4.0, 0.0)
+        // The caption row height: font size / 0.8 (label_layout uses 80% of
+        // row height for font), so row height ≈ font_size / 0.8.
+        // Label uses OuterBorderType::None which has zero insets.
+        let row_h = FontCache::DEFAULT_SIZE_PX / 0.8;
+        (tw + 4.0, row_h)
     }
 }
 
@@ -63,8 +64,12 @@ mod tests {
         let label = Label::new("Test", look);
         let (w, h) = label.preferred_size(&fc);
         // Width = measured text width + 4px padding
-        // Height = DEFAULT_SIZE_PX + 4.0 (caption row)
+        // Height = font_size / 0.8 (label_layout allocates 80% of row for font)
         assert!(w > 4.0, "Label should have positive width");
-        assert_eq!(h, FontCache::DEFAULT_SIZE_PX + 4.0);
+        let expected_h = FontCache::DEFAULT_SIZE_PX / 0.8;
+        assert!(
+            (h - expected_h).abs() < 0.01,
+            "h={h}, expected={expected_h}"
+        );
     }
 }

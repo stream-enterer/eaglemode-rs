@@ -1,12 +1,10 @@
 use crate::foundation::{Image, Rect};
-use crate::render::font_cache::FontCache;
 use crate::render::{Painter, Stroke, TextAlignment};
 
 use super::look::Look;
 
-/// Height allocated for caption and description text, derived from font metrics.
-/// Uses glyph height + 4px padding.
-const TEXT_ROW_HEIGHT: f64 = FontCache::DEFAULT_SIZE_PX + 4.0;
+/// Minimum font size in pixels — below this the text is too small to read.
+const MIN_FONT_SIZE: f64 = 4.0;
 
 /// 1 - 1/sqrt(2), used for round-rect corner inset computation.
 const CORNER_INSET_FACTOR: f64 = 1.0 - std::f64::consts::FRAC_1_SQRT_2;
@@ -42,6 +40,8 @@ struct LabelLayout {
     caption_rect: Option<Rect>,
     description_rect: Option<Rect>,
     total_height: f64,
+    caption_font_size: f64,
+    description_font_size: f64,
 }
 
 /// Border chrome helper. Embedded in widgets to draw surrounding decoration.
@@ -238,7 +238,8 @@ impl Border {
         if self.has_label() {
             // Label path: aux is placed at the right of the label text area.
             let label_area_w = rnd_w;
-            let layout = self.label_layout(rnd_x, rnd_y, label_area_w, rnd_h);
+            let lh = self.label_height(label_area_w, rnd_h);
+            let layout = self.label_layout(rnd_x, rnd_y, label_area_w, lh);
             let th = layout.total_height;
             if th <= 0.0 {
                 return Some(Rect {
@@ -369,24 +370,53 @@ impl Border {
         }
     }
 
-    /// Compute label layout within the given area.
-    fn label_layout(&self, area_x: f64, area_y: f64, area_w: f64, _area_h: f64) -> LabelLayout {
-        let cap_h = if self.caption.is_empty() {
-            0.0
-        } else {
-            TEXT_ROW_HEIGHT
-        };
-        let desc_h = if self.description.is_empty() {
-            0.0
-        } else {
-            TEXT_ROW_HEIGHT
-        };
+    /// Compute the label area height from the panel dimensions.
+    ///
+    /// Eagle Mode's DoBorder computes this as `label_space = s * 0.17` where
+    /// `s = min(rnd_w, rnd_h) * BorderScaling`, then applies padding `d = label_space * 0.1`.
+    /// The available height for label content is `label_space - 2 * d`.
+    fn label_height(&self, rnd_w: f64, rnd_h: f64) -> f64 {
+        let s = rnd_w.min(rnd_h) * self.border_scaling;
+        let label_space = s * 0.17;
+        let d = label_space * 0.1;
+        label_space - 2.0 * d
+    }
 
+    /// Compute label layout within the given area.
+    ///
+    /// Dimensions are computed proportionally from the available `area_h`,
+    /// matching Eagle Mode's DoLabel algorithm. The font size scales with the
+    /// available space rather than being hardcoded.
+    fn label_layout(&self, area_x: f64, area_y: f64, area_w: f64, area_h: f64) -> LabelLayout {
+        let has_cap = !self.caption.is_empty();
+        let has_desc = !self.description.is_empty();
         let icon = self.icon.as_ref().filter(|img| !img.is_empty());
 
+        // Count "rows" to distribute height among: caption=1, description=0.15 relative.
+        // Eagle Mode: description height = capH * 0.15.
+        let cap_units: f64 = if has_cap { 1.0 } else { 0.0 };
+        let desc_units: f64 = if has_desc { 0.15 } else { 0.0 };
+
         if icon.is_none() {
-            // Simple text-only layout.
-            let cap_rect = if cap_h > 0.0 {
+            // Text-only layout: distribute area_h among caption + description.
+            let total_units = cap_units + desc_units;
+            if total_units <= 0.0 {
+                return LabelLayout {
+                    icon_rect: None,
+                    caption_rect: None,
+                    description_rect: None,
+                    total_height: 0.0,
+                    caption_font_size: 0.0,
+                    description_font_size: 0.0,
+                };
+            }
+            let cap_h = area_h * cap_units / total_units;
+            let desc_h = area_h * desc_units / total_units;
+            // Font size is ~80% of the row height (leaving padding).
+            let cap_font = (cap_h * 0.8).max(MIN_FONT_SIZE);
+            let desc_font = (desc_h * 0.8).max(MIN_FONT_SIZE);
+
+            let cap_rect = if has_cap {
                 Some(Rect {
                     x: area_x,
                     y: area_y,
@@ -396,7 +426,7 @@ impl Border {
             } else {
                 None
             };
-            let desc_rect = if desc_h > 0.0 {
+            let desc_rect = if has_desc {
                 Some(Rect {
                     x: area_x,
                     y: area_y + cap_h,
@@ -411,6 +441,8 @@ impl Border {
                 caption_rect: cap_rect,
                 description_rect: desc_rect,
                 total_height: cap_h + desc_h,
+                caption_font_size: cap_font,
+                description_font_size: desc_font,
             };
         }
 
@@ -418,11 +450,19 @@ impl Border {
         let img_w = img.width().max(1) as f64;
         let img_h = img.height().max(1) as f64;
         let icon_tallness = (img_h / img_w).min(self.max_icon_area_tallness);
-        let gap = 0.1 * TEXT_ROW_HEIGHT;
 
         if self.icon_above_caption {
-            let icon_h = 3.0 * TEXT_ROW_HEIGHT;
+            // Icon takes 3 "rows" worth, gap is 0.1 rows, caption 1 row, desc 0.15 rows.
+            let total_units = 3.0 + 0.1 + cap_units + desc_units;
+            let unit = area_h / total_units;
+            let icon_h = 3.0 * unit;
             let icon_w = icon_h / icon_tallness;
+            let gap = 0.1 * unit;
+            let cap_h = cap_units * unit;
+            let desc_h = desc_units * unit;
+            let cap_font = (cap_h * 0.8).max(MIN_FONT_SIZE);
+            let desc_font = (desc_h * 0.8).max(MIN_FONT_SIZE);
+
             let icon_rect = Rect {
                 x: area_x + (area_w - icon_w) / 2.0,
                 y: area_y,
@@ -430,7 +470,7 @@ impl Border {
                 h: icon_h,
             };
             let mut y = area_y + icon_h + gap;
-            let cap_rect = if cap_h > 0.0 {
+            let cap_rect = if has_cap {
                 let r = Rect {
                     x: area_x,
                     y,
@@ -442,7 +482,7 @@ impl Border {
             } else {
                 None
             };
-            let desc_rect = if desc_h > 0.0 {
+            let desc_rect = if has_desc {
                 Some(Rect {
                     x: area_x,
                     y,
@@ -458,20 +498,37 @@ impl Border {
                 caption_rect: cap_rect,
                 description_rect: desc_rect,
                 total_height: total,
+                caption_font_size: cap_font,
+                description_font_size: desc_font,
             }
         } else {
-            // Icon beside caption.
-            let icon_h = TEXT_ROW_HEIGHT;
+            // Icon beside caption: icon is 1 "row", gap 0.1 rows.
+            let text_units = cap_units + desc_units;
+            let icon_h = area_h;
             let icon_w = icon_h / icon_tallness;
+            let gap = area_h * 0.1 / (1.0 + 0.1);
+            let text_x = area_x + icon_w + gap;
+            let text_w = (area_w - icon_w - gap).max(0.0);
+            let cap_h = if text_units > 0.0 {
+                area_h * cap_units / text_units
+            } else {
+                0.0
+            };
+            let desc_h = if text_units > 0.0 {
+                area_h * desc_units / text_units
+            } else {
+                0.0
+            };
+            let cap_font = (cap_h * 0.8).max(MIN_FONT_SIZE);
+            let desc_font = (desc_h * 0.8).max(MIN_FONT_SIZE);
+
             let icon_rect = Rect {
                 x: area_x,
                 y: area_y,
                 w: icon_w,
                 h: icon_h,
             };
-            let text_x = area_x + icon_w + gap;
-            let text_w = (area_w - icon_w - gap).max(0.0);
-            let cap_rect = if cap_h > 0.0 {
+            let cap_rect = if has_cap {
                 Some(Rect {
                     x: text_x,
                     y: area_y,
@@ -481,7 +538,7 @@ impl Border {
             } else {
                 None
             };
-            let desc_rect = if desc_h > 0.0 {
+            let desc_rect = if has_desc {
                 Some(Rect {
                     x: text_x,
                     y: area_y + cap_h,
@@ -491,12 +548,14 @@ impl Border {
             } else {
                 None
             };
-            let total = (icon_h).max(cap_h + desc_h);
+            let total = icon_h.max(cap_h + desc_h);
             LabelLayout {
                 icon_rect: Some(icon_rect),
                 caption_rect: cap_rect,
                 description_rect: desc_rect,
                 total_height: total,
+                caption_font_size: cap_font,
+                description_font_size: desc_font,
             }
         }
     }
@@ -645,8 +704,10 @@ impl Border {
     pub fn content_round_rect(&self, w: f64, h: f64, _look: &Look) -> (Rect, f64) {
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let label_area_w = (w - ow).max(0.0);
+        let rnd_h = (h - oh).max(0.0);
         let label_h = if self.has_label() {
-            self.label_layout(ox, oy, label_area_w, h).total_height
+            let lh = self.label_height(label_area_w, rnd_h);
+            self.label_layout(ox, oy, label_area_w, lh).total_height
         } else {
             0.0
         };
@@ -740,8 +801,10 @@ impl Border {
     pub fn content_rect(&self, w: f64, h: f64, _look: &Look) -> Rect {
         let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let label_area_w = (w - ow).max(0.0);
+        let rnd_h = (h - oh).max(0.0);
         let label_h = if self.has_label() {
-            self.label_layout(ox, oy, label_area_w, h).total_height
+            let lh = self.label_height(label_area_w, rnd_h);
+            self.label_layout(ox, oy, label_area_w, lh).total_height
         } else {
             0.0
         };
@@ -761,8 +824,10 @@ impl Border {
     pub fn preferred_size_for_content(&self, cw: f64, ch: f64) -> (f64, f64) {
         let (_, _, ow, oh) = self.outer_insets(cw, ch);
         let label_area_w = cw;
+        let rnd_h = (ch - oh).max(0.0);
         let label_h = if self.has_label() {
-            self.label_layout(0.0, 0.0, label_area_w, ch).total_height
+            let lh = self.label_height(label_area_w, rnd_h);
+            self.label_layout(0.0, 0.0, label_area_w, lh).total_height
         } else {
             0.0
         };
@@ -890,9 +955,11 @@ impl Border {
         }
 
         // Label area
-        let (ox, oy, ow, _oh) = self.outer_insets(w, h);
+        let (ox, oy, ow, oh) = self.outer_insets(w, h);
         let label_area_w = (w - ow).max(0.0);
-        let label = self.label_layout(ox, oy, label_area_w, h);
+        let rnd_h = (h - oh).max(0.0);
+        let label_h = self.label_height(label_area_w, rnd_h);
+        let label = self.label_layout(ox, oy, label_area_w, label_h);
 
         let cap_align = self.caption_alignment.unwrap_or(self.label_alignment);
         let desc_align = self.description_alignment.unwrap_or(self.label_alignment);
@@ -933,11 +1000,11 @@ impl Border {
         if let Some(ref cap_rect) = label.caption_rect {
             painter.paint_text_boxed(
                 cap_rect.x,
-                cap_rect.y + 2.0,
+                cap_rect.y,
                 cap_rect.w,
                 cap_rect.h,
                 &self.caption,
-                FontCache::DEFAULT_SIZE_PX,
+                label.caption_font_size,
                 dim_color(look.fg_color),
                 cap_align,
             );
@@ -947,11 +1014,11 @@ impl Border {
         if let Some(ref desc_rect) = label.description_rect {
             painter.paint_text_boxed(
                 desc_rect.x,
-                desc_rect.y + 2.0,
+                desc_rect.y,
                 desc_rect.w,
                 desc_rect.h,
                 &self.description,
-                FontCache::DEFAULT_SIZE_PX,
+                label.description_font_size,
                 dim_color(look.disabled_fg()),
                 desc_align,
             );
@@ -1061,10 +1128,13 @@ mod tests {
         let border = Border::new(OuterBorderType::Rect).with_caption("Test");
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
         let d = 50.0 * 0.023;
+        let rnd_w = 100.0 - 2.0 * d;
+        let rnd_h = 50.0 - 2.0 * d;
+        let label_h = border.label_height(rnd_w, rnd_h);
         assert!((x - d).abs() < 0.01);
-        assert!((y - d - TEXT_ROW_HEIGHT).abs() < 0.01);
-        assert!((cw - (100.0 - 2.0 * d)).abs() < 0.01);
-        assert!((ch - (50.0 - 2.0 * d - TEXT_ROW_HEIGHT)).abs() < 0.01);
+        assert!((y - d - label_h).abs() < 0.01);
+        assert!((cw - rnd_w).abs() < 0.01);
+        assert!((ch - (rnd_h - label_h)).abs() < 0.01);
     }
 
     #[test]
@@ -1085,16 +1155,19 @@ mod tests {
             .with_caption("Cap")
             .with_inner(InnerBorderType::InputField);
         let r = border.content_rect(100.0, 80.0, &test_look());
-        // Outer s = 80*0.052 = 4.16, label = TEXT_ROW_HEIGHT
+        // Outer s = min(100,80)*1.0 = 80, d = 80*0.052 = 4.16
         let od = 80.0 * 0.052;
-        let iw = 100.0 - 2.0 * od;
-        let ih = 80.0 - 2.0 * od - TEXT_ROW_HEIGHT;
+        let rnd_w = 100.0 - 2.0 * od;
+        let rnd_h = 80.0 - 2.0 * od;
+        let label_h = border.label_height(rnd_w, rnd_h);
+        let iw: f64 = rnd_w;
+        let ih: f64 = rnd_h - label_h;
         let is = iw.min(ih);
         let id = is * 0.094;
         assert!((r.x - (od + id)).abs() < 0.5);
-        assert!((r.y - (od + TEXT_ROW_HEIGHT + id)).abs() < 0.5);
+        assert!((r.y - (od + label_h + id)).abs() < 0.5);
         assert!((r.w - (100.0 - 2.0 * od - 2.0 * id)).abs() < 0.5);
-        assert!((r.h - (80.0 - 2.0 * od - TEXT_ROW_HEIGHT - 2.0 * id)).abs() < 0.5);
+        assert!((r.h - (80.0 - 2.0 * od - label_h - 2.0 * id)).abs() < 0.5);
     }
 
     #[test]
@@ -1164,8 +1237,12 @@ mod tests {
             .with_caption("Cap")
             .with_icon(img);
         border.set_icon_above_caption(true);
-        let layout = border.label_layout(0.0, 0.0, 200.0, 200.0);
-        let expected = 3.0 * TEXT_ROW_HEIGHT + 0.1 * TEXT_ROW_HEIGHT + TEXT_ROW_HEIGHT;
+        let area_h = 100.0;
+        let layout = border.label_layout(0.0, 0.0, 200.0, area_h);
+        // icon_above: total_units = 3.0 + 0.1 + 1.0 = 4.1, total = area_h
+        // icon_h = 3/4.1*100, gap = 0.1/4.1*100, cap_h = 1/4.1*100
+        let total_units = 3.0 + 0.1 + 1.0;
+        let expected = (3.0 / total_units + 0.1 / total_units + 1.0 / total_units) * area_h;
         assert!((layout.total_height - expected).abs() < 0.01);
     }
 
@@ -1177,7 +1254,9 @@ mod tests {
             .with_icon(img);
         border.set_icon_above_caption(true);
         let r = border.content_rect(200.0, 200.0, &test_look());
-        let layout = border.label_layout(0.0, 0.0, 200.0, 200.0);
+        // OuterBorderType::None has zero insets, so rnd = full dims.
+        let lh = border.label_height(200.0, 200.0);
+        let layout = border.label_layout(0.0, 0.0, 200.0, lh);
         assert!((r.y - layout.total_height).abs() < 0.01);
     }
 

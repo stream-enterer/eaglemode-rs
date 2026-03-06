@@ -161,6 +161,7 @@ impl ApplicationHandler for App {
                 if let Some(win) = self.windows.get_mut(&window_id) {
                     let gpu = self.gpu.as_ref().unwrap();
                     win.resize(gpu, size.width, size.height);
+                    win.request_redraw();
                 }
             }
             WindowEvent::RedrawRequested => {
@@ -212,23 +213,35 @@ impl ApplicationHandler for App {
         }
 
         // Deliver notices (includes layout dispatch)
-        self.tree.deliver_notices();
+        let had_notices = self.tree.deliver_notices();
 
         // Update views and tick animators
         let dt = 1.0 / 60.0; // Fixed timestep for now
         let tree = &mut self.tree;
         for win in self.windows.values_mut() {
+            let mut needs_repaint = had_notices;
+
             // Tick animator (take out to avoid borrow conflict)
             if let Some(mut anim) = win.active_animator.take() {
                 if anim.animate(win.view_mut(), tree, dt) {
                     win.active_animator = Some(anim);
+                    needs_repaint = true;
                 }
             }
 
             // Update view (recompute viewing coords, auto-select active)
             win.view_mut().update(tree);
-            win.invalidate();
-            win.request_redraw();
+
+            // Check for pending dirty rects from invalidate_painting calls
+            if win.view().has_dirty_rects() {
+                win.view_mut().take_dirty_rects();
+                needs_repaint = true;
+            }
+
+            if needs_repaint {
+                win.invalidate();
+                win.request_redraw();
+            }
         }
     }
 }
