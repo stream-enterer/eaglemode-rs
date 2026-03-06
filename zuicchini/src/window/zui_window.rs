@@ -369,7 +369,7 @@ impl ZuiWindow {
                 .view
                 .get_focusable_panel_at(tree, event.mouse_x, event.mouse_y)
             {
-                self.view.set_active_panel(tree, hit);
+                self.view.set_active_panel(tree, hit, false);
             }
         }
 

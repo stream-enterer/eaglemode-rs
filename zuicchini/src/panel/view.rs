@@ -72,6 +72,8 @@ pub struct View {
     cursor_invalid: bool,
     /// Whether the control panel needs to be refreshed.
     control_panel_invalid: bool,
+    /// Whether the current activation is adherent (indirect, via a descendant).
+    activation_adherent: bool,
 }
 
 impl View {
@@ -105,6 +107,7 @@ impl View {
             title_invalid: false,
             cursor_invalid: false,
             control_panel_invalid: false,
+            activation_adherent: false,
         }
     }
 
@@ -140,6 +143,10 @@ impl View {
 
     pub fn set_window_focused(&mut self, focused: bool) {
         self.window_focused = focused;
+    }
+
+    pub fn is_activation_adherent(&self) -> bool {
+        self.activation_adherent
     }
 
     // --- Seeking ---
@@ -533,11 +540,14 @@ impl View {
 
     // --- Active Panel Management ---
 
-    pub fn set_active_panel(&mut self, tree: &mut PanelTree, panel: PanelId) {
+    pub fn set_active_panel(&mut self, tree: &mut PanelTree, panel: PanelId, adherent: bool) {
         // Walk up to nearest focusable ancestor
         let target = tree.focusable_ancestor(panel).unwrap_or(panel);
 
         if self.active == Some(target) {
+            if self.activation_adherent != adherent {
+                self.activation_adherent = adherent;
+            }
             return;
         }
 
@@ -567,6 +577,7 @@ impl View {
                     .insert(super::behavior::NoticeFlags::VIEW_CHANGED);
             }
         }
+        self.activation_adherent = adherent;
     }
 
     /// Auto-select best visible focusable panel as active.
@@ -601,8 +612,28 @@ impl View {
 
         find_best(tree, svp, &mut best);
 
-        if let Some((id, _)) = best {
-            self.set_active_panel(tree, id);
+        if let Some((best_id, _)) = best {
+            // If currently adherent, check whether the active panel is still
+            // visible and the best candidate is its ancestor — if so, keep the
+            // current active panel and stay adherent.
+            if self.activation_adherent {
+                if let Some(active_id) = self.active {
+                    if let Some(active_panel) = tree.get(active_id) {
+                        if active_panel.viewed
+                            && active_panel.viewed_width >= 4.0
+                            && active_panel.viewed_height >= 4.0
+                        {
+                            if let Some(best_panel) = tree.get(best_id) {
+                                if best_panel.in_active_path {
+                                    self.set_active_panel(tree, active_id, true);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            self.set_active_panel(tree, best_id, false);
         }
     }
 
@@ -829,7 +860,7 @@ impl View {
             for i in 1..=len {
                 let candidate = siblings[(idx + i) % len];
                 if tree.get(candidate).map(|p| p.focusable).unwrap_or(false) {
-                    self.set_active_panel(tree, candidate);
+                    self.set_active_panel(tree, candidate, false);
                     return;
                 }
             }
@@ -858,7 +889,7 @@ impl View {
             for i in 1..=len {
                 let candidate = siblings[(idx + len - i) % len];
                 if tree.get(candidate).map(|p| p.focusable).unwrap_or(false) {
-                    self.set_active_panel(tree, candidate);
+                    self.set_active_panel(tree, candidate, false);
                     return;
                 }
             }
@@ -882,7 +913,7 @@ impl View {
         };
         for child in tree.children(parent) {
             if tree.get(child).map(|p| p.focusable).unwrap_or(false) {
-                self.set_active_panel(tree, child);
+                self.set_active_panel(tree, child, false);
                 return;
             }
         }
@@ -905,7 +936,7 @@ impl View {
         };
         for child in tree.children_rev(parent) {
             if tree.get(child).map(|p| p.focusable).unwrap_or(false) {
-                self.set_active_panel(tree, child);
+                self.set_active_panel(tree, child, false);
                 return;
             }
         }
@@ -941,7 +972,7 @@ impl View {
         // Find first focusable child
         for child in tree.children(active) {
             if tree.get(child).map(|p| p.focusable).unwrap_or(false) {
-                self.set_active_panel(tree, child);
+                self.set_active_panel(tree, child, false);
                 return;
             }
         }
@@ -963,7 +994,7 @@ impl View {
         // Go to focusable parent
         if let Some(parent) = tree.parent(active) {
             if let Some(focusable) = tree.focusable_ancestor(parent) {
-                self.set_active_panel(tree, focusable);
+                self.set_active_panel(tree, focusable, false);
                 return;
             }
         }
@@ -1036,7 +1067,7 @@ impl View {
         }
 
         if let Some((winner, _)) = best {
-            self.set_active_panel(tree, winner);
+            self.set_active_panel(tree, winner, false);
         }
     }
 
@@ -1090,13 +1121,13 @@ impl View {
 
     /// Activate a panel (delegate to set_active_panel).
     pub fn activate_panel(&mut self, tree: &mut PanelTree, panel: PanelId) {
-        self.set_active_panel(tree, panel);
+        self.set_active_panel(tree, panel, false);
     }
 
     /// Focus the view and activate a panel.
     pub fn focus_panel(&mut self, tree: &mut PanelTree, panel: PanelId) {
         self.window_focused = true;
-        self.set_active_panel(tree, panel);
+        self.set_active_panel(tree, panel, false);
     }
 
     /// Whether a panel is focused: it is the active panel and the view's
@@ -1113,9 +1144,27 @@ impl View {
         in_active_path && self.window_focused
     }
 
+    /// Whether a panel's activation is adherent (indirect, via a descendant).
+    pub fn is_panel_activated_adherent(&self, tree: &PanelTree, panel: PanelId) -> bool {
+        tree.get(panel).map(|p| p.is_active).unwrap_or(false) && self.activation_adherent
+    }
+
     /// Whether the view's window is focused (panel-level delegate).
     pub fn is_view_focused(&self) -> bool {
         self.window_focused
+    }
+
+    /// Return wall-clock milliseconds (since Unix epoch).
+    pub fn get_input_clock_ms(&self) -> u64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    }
+
+    /// Panel-level delegate for `get_input_clock_ms` (mirrors `emPanel::GetInputClockMS`).
+    pub fn get_panel_input_clock_ms(&self) -> u64 {
+        self.get_input_clock_ms()
     }
 
     // --- Pixel tallness ---
@@ -1404,7 +1453,7 @@ mod tests {
     fn test_active_path_flags() {
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
         view.update_viewing(&mut tree);
 
         assert!(tree.get(child1).unwrap().is_active);
@@ -1431,7 +1480,7 @@ mod tests {
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
 
         view.visit_next(&mut tree);
         assert_eq!(view.active(), Some(child2));
@@ -1449,7 +1498,7 @@ mod tests {
 
         let mut view = View::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
 
         view.visit_in(&mut tree);
         assert_eq!(view.active(), Some(grandchild));
@@ -1477,7 +1526,7 @@ mod tests {
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
 
         // child2 is to the right of child1
         view.visit_right(&mut tree);
@@ -1503,7 +1552,7 @@ mod tests {
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
 
         assert!(view.is_panel_focused(&tree, child1));
         assert!(!view.is_panel_focused(&tree, root));
@@ -1517,7 +1566,7 @@ mod tests {
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
 
         assert!(view.is_panel_in_focused_path(&tree, child1));
         assert!(view.is_panel_in_focused_path(&tree, root));
@@ -1579,7 +1628,7 @@ mod tests {
         let (mut tree, root, child1, _child2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
 
         // child1 is active, thus in_active_path
         assert!(!view.is_title_invalid());
@@ -1604,7 +1653,7 @@ mod tests {
         let (mut tree, root, child1, child2) = setup_tree();
         let mut view = View::new(root, 800.0, 600.0);
         view.update_viewing(&mut tree);
-        view.set_active_panel(&mut tree, child1);
+        view.set_active_panel(&mut tree, child1, false);
 
         // child1 is in active path
         assert!(!view.is_control_panel_invalid());
@@ -1628,5 +1677,54 @@ mod tests {
 
         view2.set_viewport(100.0, 200.0);
         assert!((view2.pixel_tallness() - 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_activation_adherent() {
+        let (mut tree, root, child1, _child2) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        // Direct activation is not adherent
+        view.set_active_panel(&mut tree, child1, false);
+        assert!(!view.is_activation_adherent());
+        assert!(!view.is_panel_activated_adherent(&tree, child1));
+
+        // Explicit adherent activation
+        view.set_active_panel(&mut tree, child1, true);
+        assert!(view.is_activation_adherent());
+        assert!(view.is_panel_activated_adherent(&tree, child1));
+
+        // Switching to a different panel clears adherent
+        view.set_active_panel(&mut tree, root, false);
+        assert!(!view.is_activation_adherent());
+    }
+
+    #[test]
+    fn test_activation_adherent_early_return_update() {
+        let (mut tree, root, child1, _child2) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        // Set active non-adherent
+        view.set_active_panel(&mut tree, child1, false);
+        assert!(!view.is_activation_adherent());
+
+        // Re-set same panel as adherent — hits early-return path, updates flag
+        view.set_active_panel(&mut tree, child1, true);
+        assert!(view.is_activation_adherent());
+
+        // Re-set same panel as non-adherent — hits early-return path again
+        view.set_active_panel(&mut tree, child1, false);
+        assert!(!view.is_activation_adherent());
+    }
+
+    #[test]
+    fn test_get_input_clock_ms() {
+        let (_tree, root, _c1, _c2) = setup_tree();
+        let view = View::new(root, 800.0, 600.0);
+        let ms = view.get_input_clock_ms();
+        // Should be a reasonable epoch-based timestamp (after year 2020)
+        assert!(ms > 1_577_836_800_000);
     }
 }
