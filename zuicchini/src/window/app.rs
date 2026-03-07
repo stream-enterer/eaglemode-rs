@@ -5,7 +5,7 @@ use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
 use winit::window::WindowId;
 
-use crate::input::{InputState, InputVariant};
+use crate::input::{InputKey, InputState, InputVariant};
 use crate::panel::{PanelTree, ViewFlags};
 use crate::scheduler::EngineScheduler;
 
@@ -191,9 +191,18 @@ impl ApplicationHandler for App {
                         _ => {}
                     }
 
-                    // Always populate current mouse position on events
-                    input.mouse_x = self.input_state.mouse_x;
-                    input.mouse_y = self.input_state.mouse_y;
+                    // Always populate current mouse position on events,
+                    // except for wheel events which encode scroll delta in mouse_x/y.
+                    if !matches!(
+                        input.key,
+                        InputKey::WheelUp
+                            | InputKey::WheelDown
+                            | InputKey::WheelLeft
+                            | InputKey::WheelRight
+                    ) {
+                        input.mouse_x = self.input_state.mouse_x;
+                        input.mouse_y = self.input_state.mouse_y;
+                    }
 
                     if let Some(win) = self.windows.get_mut(&window_id) {
                         win.dispatch_input(&mut self.tree, &input, &self.input_state);

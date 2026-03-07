@@ -376,13 +376,18 @@ impl ZuiWindow {
         // Stamp modifier keys from InputState onto the event
         let ev = event.clone().with_modifiers(state);
 
-        // Dispatch to active panel's behavior
+        // Dispatch to active panel's behavior with panel-local mouse coords
         let wf = self.view.window_focused();
         if let Some(active) = self.view.active() {
             let mut consumed = false;
+            // Transform mouse coords from viewport pixels to panel-local space
+            let mut panel_ev = ev.clone();
+            panel_ev.mouse_x = tree.view_to_panel_x(active, ev.mouse_x);
+            panel_ev.mouse_y = tree.view_to_panel_y(active, ev.mouse_y);
+
             if let Some(mut behavior) = tree.take_behavior(active) {
                 let state = tree.build_panel_state(active, wf);
-                consumed = behavior.input(&ev, &state);
+                consumed = behavior.input(&panel_ev, &state);
                 tree.put_behavior(active, behavior);
             }
 
@@ -390,9 +395,14 @@ impl ZuiWindow {
             if !consumed {
                 let mut cur = tree.parent(active);
                 while let Some(parent_id) = cur {
+                    // Re-transform for each parent's coordinate space
+                    let mut parent_ev = ev.clone();
+                    parent_ev.mouse_x = tree.view_to_panel_x(parent_id, ev.mouse_x);
+                    parent_ev.mouse_y = tree.view_to_panel_y(parent_id, ev.mouse_y);
+
                     if let Some(mut behavior) = tree.take_behavior(parent_id) {
                         let state = tree.build_panel_state(parent_id, wf);
-                        consumed = behavior.input(&ev, &state);
+                        consumed = behavior.input(&parent_ev, &state);
                         tree.put_behavior(parent_id, behavior);
                         if consumed {
                             break;

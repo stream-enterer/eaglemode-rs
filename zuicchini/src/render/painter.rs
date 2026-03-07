@@ -140,6 +140,17 @@ impl<'a> Painter<'a> {
         self.state.alpha = alpha;
     }
 
+    /// Get the current offset (for computing absolute panel transforms).
+    pub fn offset(&self) -> (f64, f64) {
+        (self.state.offset_x, self.state.offset_y)
+    }
+
+    /// Set the offset absolutely (not cumulative).
+    pub fn set_offset(&mut self, ox: f64, oy: f64) {
+        self.state.offset_x = ox;
+        self.state.offset_y = oy;
+    }
+
     /// Apply a translation.
     pub fn translate(&mut self, dx: f64, dy: f64) {
         self.state.offset_x += dx * self.state.scale_x;

@@ -206,7 +206,7 @@ impl PanelData {
             layout_rect: Rect::default(),
             canvas_color: Color::TRANSPARENT,
             visible: true,
-            focusable: false,
+            focusable: true,
             enable_switch: true,
             enabled: true,
             pending_notices: NoticeFlags::empty(),
@@ -1667,28 +1667,27 @@ mod tests {
         t.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0);
 
         let a = t.create_child(root, "a");
+        t.set_focusable(a, false);
         t.set_layout_rect(a, 0.0, 0.0, 0.5, 0.5);
 
         let a1 = t.create_child(a, "a1");
-        t.set_focusable(a1, true);
         t.set_layout_rect(a1, 0.0, 0.0, 0.5, 1.0);
 
         let a2 = t.create_child(a, "a2");
-        t.set_focusable(a2, true);
         t.set_layout_rect(a2, 0.5, 0.0, 0.5, 1.0);
 
         let b = t.create_child(root, "b");
-        t.set_focusable(b, true);
         t.set_layout_rect(b, 0.5, 0.0, 0.5, 0.5);
 
         let c = t.create_child(root, "c");
+        t.set_focusable(c, false);
         t.set_layout_rect(c, 0.0, 0.5, 1.0, 0.5);
 
         let c1 = t.create_child(c, "c1");
+        t.set_focusable(c1, false);
         t.set_layout_rect(c1, 0.0, 0.0, 1.0, 1.0);
 
         let c1a = t.create_child(c1, "c1a");
-        t.set_focusable(c1a, true);
         t.set_layout_rect(c1a, 0.0, 0.0, 1.0, 1.0);
 
         (t, root, a1, a2, b, c1a, c)
@@ -1752,7 +1751,8 @@ mod tests {
     fn test_focusable_first_child_none() {
         let mut t = PanelTree::new();
         let root = t.create_root("r");
-        let _child = t.create_child(root, "c");
+        let child = t.create_child(root, "c");
+        t.set_focusable(child, false);
         assert_eq!(t.focusable_first_child(root), None);
     }
 

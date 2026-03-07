@@ -566,6 +566,13 @@ fn stroke_end_from_index(idx: usize) -> StrokeEndType {
 
 impl PanelBehavior for TestPanel {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+        // Scale to C++ normalized panel coordinates (0..1, 0..tallness).
+        // The framework passes pixel dimensions; C++ emTestPanel uses
+        // GetWidth()=1.0, GetHeight()=tallness for all painting.
+        painter.push_state();
+        painter.scale(w, w);
+        let h = h / w;
+
         let fg = if state.is_focused() {
             Color::rgba(255, 136, 136, 255)
         } else if state.in_focused_path() {
@@ -575,8 +582,8 @@ impl PanelBehavior for TestPanel {
         };
 
         let bg = self.bg_color();
-        painter.paint_rect(0.0, 0.0, w, h, bg);
-        painter.paint_rect_outlined(0.01, 0.01, w - 0.02, h - 0.02, &Stroke::new(fg, 0.02));
+        painter.paint_rect(0.0, 0.0, 1.0, h, bg);
+        painter.paint_rect_outlined(0.01, 0.01, 1.0 - 0.02, h - 0.02, &Stroke::new(fg, 0.02));
         painter.paint_text_boxed(
             0.02,
             0.02,
@@ -615,6 +622,7 @@ impl PanelBehavior for TestPanel {
         }
 
         self.paint_primitives(painter, fg);
+        painter.pop_state();
     }
 
     fn input(&mut self, event: &InputEvent, _state: &PanelState) -> bool {
@@ -900,17 +908,21 @@ impl TkTestGrpPanel {
 
 impl PanelBehavior for TkTestGrpPanel {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        painter.paint_rect(0.0, 0.0, w, h, Color::rgba(0x20, 0x30, 0x40, 0xFF));
+        painter.push_state();
+        painter.scale(w, w);
+        let h = h / w;
+        painter.paint_rect(0.0, 0.0, 1.0, h, Color::rgba(0x20, 0x30, 0x40, 0xFF));
         painter.paint_text_boxed(
             0.01,
             0.01,
-            w - 0.02,
+            1.0 - 0.02,
             0.03,
             "Toolkit Test",
             0.03,
             Color::WHITE,
             TextAlignment::Left,
         );
+        painter.pop_state();
     }
 
     fn is_opaque(&self) -> bool {
@@ -969,18 +981,21 @@ impl TkTestPanel {
 
 impl PanelBehavior for TkTestPanel {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+        painter.push_state();
+        painter.scale(w, w);
+        let h = h / w;
         let bg = if self.disabled {
             Color::rgba(0x30, 0x30, 0x30, 0xFF)
         } else {
             Color::rgba(0x18, 0x28, 0x38, 0xFF)
         };
-        painter.paint_rect(0.0, 0.0, w, h, bg);
+        painter.paint_rect(0.0, 0.0, 1.0, h, bg);
 
         if self.disabled {
             painter.paint_text_boxed(
                 0.0,
                 0.0,
-                w,
+                1.0,
                 h,
                 "Disabled",
                 0.02,
@@ -988,6 +1003,7 @@ impl PanelBehavior for TkTestPanel {
                 TextAlignment::Center,
             );
         }
+        painter.pop_state();
     }
 
     fn is_opaque(&self) -> bool {
@@ -1207,11 +1223,14 @@ impl PolyDrawPanel {
 
 impl PanelBehavior for PolyDrawPanel {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
+        painter.push_state();
+        painter.scale(w, w);
+        let h = h / w;
         // Background gradient
         painter.paint_linear_gradient(
             0.0,
             0.0,
-            w,
+            1.0,
             h,
             Color::rgba(80, 80, 160, 255),
             Color::rgba(160, 160, 80, 255),
@@ -1298,13 +1317,14 @@ impl PanelBehavior for PolyDrawPanel {
         painter.paint_text_boxed(
             0.0,
             h - 0.06,
-            w,
+            1.0,
             0.06,
             "Drag vertices with left mouse button! (Hold shift for snap grid)",
             0.03,
             Color::WHITE,
             TextAlignment::Center,
         );
+        painter.pop_state();
     }
 
     fn input(&mut self, event: &InputEvent, _state: &PanelState) -> bool {

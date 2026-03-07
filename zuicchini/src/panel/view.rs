@@ -1456,10 +1456,17 @@ impl View {
 
         // Paint from SVP using absolute viewed coords
         let start = self.svp.unwrap_or(self.root);
-        self.paint_panel_recursive(tree, painter, start);
+        let base_offset = painter.offset();
+        self.paint_panel_recursive(tree, painter, start, base_offset);
     }
 
-    fn paint_panel_recursive(&self, tree: &mut PanelTree, painter: &mut Painter, id: PanelId) {
+    fn paint_panel_recursive(
+        &self,
+        tree: &mut PanelTree,
+        painter: &mut Painter,
+        id: PanelId,
+        base_offset: (f64, f64),
+    ) {
         let (vx, vy, vw, vh, clip_x, clip_y, clip_w, clip_h, canvas_color) = {
             match tree.get(id) {
                 Some(p) if p.viewed && p.visible => (
@@ -1478,7 +1485,10 @@ impl View {
         };
 
         painter.push_state();
-        painter.translate(vx, vy);
+        // Set absolute offset (not cumulative) — viewed coords are in
+        // absolute viewport pixels, so each panel computes its offset
+        // from the base (tile) offset independently.
+        painter.set_offset(base_offset.0 + vx, base_offset.1 + vy);
         painter.clip_rect(clip_x - vx, clip_y - vy, clip_w, clip_h);
 
         // Skip this panel and its entire subtree if it doesn't intersect
@@ -1498,7 +1508,7 @@ impl View {
 
         let children: Vec<PanelId> = tree.children(id).collect();
         for child in children {
-            self.paint_panel_recursive(tree, painter, child);
+            self.paint_panel_recursive(tree, painter, child, base_offset);
         }
 
         painter.pop_state();

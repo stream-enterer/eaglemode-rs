@@ -260,6 +260,20 @@ impl ViewInputFilter for MouseZoomScrollVIF {
             }
         }
 
+        // Wheel zoom
+        if matches!(event.key, InputKey::WheelUp | InputKey::WheelDown)
+            && event.variant == InputVariant::Press
+        {
+            let down = event.key == InputKey::WheelDown;
+            let factor = if down {
+                1.0 / self.zoom_speed
+            } else {
+                self.zoom_speed
+            };
+            view.zoom(factor, state.mouse_x, state.mouse_y);
+            return true;
+        }
+
         // Handle panning with mouse movement (tracked externally)
         if self.panning {
             let dx = state.mouse_x - self.last_x;
