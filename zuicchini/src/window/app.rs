@@ -101,7 +101,7 @@ impl App {
     /// Run the application. This blocks until all windows are closed.
     pub fn run(self) {
         let event_loop = winit::event_loop::EventLoop::new().expect("failed to create event loop");
-        event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
         let mut app = self;
         event_loop.run_app(&mut app).expect("event loop error");
     }
