@@ -304,7 +304,7 @@ impl Border {
         let d = match self.outer {
             OuterBorderType::None | OuterBorderType::Filled => 0.0,
             OuterBorderType::Margin | OuterBorderType::MarginFilled => s * 0.04,
-            OuterBorderType::Rect => s * 0.023,
+            OuterBorderType::Rect => s * 0.023 + s * 0.02,
             OuterBorderType::RoundRect => s * 0.22 * CORNER_INSET_FACTOR + s * 0.02,
             OuterBorderType::Group => s * 0.0104,
             OuterBorderType::Instrument => s * 0.052,
@@ -319,12 +319,18 @@ impl Border {
     }
 
     /// Inner border insets, computed from the area after outer+label.
+    ///
+    /// C++ insets by a fraction of the inner radius, not the full radius:
+    /// - IBT_GROUP: `rndR * (17/225)`
+    /// - IBT_INPUT/OUTPUT: `rndR * (16/216)`
     fn inner_insets(&self, iw: f64, ih: f64) -> (f64, f64, f64, f64) {
         let s = iw.min(ih) * self.border_scaling;
         let d = match self.inner {
             InnerBorderType::None => 0.0,
-            InnerBorderType::Group => s * 0.0188,
-            InnerBorderType::InputField | InnerBorderType::OutputField => s * 0.094,
+            InnerBorderType::Group => s * 0.0188 * (17.0 / 225.0),
+            InnerBorderType::InputField | InnerBorderType::OutputField => {
+                s * 0.094 * (16.0 / 216.0)
+            }
             InnerBorderType::CustomRect => s * 0.0125,
         };
         if d == 0.0 {
@@ -379,6 +385,23 @@ impl Border {
         }
     }
 
+    /// Minimum spacing between decoration and label/content area.
+    ///
+    /// C++ `DoBorder` sets `minSpace` per outer border type. After the outer
+    /// border switch, `minSpace *= s` where `s = min(rndW, rndH) * BorderScaling`.
+    /// When no label/aux is present, the rnd rect is inset by minSpace on all sides.
+    fn min_space_factor(&self) -> f64 {
+        match self.outer {
+            OuterBorderType::None
+            | OuterBorderType::Filled
+            | OuterBorderType::Margin
+            | OuterBorderType::MarginFilled
+            | OuterBorderType::PopupRoot => 0.0,
+            OuterBorderType::Group => 0.0046,
+            _ => 0.023,
+        }
+    }
+
     /// Full height reserved for the label region (including top/bottom padding).
     ///
     /// Eagle Mode's DoBorder: `labelSpace = s * factor` where
@@ -412,8 +435,14 @@ impl Border {
         let desc_units: f64 = if has_desc { 0.15 } else { 0.0 };
 
         if icon.is_none() {
-            // Text-only layout: distribute area_h among caption + description.
-            let total_units = cap_units + desc_units;
+            // Text-only layout: distribute area_h among caption + gap2 + description.
+            // C++ gap2 = descH * 0.05 when both caption and description exist.
+            let gap2_units: f64 = if has_cap && has_desc {
+                desc_units * 0.05
+            } else {
+                0.0
+            };
+            let total_units = cap_units + gap2_units + desc_units;
             if total_units <= 0.0 {
                 return LabelLayout {
                     icon_rect: None,
@@ -425,6 +454,7 @@ impl Border {
                 };
             }
             let cap_h = area_h * cap_units / total_units;
+            let gap2 = area_h * gap2_units / total_units;
             let desc_h = area_h * desc_units / total_units;
             // Font size is ~80% of the row height (leaving padding).
             let cap_font = (cap_h * 0.8).max(MIN_FONT_SIZE);
@@ -443,7 +473,7 @@ impl Border {
             let desc_rect = if has_desc {
                 Some(Rect {
                     x: area_x,
-                    y: area_y + cap_h,
+                    y: area_y + cap_h + gap2,
                     w: area_w,
                     h: desc_h,
                 })
@@ -454,7 +484,7 @@ impl Border {
                 icon_rect: None,
                 caption_rect: cap_rect,
                 description_rect: desc_rect,
-                total_height: cap_h + desc_h,
+                total_height: cap_h + gap2 + desc_h,
                 caption_font_size: cap_font,
                 description_font_size: desc_font,
             };
@@ -467,12 +497,15 @@ impl Border {
 
         if self.icon_above_caption {
             // Icon takes 3 "rows" worth, gap is 0.1 rows, caption 1 row, desc 0.15 rows.
-            let total_units = 3.0 + 0.1 + cap_units + desc_units;
+            // gap2 = descH * 0.05 between caption/icon and description.
+            let gap2_units: f64 = if has_desc { desc_units * 0.05 } else { 0.0 };
+            let total_units = 3.0 + 0.1 + cap_units + gap2_units + desc_units;
             let unit = area_h / total_units;
             let icon_h = 3.0 * unit;
             let icon_w = icon_h / icon_tallness;
             let gap = 0.1 * unit;
             let cap_h = cap_units * unit;
+            let gap2 = gap2_units * unit;
             let desc_h = desc_units * unit;
             let cap_font = (cap_h * 0.8).max(MIN_FONT_SIZE);
             let desc_font = (desc_h * 0.8).max(MIN_FONT_SIZE);
@@ -496,6 +529,7 @@ impl Border {
             } else {
                 None
             };
+            y += gap2;
             let desc_rect = if has_desc {
                 Some(Rect {
                     x: area_x,
@@ -506,7 +540,7 @@ impl Border {
             } else {
                 None
             };
-            let total = icon_h + gap + cap_h + desc_h;
+            let total = icon_h + gap + cap_h + gap2 + desc_h;
             LabelLayout {
                 icon_rect: Some(icon_rect),
                 caption_rect: cap_rect,
@@ -517,7 +551,9 @@ impl Border {
             }
         } else {
             // Icon beside caption: icon is 1 "row", gap 0.1 rows.
-            let text_units = cap_units + desc_units;
+            // gap2 = descH * 0.05 between caption/icon and description.
+            let gap2_units: f64 = if has_desc { desc_units * 0.05 } else { 0.0 };
+            let text_units = cap_units + gap2_units + desc_units;
             let icon_h = area_h;
             let icon_w = icon_h / icon_tallness;
             let gap = area_h * 0.1 / (1.0 + 0.1);
@@ -525,6 +561,11 @@ impl Border {
             let text_w = (area_w - icon_w - gap).max(0.0);
             let cap_h = if text_units > 0.0 {
                 area_h * cap_units / text_units
+            } else {
+                0.0
+            };
+            let gap2 = if text_units > 0.0 {
+                area_h * gap2_units / text_units
             } else {
                 0.0
             };
@@ -555,14 +596,14 @@ impl Border {
             let desc_rect = if has_desc {
                 Some(Rect {
                     x: text_x,
-                    y: area_y + cap_h,
+                    y: area_y + cap_h + gap2,
                     w: text_w,
                     h: desc_h,
                 })
             } else {
                 None
             };
-            let total = icon_h.max(cap_h + desc_h);
+            let total = icon_h.max(cap_h + gap2 + desc_h);
             LabelLayout {
                 icon_rect: Some(icon_rect),
                 caption_rect: cap_rect,
@@ -726,11 +767,17 @@ impl Border {
         };
 
         // Round rect after outer insets + label.
-        let rnd_x = ox;
-        let rnd_y = oy + label_h;
-        let rnd_w = (w - ow).max(0.0);
-        let rnd_h = (h - oh - label_h).max(0.0);
-        let mut rnd_r = self.outer_radius(w, h);
+        let rnd_x0 = ox;
+        let rnd_y0 = oy + label_h;
+        let rnd_w0 = (w - ow).max(0.0);
+        let rnd_h0 = (h - oh - label_h).max(0.0);
+        // minSpace: padding between decoration and content area.
+        let ms = rnd_w0.min(rnd_h0) * self.border_scaling * self.min_space_factor();
+        let rnd_x = rnd_x0 + ms;
+        let rnd_y = rnd_y0 + ms;
+        let rnd_w = (rnd_w0 - 2.0 * ms).max(0.0);
+        let rnd_h = (rnd_h0 - 2.0 * ms).max(0.0);
+        let mut rnd_r = (self.outer_radius(w, h) - ms).max(0.0);
 
         // Inner border processing: adjust round rect.
         let inner_s = rnd_w.min(rnd_h) * self.border_scaling;
@@ -820,15 +867,19 @@ impl Border {
         } else {
             0.0
         };
-        let iw = (w - ow).max(0.0);
-        let ih = (h - oh - label_h).max(0.0);
+        let rnd_w = (w - ow).max(0.0);
+        let rnd_h_after_label = (h - oh - label_h).max(0.0);
+        // minSpace: padding between outer decoration and content area.
+        let ms = rnd_w.min(rnd_h_after_label) * self.border_scaling * self.min_space_factor();
+        let iw = (rnd_w - 2.0 * ms).max(0.0);
+        let ih = (rnd_h_after_label - 2.0 * ms).max(0.0);
         let (ix, iy, inner_w, inner_h) = self.inner_insets(iw, ih);
 
         Rect {
-            x: ox + ix,
-            y: oy + label_h + iy,
-            w: (w - ow - inner_w).max(0.0),
-            h: (h - oh - label_h - inner_h).max(0.0),
+            x: ox + ms + ix,
+            y: oy + label_h + ms + iy,
+            w: (iw - inner_w).max(0.0),
+            h: (ih - inner_h).max(0.0),
         }
     }
 
@@ -1129,34 +1180,44 @@ mod tests {
     fn content_rect_rect_border() {
         let border = Border::new(OuterBorderType::Rect);
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
-        // s = 50 * 1.0 = 50, d = 50 * 0.023 = 1.15
-        let d = 50.0 * 0.023;
-        assert!((x - d).abs() < 0.01);
-        assert!((y - d).abs() < 0.01);
-        assert!((cw - (100.0 - 2.0 * d)).abs() < 0.01);
-        assert!((ch - (50.0 - 2.0 * d)).abs() < 0.01);
+        // s = 50 * 1.0 = 50
+        // outer_inset d = s * (0.023 + 0.02) = s * 0.043 = 2.15
+        // After outer: rnd_w = 100 - 2*2.15 = 95.7, rnd_h = 50 - 2*2.15 = 45.7
+        // minSpace ms = min(95.7, 45.7) * 1.0 * 0.023 = 45.7 * 0.023 = 1.0511
+        let d: f64 = 50.0 * 0.043;
+        let rnd_w = 100.0 - 2.0 * d;
+        let rnd_h = 50.0 - 2.0 * d;
+        let ms = rnd_w.min(rnd_h) * 0.023;
+        assert!((x - (d + ms)).abs() < 0.01);
+        assert!((y - (d + ms)).abs() < 0.01);
+        assert!((cw - (rnd_w - 2.0 * ms)).abs() < 0.01);
+        assert!((ch - (rnd_h - 2.0 * ms)).abs() < 0.01);
     }
 
     #[test]
     fn content_rect_with_caption() {
         let border = Border::new(OuterBorderType::Rect).with_caption("Test");
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
-        let d = 50.0 * 0.023;
+        let d = 50.0 * 0.043;
         let rnd_w = 100.0 - 2.0 * d;
         let rnd_h = 50.0 - 2.0 * d;
         let label_h = border.label_space(rnd_w, rnd_h);
-        assert!((x - d).abs() < 0.01);
-        assert!((y - d - label_h).abs() < 0.01);
-        assert!((cw - rnd_w).abs() < 0.01);
-        assert!((ch - (rnd_h - label_h)).abs() < 0.01);
+        let rnd_h_after_label = rnd_h - label_h;
+        let ms = rnd_w.min(rnd_h_after_label) * 0.023;
+        assert!((x - (d + ms)).abs() < 0.01);
+        assert!((y - (d + label_h + ms)).abs() < 0.01);
+        assert!((cw - (rnd_w - 2.0 * ms)).abs() < 0.5);
+        assert!((ch - (rnd_h_after_label - 2.0 * ms)).abs() < 0.5);
     }
 
     #[test]
     fn content_rect_with_inner_input_field() {
         let border = Border::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
         let Rect { x, y, w: cw, h: ch } = border.content_rect(100.0, 50.0, &test_look());
-        // inner s = min(100, 50) * 1.0 = 50, d = 50 * 0.094 = 4.7
-        let d = 50.0 * 0.094;
+        // OBT_NONE: outer_inset=0, minSpace=0
+        // inner s = min(100, 50) * 1.0 = 50, rndR = 50 * 0.094 = 4.7
+        // inner inset d = rndR * (16/216)
+        let d = 50.0 * 0.094 * (16.0 / 216.0);
         assert!((x - d).abs() < 0.01);
         assert!((y - d).abs() < 0.01);
         assert!((cw - (100.0 - 2.0 * d)).abs() < 0.01);
@@ -1174,14 +1235,17 @@ mod tests {
         let rnd_w = 100.0 - 2.0 * od;
         let rnd_h = 80.0 - 2.0 * od;
         let label_h = border.label_space(rnd_w, rnd_h);
-        let iw: f64 = rnd_w;
-        let ih: f64 = rnd_h - label_h;
-        let is = iw.min(ih);
-        let id = is * 0.094;
-        assert!((r.x - (od + id)).abs() < 0.5);
-        assert!((r.y - (od + label_h + id)).abs() < 0.5);
-        assert!((r.w - (100.0 - 2.0 * od - 2.0 * id)).abs() < 0.5);
-        assert!((r.h - (80.0 - 2.0 * od - label_h - 2.0 * id)).abs() < 0.5);
+        let rnd_h_after_label = rnd_h - label_h;
+        // minSpace for Instrument = 0.023
+        let ms = rnd_w.min(rnd_h_after_label) * 0.023;
+        let iw = rnd_w - 2.0 * ms;
+        let ih = rnd_h_after_label - 2.0 * ms;
+        // inner inset = rndR * (16/216)
+        let id = iw.min(ih) * 0.094 * (16.0 / 216.0);
+        assert!((r.x - (od + ms + id)).abs() < 0.5);
+        assert!((r.y - (od + label_h + ms + id)).abs() < 0.5);
+        assert!((r.w - (iw - 2.0 * id)).abs() < 0.5);
+        assert!((r.h - (ih - 2.0 * id)).abs() < 0.5);
     }
 
     #[test]
@@ -1416,8 +1480,9 @@ mod tests {
         let border = Border::new(OuterBorderType::None).with_inner(InnerBorderType::InputField);
         let look = test_look();
         let (rect, r) = border.content_round_rect(100.0, 50.0, &look);
-        // Should be inset by input field inset
-        let d = 50.0 * 0.094;
+        // OBT_NONE: outer_inset=0, minSpace=0
+        // inner inset d = s * 0.094 * (16/216), s = min(100,50) * 1.0 = 50
+        let d = 50.0 * 0.094 * (16.0 / 216.0);
         assert!((rect.x - d).abs() < 0.5);
         assert!((rect.y - d).abs() < 0.5);
         assert!(r > 0.0, "IO field should have positive radius");

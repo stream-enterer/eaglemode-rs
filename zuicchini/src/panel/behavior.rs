@@ -68,6 +68,14 @@ bitflags! {
         const ENABLE_CHANGED  = 0b0100_0000;
         /// The sought child name (for seeking navigation) changed.
         const SOUGHT_NAME_CHANGED = 0b1000_0000;
+        /// The active panel changed.
+        const ACTIVE_CHANGED      = 0b0001_0000_0000;
+        /// The view's focus state changed (window gained/lost focus).
+        const VIEW_FOCUS_CHANGED  = 0b0010_0000_0000;
+        /// The panel's update priority changed.
+        const UPDATE_PRIORITY_CHANGED = 0b0100_0000_0000;
+        /// The panel's memory limit changed.
+        const MEMORY_LIMIT_CHANGED = 0b1000_0000_0000;
     }
 }
 

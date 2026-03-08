@@ -47,7 +47,7 @@ impl PackLayout {
             return;
         }
 
-        let sp = &self.spacing;
+        let sp = self.spacing.clamped();
 
         // Proportional spacing: convert margins and gap from proportions to pixels.
         // Content is 1.0 proportion-unit in each axis.
@@ -80,7 +80,7 @@ impl PackLayout {
                 PackItem {
                     id: Some(id),
                     weight: cc.weight,
-                    preferred_tallness: cc.preferred_tallness,
+                    preferred_tallness: cc.preferred_tallness.max(1e-4),
                 }
             })
             .collect();
@@ -91,7 +91,7 @@ impl PackLayout {
             items.push(PackItem {
                 id: None,
                 weight: self.default_constraint.weight,
-                preferred_tallness: self.default_constraint.preferred_tallness,
+                preferred_tallness: self.default_constraint.preferred_tallness.max(1e-4),
             });
         }
 

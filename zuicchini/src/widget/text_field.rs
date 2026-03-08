@@ -137,6 +137,7 @@ impl TextField {
         self.text = text.to_string();
         self.cursor = self.text.len();
         self.selection_anchor = None;
+        self.magic_col = None;
         self.undo_stack.clear();
         self.redo_stack.clear();
         self.fire_change();
@@ -462,17 +463,38 @@ impl TextField {
         if pos == 0 {
             return 0;
         }
-        match self.text[..pos].rfind('\n') {
-            Some(i) => i + 1,
-            None => 0,
+        let bytes = self.text.as_bytes();
+        let mut j = 0usize;
+        let mut i = 0usize;
+        while i < pos && i < bytes.len() {
+            let c = bytes[i];
+            if c == b'\r' || c == b'\n' {
+                i += 1;
+                // Skip LF after CR (CR+LF pair).
+                if c == b'\r' && i < bytes.len() && bytes[i] == b'\n' {
+                    i += 1;
+                }
+                if i <= pos {
+                    j = i;
+                }
+            } else {
+                i += 1;
+            }
         }
+        j
     }
 
     fn row_end(&self, pos: usize) -> usize {
-        match self.text[pos..].find('\n') {
-            Some(i) => pos + i,
-            None => self.text.len(),
+        let bytes = self.text.as_bytes();
+        let mut i = pos;
+        while i < bytes.len() {
+            let c = bytes[i];
+            if c == b'\n' || c == b'\r' {
+                return i;
+            }
+            i += 1;
         }
+        self.text.len()
     }
 
     fn index_to_col_row(&self, pos: usize) -> (usize, usize) {
@@ -545,13 +567,18 @@ impl TextField {
         if row_e >= self.text.len() {
             return pos; // no next row
         }
-        let next_row_start = row_e + 1;
+        // Skip the line ending (CR, LF, or CR+LF).
+        let bytes = self.text.as_bytes();
+        let mut next_row_start = row_e + 1;
+        if bytes[row_e] == b'\r' && next_row_start < bytes.len() && bytes[next_row_start] == b'\n' {
+            next_row_start += 1;
+        }
         let next_row_end = self.row_end(next_row_start);
         let mut idx = next_row_start;
         let mut c = 0;
         while c < target_col && idx < next_row_end {
             let ch = self.char_at(idx);
-            if ch == '\n' {
+            if ch == '\n' || ch == '\r' {
                 break;
             }
             idx += ch.len_utf8();
@@ -565,13 +592,18 @@ impl TextField {
         if row_s == 0 {
             return pos; // no prev row
         }
-        let prev_row_end = row_s - 1; // the \n
+        // Step back over the line ending (\n, \r, or \r\n).
+        let bytes = self.text.as_bytes();
+        let mut prev_row_end = row_s - 1;
+        if bytes[prev_row_end] == b'\n' && prev_row_end > 0 && bytes[prev_row_end - 1] == b'\r' {
+            prev_row_end -= 1;
+        }
         let prev_row_start = self.row_start(prev_row_end);
         let mut idx = prev_row_start;
         let mut c = 0;
         while c < target_col && idx < prev_row_end {
             let ch = self.char_at(idx);
-            if ch == '\n' {
+            if ch == '\n' || ch == '\r' {
                 break;
             }
             idx += ch.len_utf8();

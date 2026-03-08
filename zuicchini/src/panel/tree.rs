@@ -203,7 +203,7 @@ impl PanelData {
             next_sibling: None,
             prev_sibling: None,
             name,
-            layout_rect: Rect::default(),
+            layout_rect: Rect::new(-2.0, -2.0, 1.0, 1.0),
             canvas_color: Color::TRANSPARENT,
             visible: true,
             focusable: true,
@@ -213,7 +213,7 @@ impl PanelData {
             behavior: None,
             autoplay_handling: AutoplayHandlingFlags::empty(),
             ae_threshold_type: ViewConditionType::Area,
-            ae_threshold_value: 0.0,
+            ae_threshold_value: 150.0,
             ae_expanded: false,
             ae_invalid: false,
             ae_decision_invalid: false,
@@ -944,9 +944,9 @@ impl PanelTree {
         }
     }
 
-    /// Find nearest focusable ancestor of `id` (including self).
+    /// Find nearest focusable ancestor of `id` (excluding self, starting from parent).
     pub fn focusable_ancestor(&self, id: PanelId) -> Option<PanelId> {
-        let mut cur = Some(id);
+        let mut cur = self.panels.get(id).and_then(|p| p.parent);
         while let Some(c) = cur {
             if self.panels.get(c).map(|p| p.focusable).unwrap_or(false) {
                 return Some(c);
@@ -2062,7 +2062,7 @@ mod tests {
             t.get_auto_expansion_threshold_type(root),
             ViewConditionType::Area
         );
-        assert_eq!(t.get_auto_expansion_threshold_value(root), 0.0);
+        assert_eq!(t.get_auto_expansion_threshold_value(root), 150.0);
 
         // Change threshold
         t.set_auto_expansion_threshold(root, 100.0, ViewConditionType::Width);

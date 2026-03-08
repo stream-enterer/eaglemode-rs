@@ -79,7 +79,8 @@ impl KineticViewAnimator {
         self.zoom_fix_point_centered = true;
         self.update_zoom_fix_point(view);
         let dt = 0.01;
-        let q = (1.0 - (-self.velocity_z * dt).exp()) / dt;
+        let zflpp = view.get_zoom_factor_log_per_pixel();
+        let q = (1.0 - (-self.velocity_z * dt * zflpp).exp()) / dt;
         self.velocity_x += (old_fix_x - self.zoom_fix_x) * q;
         self.velocity_y += (old_fix_y - self.zoom_fix_y) * q;
     }
@@ -96,7 +97,8 @@ impl KineticViewAnimator {
         self.zoom_fix_x = x;
         self.zoom_fix_y = y;
         let dt = 0.01;
-        let q = (1.0 - (-self.velocity_z * dt).exp()) / dt;
+        let zflpp = view.get_zoom_factor_log_per_pixel();
+        let q = (1.0 - (-self.velocity_z * dt * zflpp).exp()) / dt;
         self.velocity_x += (old_fix_x - self.zoom_fix_x) * q;
         self.velocity_y += (old_fix_y - self.zoom_fix_y) * q;
     }
@@ -132,33 +134,24 @@ impl ViewAnimator for KineticViewAnimator {
             return false;
         }
 
-        // Apply linear friction per-dimension
+        // Save pre-friction velocities for average displacement
+        let vx_before = self.velocity_x;
+        let vy_before = self.velocity_y;
+        let vz_before = self.velocity_z;
+
+        // Apply linear friction per-dimension independently
         if self.friction_enabled {
             let a = self.friction;
-            let abs_vel = (self.velocity_x * self.velocity_x
-                + self.velocity_y * self.velocity_y
-                + self.velocity_z * self.velocity_z)
-                .sqrt();
-            let f = if abs_vel > 0.0 {
-                let reduced = abs_vel - a * dt;
-                if reduced > 0.0 {
-                    reduced / abs_vel
-                } else {
-                    0.0
-                }
-            } else {
-                0.0
-            };
-            self.velocity_x *= f;
-            self.velocity_y *= f;
-            self.velocity_z *= f;
+            self.velocity_x = apply_friction_1d(self.velocity_x, a, dt);
+            self.velocity_y = apply_friction_1d(self.velocity_y, a, dt);
+            self.velocity_z = apply_friction_1d(self.velocity_z, a, dt);
         }
 
-        // Compute distances
+        // Compute distances using average of pre/post-friction velocity
         let dist = [
-            self.velocity_x * dt,
-            self.velocity_y * dt,
-            self.velocity_z * dt,
+            (vx_before + self.velocity_x) * 0.5 * dt,
+            (vy_before + self.velocity_y) * 0.5 * dt,
+            (vz_before + self.velocity_z) * 0.5 * dt,
         ];
 
         // Skip if motion is negligible
@@ -700,6 +693,17 @@ impl ViewAnimator for VisitingViewAnimator {
     fn stop(&mut self) {
         self.active = false;
         self.set_visiting_state(VisitingState::NoGoal);
+    }
+}
+
+/// Per-dimension linear friction: reduces signed velocity toward zero by `a * dt`.
+fn apply_friction_1d(v: f64, a: f64, dt: f64) -> f64 {
+    if v - a * dt > 0.0 {
+        v - a * dt
+    } else if v + a * dt < 0.0 {
+        v + a * dt
+    } else {
+        0.0
     }
 }
 

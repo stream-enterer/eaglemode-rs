@@ -240,7 +240,7 @@ impl Default for MouseZoomScrollVIF {
 
 impl ViewInputFilter for MouseZoomScrollVIF {
     fn filter(&mut self, event: &InputEvent, state: &InputState, view: &mut View) -> bool {
-        if view.flags.contains(ViewFlags::NO_NAVIGATE) {
+        if view.flags.contains(ViewFlags::NO_USER_NAVIGATION) {
             return false;
         }
 
@@ -425,7 +425,7 @@ impl Default for KeyboardZoomScrollVIF {
 
 impl ViewInputFilter for KeyboardZoomScrollVIF {
     fn filter(&mut self, event: &InputEvent, state: &InputState, view: &mut View) -> bool {
-        if view.flags.contains(ViewFlags::NO_NAVIGATE) {
+        if view.flags.contains(ViewFlags::NO_USER_NAVIGATION) {
             return false;
         }
 

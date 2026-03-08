@@ -68,7 +68,7 @@ impl LinearLayout {
 
         let resolved = self.orientation.resolve(w, h);
         let horizontal = resolved == ResolvedOrientation::Horizontal;
-        let sp = &self.spacing;
+        let sp = self.spacing.clamped();
 
         let (main_total, cross_total, mms, mme, mcs, mce, inner_main) = if horizontal {
             (
@@ -136,7 +136,8 @@ impl LinearLayout {
                     (cross_px, main_size)
                 };
                 let tallness = ch / cw;
-                let clamped = tallness.clamp(cc.min_tallness, cc.max_tallness);
+                let max_t = cc.max_tallness.max(cc.min_tallness);
+                let clamped = tallness.clamp(cc.min_tallness, max_t);
                 if (clamped - tallness).abs() > 1e-10 {
                     main_size = if horizontal {
                         cross_px / clamped
@@ -154,7 +155,19 @@ impl LinearLayout {
         let actual_mc = mcs * s_cross;
         let actual_gap = inner_main * s_main;
 
-        let mut main_pos = actual_mm;
+        // Compute total main extent for alignment
+        let total_main: f64 =
+            main_sizes.iter().sum::<f64>() + actual_gap * children.len().saturating_sub(1) as f64;
+        let available = main_total - actual_mm - mme * s_main;
+        let surplus = (available - total_main).max(0.0);
+
+        let align_offset = match self.alignment {
+            Alignment::Center => surplus / 2.0,
+            Alignment::End => surplus,
+            _ => 0.0,
+        };
+
+        let mut main_pos = actual_mm + align_offset;
         for (i, child) in children.iter().enumerate() {
             let main_size = main_sizes[i];
             let (x, y, cw, ch) = if horizontal {
@@ -236,13 +249,14 @@ impl LinearLayout {
                     continue;
                 }
                 let tallness = ch / cw;
+                let max_t = cc.max_tallness.max(cc.min_tallness);
 
-                if tallness > cc.max_tallness {
+                if tallness > max_t {
                     // Too tall → child needs more main space → expanded
                     let fixed = if horizontal {
-                        cross / cc.max_tallness
+                        cross / max_t
                     } else {
-                        cross * cc.max_tallness
+                        cross * max_t
                     };
                     states[i] = State::Expanded(fixed);
                     free_weight -= cc.weight;

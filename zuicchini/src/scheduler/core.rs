@@ -12,8 +12,8 @@ const TIME_SLICE_DURATION: Duration = Duration::from_millis(50);
 ///
 /// Faithfully implements the C++ emScheduler/emEngine algorithm:
 /// - Clock-based `is_signaled` detection
-/// - Instant signal chaining (engines woken mid-slice run in the same slice)
-/// - Priority re-ascent after mid-slice signal processing
+/// - Instant signal chaining (engines woken at same or lower priority run in the same slice)
+/// - Downward-only priority scan (no re-ascent; engines woken at higher priority run next slice)
 /// - Reference-counted signal-engine connections
 /// - FIFO ordering with alternating time-slice parity for fairness
 pub struct EngineScheduler {
@@ -63,6 +63,7 @@ impl EngineScheduler {
     pub fn abort(&mut self, id: SignalId) {
         if let Some(sig) = self.inner.signals.get_mut(id) {
             sig.pending = false;
+            sig.clock = 0;
         }
         self.inner.pending_signals.retain(|&s| s != id);
     }
@@ -195,18 +196,29 @@ impl EngineScheduler {
 
     // ── Timer API ────────────────────────────────────────────────────
 
-    /// Create a timer that fires the given signal after `interval_ms`.
-    /// If `periodic` is true, the timer repeats.
-    pub fn create_timer(&mut self, signal: SignalId, interval_ms: u64, periodic: bool) -> TimerId {
-        self.inner
-            .timer_central
-            .create_timer(signal, interval_ms, periodic)
+    /// Create a timer in stopped state. Call `start_timer` to begin.
+    pub fn create_timer(&mut self, signal: SignalId) -> TimerId {
+        self.inner.timer_central.create_timer(signal)
     }
 
-    /// Cancel a timer and abort any already-queued signal.
-    /// Matches C++ emTimer::TriggerTimer(Cancel) which calls Signal.Abort().
-    pub fn cancel_timer(&mut self, id: TimerId) {
-        if let Some(sig) = self.inner.timer_central.cancel_timer(id) {
+    /// Start (or restart) a timer with the given interval and periodicity.
+    pub fn start_timer(&mut self, id: TimerId, interval_ms: u64, periodic: bool) {
+        self.inner
+            .timer_central
+            .start_timer(id, interval_ms, periodic);
+    }
+
+    /// Restart an existing timer in-place with new interval and periodicity.
+    pub fn restart_timer(&mut self, id: TimerId, interval_ms: u64, periodic: bool) {
+        self.inner
+            .timer_central
+            .restart_timer(id, interval_ms, periodic);
+    }
+
+    /// Cancel a timer. If `abort_signal` is true, also abort any pending signal.
+    /// Matches C++ emTimer::Stop(abortSignal).
+    pub fn cancel_timer(&mut self, id: TimerId, abort_signal: bool) {
+        if let Some(sig) = self.inner.timer_central.cancel_timer(id, abort_signal) {
             self.abort(sig);
         }
     }
@@ -231,7 +243,7 @@ impl EngineScheduler {
     /// 3. Process timer-fired signals
     /// 4. Run engines from highest to lowest priority
     /// 5. After each engine, process any signals it fired (instant chaining)
-    /// 6. Re-ascend to higher priority if signals woke higher-priority engines
+    /// 6. Priority scan only goes downward; higher-priority engines woken mid-slice run next slice
     pub fn do_time_slice(&mut self) {
         self.inner.deadline = Instant::now() + TIME_SLICE_DURATION;
         let next_parity = self.inner.time_slice ^ 1;
@@ -326,18 +338,9 @@ impl EngineScheduler {
             }
 
             // After engine cycle, process signals it may have fired.
-            // Re-ascend if higher-priority engines were woken.
+            // C++ only scans downward (CurrentAwakeList never re-ascends).
+            // Engines woken at higher priority run in the next time slice.
             self.process_pending_signals();
-
-            // Re-ascend: check if any higher-priority queue (in current parity)
-            // now has engines. This is the key to correct instant chaining.
-            let highest = (Priority::COUNT - 1) * 2 + parity;
-            for check_idx in (current_priority_idx..=highest).rev().step_by(2) {
-                if !self.inner.wake_queues[check_idx].is_empty() {
-                    current_priority_idx = check_idx;
-                    break;
-                }
-            }
         }
     }
 
@@ -370,6 +373,19 @@ impl EngineScheduler {
                 }
             }
         }
+    }
+}
+
+impl Drop for EngineScheduler {
+    fn drop(&mut self) {
+        debug_assert!(
+            self.inner.engines.is_empty(),
+            "EngineScheduler dropped with remaining engines"
+        );
+        debug_assert!(
+            self.inner.pending_signals.is_empty(),
+            "EngineScheduler dropped with pending signals"
+        );
     }
 }
 
@@ -425,6 +441,7 @@ mod tests {
         // Engine returned false, should not run again
         sched.do_time_slice();
         assert_eq!(*count.borrow(), 1);
+        sched.remove_engine(id);
     }
 
     #[test]
@@ -446,6 +463,7 @@ mod tests {
         // Should be asleep now
         sched.do_time_slice();
         assert_eq!(*count.borrow(), 3);
+        sched.remove_engine(id);
     }
 
     #[test]
@@ -467,6 +485,7 @@ mod tests {
         sched.fire(sig);
         sched.do_time_slice();
         assert_eq!(*count.borrow(), 1);
+        sched.remove_engine(eng);
     }
 
     #[test]
@@ -485,6 +504,7 @@ mod tests {
         sched.abort(sig);
         sched.do_time_slice();
         assert_eq!(*count.borrow(), 0);
+        sched.remove_engine(eng);
     }
 
     #[test]
@@ -523,6 +543,9 @@ mod tests {
         let executed = order.borrow();
         assert_eq!(executed[0], "high");
         assert_eq!(executed[1], "low");
+        drop(executed);
+        sched.remove_engine(low);
+        sched.remove_engine(high);
     }
 
     #[test]
@@ -565,6 +588,7 @@ mod tests {
         sched.do_time_slice();
         assert!(*a_fired.borrow());
         assert!(!*b_fired.borrow());
+        sched.remove_engine(eng);
     }
 
     #[test]
@@ -590,6 +614,7 @@ mod tests {
         // Disconnect again — now disconnected
         sched.disconnect(sig, eng);
         assert_eq!(sched.get_signal_refs(sig, eng), 0);
+        sched.remove_engine(eng);
     }
 
     #[test]
@@ -632,6 +657,9 @@ mod tests {
         let executed = order.borrow();
         assert_eq!(executed[0], "A");
         assert_eq!(executed[1], "B");
+        drop(executed);
+        sched.remove_engine(eng_a);
+        sched.remove_engine(eng_b);
     }
 
     #[test]
@@ -685,12 +713,15 @@ mod tests {
 
         let executed = log.borrow();
         assert_eq!(*executed, vec!["A", "B"]);
+        drop(executed);
+        sched.remove_engine(eng_b);
+        sched.remove_engine(_eng_a);
     }
 
     #[test]
-    fn high_priority_reascent() {
+    fn no_reascent_to_higher_priority() {
         // Low-priority engine fires signal that wakes high-priority engine.
-        // High-priority engine should still run in the same time slice.
+        // C++ only scans downward: high-priority engine runs in the NEXT time slice.
         let mut sched = EngineScheduler::new();
         let sig = sched.create_signal();
         let log = Rc::new(RefCell::new(Vec::<&str>::new()));
@@ -736,8 +767,17 @@ mod tests {
 
         sched.do_time_slice();
 
+        // First slice: only low runs; high is woken but at higher priority (no re-ascent)
         let executed = log.borrow();
-        // Low fires first (it was the only one awake), then high runs via signal chaining
+        assert_eq!(*executed, vec!["low_fires"]);
+        drop(executed);
+
+        // Second slice: high runs
+        sched.do_time_slice();
+        let executed = log.borrow();
         assert_eq!(*executed, vec!["low_fires", "high_runs"]);
+        drop(executed);
+        sched.remove_engine(eng_high);
+        sched.remove_engine(eng_low);
     }
 }

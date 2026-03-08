@@ -345,8 +345,11 @@ impl View {
             return;
         }
         if let Some(state) = self.visit_stack.last_mut() {
-            state.rel_x += dx / self.viewport_width.max(1.0);
-            state.rel_y += dy / self.viewport_height.max(1.0);
+            // Convert pixel deltas to view-coordinate space by dividing by the
+            // panel's viewed size (viewport * sqrt(rel_a)), matching C++ Scroll.
+            let scale = state.rel_a.sqrt().max(1e-10);
+            state.rel_x += dx / (self.viewport_width.max(1.0) * scale);
+            state.rel_y += dy / (self.viewport_height.max(1.0) * scale);
             self.viewport_changed = true;
         }
     }
@@ -569,14 +572,24 @@ impl View {
     // --- Active Panel Management ---
 
     pub fn set_active_panel(&mut self, tree: &mut PanelTree, panel: PanelId, adherent: bool) {
-        // Walk up to nearest focusable ancestor
-        let target = tree.focusable_ancestor(panel).unwrap_or(panel);
+        // Walk up to nearest focusable panel (self included, matching C++ SetActivePanel)
+        let target = if tree.get(panel).map(|p| p.focusable).unwrap_or(false) {
+            panel
+        } else {
+            tree.focusable_ancestor(panel).unwrap_or(panel)
+        };
 
         if self.active == Some(target) {
             if self.activation_adherent != adherent {
                 self.activation_adherent = adherent;
             }
             return;
+        }
+
+        // Build notice flags: always ACTIVE_CHANGED, add FOCUS_CHANGED if focused
+        let mut flags = super::behavior::NoticeFlags::ACTIVE_CHANGED;
+        if self.window_focused {
+            flags.insert(super::behavior::NoticeFlags::FOCUS_CHANGED);
         }
 
         // Clear old active path
@@ -586,8 +599,7 @@ impl View {
                 if let Some(p) = tree.get_mut(*id) {
                     p.is_active = false;
                     p.in_active_path = false;
-                    p.pending_notices
-                        .insert(super::behavior::NoticeFlags::VIEW_CHANGED);
+                    p.pending_notices.insert(flags);
                 }
             }
         }
@@ -601,8 +613,7 @@ impl View {
         for id in &new_path {
             if let Some(p) = tree.get_mut(*id) {
                 p.in_active_path = true;
-                p.pending_notices
-                    .insert(super::behavior::NoticeFlags::VIEW_CHANGED);
+                p.pending_notices.insert(flags);
             }
         }
         self.activation_adherent = adherent;
@@ -1087,8 +1098,12 @@ impl View {
             Some(id) => id,
             None => return,
         };
-        // Go to focusable parent
+        // Go to focusable parent — check parent itself first, then walk up
         if let Some(parent) = tree.parent(active) {
+            if tree.get(parent).map(|p| p.focusable).unwrap_or(false) {
+                self.set_active_panel(tree, parent, false);
+                return;
+            }
             if let Some(focusable) = tree.focusable_ancestor(parent) {
                 self.set_active_panel(tree, focusable, false);
                 return;

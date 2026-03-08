@@ -26,7 +26,7 @@ impl Orientation {
             Self::Horizontal => ResolvedOrientation::Horizontal,
             Self::Vertical => ResolvedOrientation::Vertical,
             Self::Adaptive { tallness_threshold } => {
-                let tallness = if w > 0.0 { h / w } else { 1.0 };
+                let tallness = if w > 0.0 { h / w } else { f64::INFINITY };
                 if tallness <= tallness_threshold {
                     ResolvedOrientation::Horizontal
                 } else {
@@ -102,6 +102,17 @@ impl Spacing {
         match orientation {
             ResolvedOrientation::Horizontal => self.inner_h,
             ResolvedOrientation::Vertical => self.inner_v,
+        }
+    }
+
+    pub(crate) fn clamped(&self) -> Self {
+        Self {
+            inner_h: self.inner_h.max(0.0),
+            inner_v: self.inner_v.max(0.0),
+            margin_left: self.margin_left.max(0.0),
+            margin_right: self.margin_right.max(0.0),
+            margin_top: self.margin_top.max(0.0),
+            margin_bottom: self.margin_bottom.max(0.0),
         }
     }
 }

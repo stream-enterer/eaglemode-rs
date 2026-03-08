@@ -63,6 +63,7 @@ fn engine_modifies_panel_on_signal() {
     h.tick();
 
     assert_eq!(*counter.borrow(), 1);
+    h.scheduler.remove_engine(eng);
 }
 
 #[test]
@@ -76,7 +77,8 @@ fn timer_drives_engine_wake() {
 
     let sig = h.scheduler.create_signal();
     // 0ms one-shot timer fires immediately on next check_and_collect
-    let _timer = h.scheduler.create_timer(sig, 0, false);
+    let timer = h.scheduler.create_timer(sig);
+    h.scheduler.start_timer(timer, 0, false);
 
     let eng = h.scheduler.register_engine(
         Priority::Medium,
@@ -93,6 +95,7 @@ fn timer_drives_engine_wake() {
         *engine_ran.borrow(),
         "Timer should fire signal which wakes engine"
     );
+    h.scheduler.remove_engine(eng);
 }
 
 struct FlagEngine {
@@ -128,6 +131,7 @@ fn signal_removal_while_pending() {
 
     // Engine should NOT have run (signal was aborted)
     assert_eq!(*counter.borrow(), 0);
+    h.scheduler.remove_engine(eng);
 }
 
 #[test]
@@ -168,4 +172,7 @@ fn engine_fires_signal_waking_sibling() {
     assert_eq!(entries.len(), 2);
     assert_eq!(entries[0], "cycle:A");
     assert_eq!(entries[1], "cycle:B");
+    drop(entries);
+    h.scheduler.remove_engine(_eng_a);
+    h.scheduler.remove_engine(eng_b);
 }

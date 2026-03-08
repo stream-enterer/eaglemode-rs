@@ -30,34 +30,45 @@ impl TimerCentral {
         }
     }
 
-    /// Create a new timer that fires the given signal after `interval_ms`.
-    pub fn create_timer(
-        &mut self,
-        signal_id: SignalId,
-        interval_ms: u64,
-        periodic: bool,
-    ) -> TimerId {
-        // C++ clamps periodic timer interval to at least 1ms to prevent spin-loop
-        let clamped_ms = if periodic {
-            interval_ms.max(1)
-        } else {
-            interval_ms
-        };
+    /// Create a new timer in stopped state. Call `start_timer` to begin.
+    pub fn create_timer(&mut self, signal_id: SignalId) -> TimerId {
         self.timers.insert(TimerEntry {
             signal_id,
-            interval_ms: clamped_ms,
-            periodic,
-            next_fire: Instant::now() + Duration::from_millis(clamped_ms),
-            active: true,
+            interval_ms: 0,
+            periodic: false,
+            next_fire: Instant::now(),
+            active: false,
         })
+    }
+
+    /// Start (or restart) a timer with the given interval and periodicity.
+    pub fn start_timer(&mut self, id: TimerId, interval_ms: u64, periodic: bool) {
+        if let Some(entry) = self.timers.get_mut(id) {
+            // C++ clamps periodic interval to at least 1ms to prevent spin-loop,
+            // but initial fire uses raw interval (SigTime = now + millisecs).
+            let period_ms = if periodic { interval_ms.max(1) } else { 0 };
+            entry.interval_ms = period_ms;
+            entry.periodic = periodic;
+            entry.next_fire = Instant::now() + Duration::from_millis(interval_ms);
+            entry.active = true;
+        }
+    }
+
+    /// Restart an existing timer in-place with new interval and periodicity.
+    pub fn restart_timer(&mut self, id: TimerId, interval_ms: u64, periodic: bool) {
+        self.start_timer(id, interval_ms, periodic);
     }
 
     /// Cancel a timer. Returns the signal ID so the caller can abort
     /// any already-queued signal.
-    pub fn cancel_timer(&mut self, id: TimerId) -> Option<SignalId> {
+    pub fn cancel_timer(&mut self, id: TimerId, abort_signal: bool) -> Option<SignalId> {
         if let Some(entry) = self.timers.get_mut(id) {
             entry.active = false;
-            Some(entry.signal_id)
+            if abort_signal {
+                Some(entry.signal_id)
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -116,12 +127,26 @@ mod tests {
     use slotmap::SlotMap;
 
     #[test]
-    fn timer_fires_after_elapsed() {
+    fn timer_created_inactive() {
         let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
         let sig = signals.insert(());
 
         let mut tc = TimerCentral::new();
-        tc.create_timer(sig, 0, false); // 0ms = fires immediately
+        let id = tc.create_timer(sig);
+        assert!(!tc.is_running(id));
+
+        let fired = tc.check_and_collect();
+        assert!(fired.is_empty());
+    }
+
+    #[test]
+    fn timer_fires_after_start() {
+        let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
+        let sig = signals.insert(());
+
+        let mut tc = TimerCentral::new();
+        let id = tc.create_timer(sig);
+        tc.start_timer(id, 0, false); // 0ms = fires immediately
 
         let fired = tc.check_and_collect();
         assert_eq!(fired.len(), 1);
@@ -135,10 +160,10 @@ mod tests {
         let sig = signals.insert(());
 
         let mut tc = TimerCentral::new();
-        // interval_ms=0 is clamped to 1ms for periodic timers,
-        // so wait briefly to ensure it fires.
-        tc.create_timer(sig, 0, true);
-        std::thread::sleep(Duration::from_millis(2));
+        let id = tc.create_timer(sig);
+        // interval_ms=0: initial fire is immediate (raw interval),
+        // but periodic refire interval is clamped to 1ms.
+        tc.start_timer(id, 0, true);
 
         let fired = tc.check_and_collect();
         assert_eq!(fired.len(), 1);
@@ -146,28 +171,63 @@ mod tests {
     }
 
     #[test]
-    fn periodic_zero_interval_clamped_to_1ms() {
+    fn periodic_zero_interval_initial_fires_immediately() {
         let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
         let sig = signals.insert(());
 
         let mut tc = TimerCentral::new();
-        tc.create_timer(sig, 0, true);
+        let id = tc.create_timer(sig);
+        // C++: Start(0, true) sets Period=1 but SigTime=now+0 (fires immediately)
+        tc.start_timer(id, 0, true);
 
-        // Should NOT fire immediately — clamped to 1ms minimum
+        let fired = tc.check_and_collect();
+        assert_eq!(
+            fired.len(),
+            1,
+            "periodic timer with 0ms should fire immediately on first check"
+        );
+    }
+
+    #[test]
+    fn cancel_timer_with_abort() {
+        let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
+        let sig = signals.insert(());
+
+        let mut tc = TimerCentral::new();
+        let id = tc.create_timer(sig);
+        tc.start_timer(id, 0, false);
+        let abort_sig = tc.cancel_timer(id, true);
+        assert_eq!(abort_sig, Some(sig));
+
         let fired = tc.check_and_collect();
         assert!(fired.is_empty());
     }
 
     #[test]
-    fn cancel_timer() {
+    fn cancel_timer_without_abort() {
         let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
         let sig = signals.insert(());
 
         let mut tc = TimerCentral::new();
-        let id = tc.create_timer(sig, 0, false);
-        tc.cancel_timer(id);
+        let id = tc.create_timer(sig);
+        tc.start_timer(id, 0, false);
+        let abort_sig = tc.cancel_timer(id, false);
+        assert!(abort_sig.is_none());
+    }
 
+    #[test]
+    fn restart_timer() {
+        let mut signals: SlotMap<SignalId, ()> = SlotMap::with_key();
+        let sig = signals.insert(());
+
+        let mut tc = TimerCentral::new();
+        let id = tc.create_timer(sig);
+        tc.start_timer(id, 1000, false); // 1s, won't fire soon
+        assert!(tc.is_running(id));
+
+        // Restart with 0ms — should fire immediately
+        tc.restart_timer(id, 0, false);
         let fired = tc.check_and_collect();
-        assert!(fired.is_empty());
+        assert_eq!(fired.len(), 1);
     }
 }

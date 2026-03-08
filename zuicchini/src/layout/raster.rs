@@ -87,11 +87,15 @@ impl RasterLayout {
             return;
         }
 
-        let (mut cols, mut rows) = self.compute_grid_dims(n, w, h);
+        let min_ct = self.min_child_tallness.max(0.0);
+        let max_ct = self.max_child_tallness.max(min_ct);
+        let pref_ct = self.preferred_child_tallness.clamp(min_ct, max_ct);
+
+        let (mut cols, mut rows) = self.compute_grid_dims_clamped(n, w, h, pref_ct);
 
         // Strict raster: increase cols or rows so cell tallness stays within bounds
         if self.strict_raster {
-            let sp = &self.spacing;
+            let sp = self.spacing.clamped();
             let compute_tallness = |c: usize, r: usize| -> f64 {
                 let ux = sp.margin_left + sp.inner_h * (c - 1) as f64 + sp.margin_right + c as f64;
                 let uy = sp.margin_top + sp.inner_v * (r - 1) as f64 + sp.margin_bottom + r as f64;
@@ -105,7 +109,7 @@ impl RasterLayout {
                 // Increase cols while ct < min_child_tallness
                 while cols < n {
                     let ct = compute_tallness(cols, rows);
-                    if ct >= self.min_child_tallness {
+                    if ct >= min_ct {
                         break;
                     }
                     cols += 1;
@@ -115,7 +119,7 @@ impl RasterLayout {
                 // Increase rows while ct > max_child_tallness
                 while rows < n {
                     let ct = compute_tallness(cols, rows);
-                    if ct <= self.max_child_tallness {
+                    if ct <= max_ct {
                         break;
                     }
                     rows += 1;
@@ -127,7 +131,7 @@ impl RasterLayout {
             return;
         }
 
-        let sp = &self.spacing;
+        let sp = self.spacing.clamped();
 
         // Proportional spacing: spacing values are proportions, not pixels.
         // Each cell is 1.0 proportion-unit wide/tall. Scale factors convert to pixels.
@@ -149,7 +153,7 @@ impl RasterLayout {
         // Clamp cell tallness
         if cell_w > 0.0 {
             let tallness = cell_h / cell_w;
-            let clamped = tallness.clamp(self.min_child_tallness, self.max_child_tallness);
+            let clamped = tallness.clamp(min_ct, max_ct);
             cell_h = cell_w * clamped;
         }
 
@@ -198,9 +202,13 @@ impl RasterLayout {
         }
     }
 
-    fn compute_grid_dims(&self, n: usize, w: f64, h: f64) -> (usize, usize) {
+    fn compute_grid_dims_clamped(&self, n: usize, w: f64, h: f64, pref_ct: f64) -> (usize, usize) {
         match (self.fixed_columns, self.fixed_rows) {
-            (Some(c), Some(r)) => (c, r),
+            (Some(c), Some(r)) => {
+                let c = c.max(1);
+                let r = r.max(n.div_ceil(c));
+                (c, r)
+            }
             (Some(c), None) => {
                 let c = c.max(1);
                 (c, n.div_ceil(c))
@@ -209,18 +217,15 @@ impl RasterLayout {
                 let r = r.max(1);
                 (n.div_ceil(r), r)
             }
-            (None, None) => self.auto_grid(n, w, h),
+            (None, None) => self.auto_grid_clamped(n, w, h, pref_ct),
         }
     }
 
-    /// Pick column count that makes cells closest to preferred_child_tallness.
-    /// Uses log-error scoring: |ln(preferred / actual)| — scale-invariant.
-    /// Tallness computed as `(h*cols)/(w*rows)`, equivalent to ignoring spacing.
-    fn auto_grid(&self, n: usize, w: f64, h: f64) -> (usize, usize) {
+    fn auto_grid_clamped(&self, n: usize, w: f64, h: f64, pref_ct: f64) -> (usize, usize) {
         if n == 0 {
             return (0, 0);
         }
-        if self.preferred_child_tallness <= 0.0 || w <= 0.0 || h <= 0.0 {
+        if pref_ct <= 0.0 || w <= 0.0 || h <= 0.0 {
             return (1, n);
         }
         let mut best_cols = 1;
@@ -229,7 +234,7 @@ impl RasterLayout {
         for c in 1..=n {
             let r = n.div_ceil(c);
             let tallness = (h * c as f64) / (w * r as f64);
-            let score = (self.preferred_child_tallness / tallness).ln().abs();
+            let score = (pref_ct / tallness).ln().abs();
             if score < best_score {
                 best_score = score;
                 best_cols = c;

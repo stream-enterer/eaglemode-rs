@@ -53,6 +53,10 @@ fn engines_execute_in_priority_order() {
 
     let executed = log.borrow();
     assert_eq!(*executed, vec!["very_high", "medium", "very_low"]);
+    drop(executed);
+    sched.remove_engine(low);
+    sched.remove_engine(med);
+    sched.remove_engine(high);
 }
 
 #[test]
@@ -80,6 +84,8 @@ fn signal_chaining_within_time_slice() {
 
     let executed = log.borrow();
     assert_eq!(*executed, vec!["B"]);
+    drop(executed);
+    sched.remove_engine(eng_b);
 }
 
 #[test]
@@ -98,12 +104,15 @@ fn timer_fires_signal() {
     );
     sched.connect(sig, eng);
 
-    // Create a timer with 0ms interval (fires immediately)
-    sched.create_timer(sig, 0, false);
+    // Create a timer and start it with 0ms interval (fires immediately)
+    let timer = sched.create_timer(sig);
+    sched.start_timer(timer, 0, false);
     sched.do_time_slice();
 
     let executed = log.borrow();
     assert_eq!(*executed, vec!["timer_target"]);
+    drop(executed);
+    sched.remove_engine(eng);
 }
 
 #[test]
@@ -169,6 +178,9 @@ fn instant_signal_chaining_via_engine() {
 
     let executed = log.borrow();
     assert_eq!(*executed, vec!["A_fires", "B_runs"]);
+    drop(executed);
+    sched.remove_engine(eng_a);
+    sched.remove_engine(eng_b);
 }
 
 #[test]
@@ -210,4 +222,5 @@ fn is_signaled_distinguishes_signals() {
     sched.do_time_slice();
     assert!(*a_fired.borrow(), "Signal A should have been detected");
     assert!(!*b_fired.borrow(), "Signal B should NOT have been detected");
+    sched.remove_engine(eng);
 }
