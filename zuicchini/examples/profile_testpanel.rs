@@ -161,44 +161,12 @@ impl PanelBehavior for TestPanel {
         painter.paint_ellipse(0.07, 0.805, 0.01, 0.005, Color::WHITE);
         painter.paint_ellipse(0.0925, 0.805, 0.0025, 0.005, Color::WHITE);
 
-        // Ellipse sectors
+        // Ellipse sectors (degrees: start_angle, sweep_angle)
         let deg = PI / 180.0;
-        painter.paint_ellipse_sector(
-            0.105,
-            0.805,
-            0.005,
-            0.005,
-            45.0 * deg,
-            350.0 * deg,
-            Color::WHITE,
-        );
-        painter.paint_ellipse_sector(
-            0.12,
-            0.805,
-            0.01,
-            0.005,
-            -350.0 * deg,
-            45.0 * deg,
-            Color::WHITE,
-        );
-        painter.paint_ellipse_sector(
-            0.1325,
-            0.805,
-            0.0025,
-            0.005,
-            245.0 * deg,
-            295.0 * deg,
-            Color::WHITE,
-        );
-        painter.paint_ellipse_sector(
-            0.145,
-            0.805,
-            0.005,
-            0.005,
-            195.0 * deg,
-            245.0 * deg,
-            Color::WHITE,
-        );
+        painter.paint_ellipse_sector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, Color::WHITE);
+        painter.paint_ellipse_sector(0.12, 0.805, 0.01, 0.005, -350.0, 395.0, Color::WHITE);
+        painter.paint_ellipse_sector(0.1325, 0.805, 0.0025, 0.005, 245.0, 50.0, Color::WHITE);
+        painter.paint_ellipse_sector(0.145, 0.805, 0.005, 0.005, 195.0, 50.0, Color::WHITE);
 
         // Rect outlines
         painter.paint_rect_outlined(0.05, 0.82, 0.01, 0.01, &Stroke::new(Color::WHITE, 0.001));
@@ -251,8 +219,8 @@ impl PanelBehavior for TestPanel {
             0.865,
             0.01,
             0.005,
-            45.0 * deg,
-            -320.0 * deg,
+            45.0,
+            -365.0,
             &Stroke::new(Color::WHITE, 0.0001),
         );
         painter.paint_ellipse_arc(

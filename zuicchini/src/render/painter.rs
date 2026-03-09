@@ -380,7 +380,9 @@ impl<'a> Painter<'a> {
     }
 
     /// Fill an ellipse sector (pie slice) defined by center, radii, and angle range.
-    /// Angles are in radians, measured counter-clockwise from the +X axis.
+    /// Angles are in **degrees**, matching C++ emPainter convention.
+    /// `start_angle` is the start in degrees from +X axis; `sweep_angle` is the
+    /// arc length in degrees from start.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_ellipse_sector(
         &mut self,
@@ -389,33 +391,43 @@ impl<'a> Painter<'a> {
         rx: f64,
         ry: f64,
         start_angle: f64,
-        end_angle: f64,
+        sweep_angle: f64,
         color: Color,
     ) {
         if rx <= 0.0 || ry <= 0.0 {
             return;
         }
-        let sweep = end_angle - start_angle;
-        if sweep == 0.0 {
+        if sweep_angle == 0.0 {
             return;
         }
         // Normalize negative sweep.
-        if sweep < 0.0 {
-            return self.paint_ellipse_sector(cx, cy, rx, ry, end_angle, start_angle, color);
+        if sweep_angle < 0.0 {
+            return self.paint_ellipse_sector(
+                cx,
+                cy,
+                rx,
+                ry,
+                start_angle + sweep_angle,
+                -sweep_angle,
+                color,
+            );
         }
+        // Convert degrees to radians.
+        let start_rad = start_angle * std::f64::consts::PI / 180.0;
+        let sweep_rad = sweep_angle * std::f64::consts::PI / 180.0;
         // Full circle or more — delegate to paint_ellipse.
-        if sweep >= 2.0 * std::f64::consts::PI {
+        if sweep_rad >= 2.0 * std::f64::consts::PI {
             return self.paint_ellipse(cx, cy, rx, ry, color);
         }
         let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
         // Scale segments proportional to sweep.
         let arc_segments =
-            ((segments as f64 * sweep / (2.0 * std::f64::consts::PI)).ceil() as usize).max(2);
+            ((segments as f64 * sweep_rad / (2.0 * std::f64::consts::PI)).ceil() as usize).max(2);
         let mut verts = Vec::with_capacity(arc_segments + 2);
         verts.push((cx, cy));
         for i in 0..=arc_segments {
             let t = i as f64 / arc_segments as f64;
-            let angle = start_angle + t * sweep;
+            let angle = start_rad + t * sweep_rad;
             verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
         }
         self.paint_polygon(&verts, color);
@@ -474,6 +486,9 @@ impl<'a> Painter<'a> {
     }
 
     /// Fill an elliptical region with a radial gradient.
+    ///
+    /// Uses polygon-approximated ellipse boundary with AA scanline rasterization,
+    /// matching C++ emPainter's PaintEllipse + emRadialGradientTexture approach.
     #[allow(clippy::too_many_arguments)]
     pub fn paint_radial_gradient(
         &mut self,
@@ -488,38 +503,35 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        let pcx = self.to_pixel_x(cx);
-        let pcy = self.to_pixel_y(cy);
-        let prx = (rx * self.state.scale_x) as i32;
-        let pry = (ry * self.state.scale_y) as i32;
+        let verts = self.ellipse_polygon(cx, cy, rx, ry);
 
-        let PixelRect {
-            x: clip_x,
-            y: clip_y,
-            w: clip_w,
-            h: clip_h,
-        } = self.state.clip;
-        let start_x = (pcx - prx).max(clip_x).max(0);
-        let start_y = (pcy - pry).max(clip_y).max(0);
-        let end_x = (pcx + prx)
-            .min(clip_x + clip_w)
-            .min(self.target.width() as i32);
-        let end_y = (pcy + pry)
-            .min(clip_y + clip_h)
-            .min(self.target.height() as i32);
+        let fixed_verts: Vec<(Fixed12, Fixed12)> = verts
+            .iter()
+            .map(|&(x, y)| {
+                (
+                    Fixed12::from_f64(x * self.state.scale_x + self.state.offset_x),
+                    Fixed12::from_f64(y * self.state.scale_y + self.state.offset_y),
+                )
+            })
+            .collect();
 
-        for row in start_y..end_y {
-            for col in start_x..end_x {
-                let color = interpolation::sample_radial_gradient(
-                    pcx as f64,
-                    pcy as f64,
-                    prx as f64,
-                    pry as f64,
-                    color_inner,
-                    color_outer,
-                    (col as f64, row as f64),
-                );
-                self.blend_pixel(col, row, color);
+        let rows = scanline::rasterize(&fixed_verts, self.state.clip, WindingRule::NonZero);
+
+        let pcx = cx * self.state.scale_x + self.state.offset_x;
+        let pcy = cy * self.state.scale_y + self.state.offset_y;
+        let prx = rx * self.state.scale_x;
+        let pry = ry * self.state.scale_y;
+
+        let px_texture = PixelTexture::RadialGradient {
+            color_inner,
+            color_outer,
+            center: (pcx, pcy),
+            radius: (prx, pry),
+        };
+
+        for (y, spans) in &rows {
+            for span in spans {
+                self.blit_span_textured(*y, span, &px_texture);
             }
         }
     }
@@ -1739,6 +1751,7 @@ impl<'a> Painter<'a> {
 
     /// Draw an ellipse sector outline. Routes through polyline if dashed.
     #[allow(clippy::too_many_arguments)]
+    /// Outline an ellipse sector. Angles in **degrees** (start + sweep), matching C++.
     pub fn paint_ellipse_sector_outlined(
         &mut self,
         cx: f64,
@@ -1746,24 +1759,27 @@ impl<'a> Painter<'a> {
         rx: f64,
         ry: f64,
         start_angle: f64,
-        end_angle: f64,
+        sweep_angle: f64,
         stroke: &Stroke,
     ) {
         if rx <= 0.0 || ry <= 0.0 || stroke.width <= 0.0 {
             return;
         }
-        let sweep = end_angle - start_angle;
-        if sweep.abs() < 1e-10 {
+        if sweep_angle.abs() < 1e-10 {
             return;
         }
+        // Convert degrees to radians.
+        let start_rad = start_angle * std::f64::consts::PI / 180.0;
+        let sweep_rad = sweep_angle * std::f64::consts::PI / 180.0;
         let segments = adaptive_circle_segments(rx, ry, self.state.scale_x, self.state.scale_y);
-        let arc_segs =
-            ((segments as f64 * sweep.abs() / (2.0 * std::f64::consts::PI)).ceil() as usize).max(2);
+        let arc_segs = ((segments as f64 * sweep_rad.abs() / (2.0 * std::f64::consts::PI)).ceil()
+            as usize)
+            .max(2);
         let mut verts = Vec::with_capacity(arc_segs + 2);
         verts.push((cx, cy));
         for i in 0..=arc_segs {
             let t = i as f64 / arc_segs as f64;
-            let angle = start_angle + t * sweep;
+            let angle = start_rad + t * sweep_rad;
             verts.push((cx + rx * angle.cos(), cy + ry * angle.sin()));
         }
         if !stroke.dash_pattern.is_empty() {

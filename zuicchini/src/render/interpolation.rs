@@ -331,22 +331,6 @@ pub(crate) fn sample(
     }
 }
 
-/// Sample a radial gradient.
-pub(crate) fn sample_radial_gradient(
-    cx: f64,
-    cy: f64,
-    rx: f64,
-    ry: f64,
-    inner: Color,
-    outer: Color,
-    point: (f64, f64),
-) -> Color {
-    let dx = (point.0 - cx) / rx;
-    let dy = (point.1 - cy) / ry;
-    let t = (dx * dx + dy * dy).sqrt().min(1.0);
-    inner.lerp(outer, t)
-}
-
 /// Sample a linear gradient.
 pub(crate) fn sample_linear_gradient(
     start: (f64, f64),
@@ -417,34 +401,6 @@ mod tests {
         let img = make_test_image();
         let c = sample_lanczos(&img, 1.0, 1.0, ImageExtension::Clamp);
         assert!((c.r() as i32 - 80).abs() <= 5);
-    }
-
-    #[test]
-    fn radial_gradient_center() {
-        let c = sample_radial_gradient(
-            50.0,
-            50.0,
-            50.0,
-            50.0,
-            Color::WHITE,
-            Color::BLACK,
-            (50.0, 50.0),
-        );
-        assert_eq!(c.r(), 255);
-    }
-
-    #[test]
-    fn radial_gradient_edge() {
-        let c = sample_radial_gradient(
-            50.0,
-            50.0,
-            50.0,
-            50.0,
-            Color::WHITE,
-            Color::BLACK,
-            (100.0, 50.0),
-        );
-        assert_eq!(c.r(), 0);
     }
 
     #[test]

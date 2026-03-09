@@ -168,49 +168,58 @@ impl RasterLayout {
             return;
         }
 
-        let sx = w / denom_x;
-        let sy = h / denom_y;
+        // Compute unclamped cell tallness and clamp it.
+        let unclamped_tallness = (h * denom_x) / (w * denom_y);
+        let clamped_tallness = unclamped_tallness.clamp(min_ct, max_ct);
 
-        let cell_w = sx; // 1.0 proportion-unit
-        let mut cell_h = sy;
+        // Grid proportions with clamped tallness (C++ parity: lines 348-381 of
+        // emRasterLayout.cpp). The clamped tallness changes the effective grid
+        // aspect ratio, creating surplus on one axis that alignment consumes.
+        let cw_prop = denom_x;
+        let ch_prop = clamped_tallness * denom_y;
 
-        // Clamp cell tallness
-        if cell_w > 0.0 {
-            let tallness = cell_h / cell_w;
-            let clamped = tallness.clamp(min_ct, max_ct);
-            cell_h = cell_w * clamped;
+        // Shrink available space to match grid aspect ratio, then center.
+        let mut avail_w = w;
+        let mut avail_h = h;
+        let mut offset_x = 0.0;
+        let mut offset_y = 0.0;
+
+        if cw_prop > 0.0 && ch_prop > 0.0 {
+            if avail_w * ch_prop >= avail_h * cw_prop {
+                // Horizontal surplus
+                let new_w = avail_h * cw_prop / ch_prop;
+                let surplus = avail_w - new_w;
+                offset_x = match self.alignment {
+                    Alignment::Center => surplus / 2.0,
+                    Alignment::End => surplus,
+                    _ => 0.0,
+                };
+                avail_w = new_w;
+            } else {
+                // Vertical surplus
+                let new_h = avail_w * ch_prop / cw_prop;
+                let surplus = avail_h - new_h;
+                offset_y = match self.alignment {
+                    Alignment::Center => surplus / 2.0,
+                    Alignment::End => surplus,
+                    _ => 0.0,
+                };
+                avail_h = new_h;
+            }
         }
+
+        // Recompute cell sizes from the reduced space.
+        let sx = avail_w / denom_x;
+        let sy = avail_h / denom_y;
+        let cell_w = sx;
+        let cell_h = sy;
 
         let actual_ml = sp.margin_left * sx;
         let actual_mt = sp.margin_top * sy;
         let actual_gap_h = sp.inner_h * sx;
         let actual_gap_v = sp.inner_v * sy;
 
-        // Compute grid extent and alignment offset
-        let usable_w = w - actual_ml - sp.margin_right * sx;
-        let usable_h = h - actual_mt - sp.margin_bottom * sy;
-        let grid_w = cell_w * cols as f64 + actual_gap_h * (cols - 1) as f64;
-        let grid_h = cell_h * rows as f64 + actual_gap_v * (rows - 1) as f64;
-
-        let (base_x, base_y) = if usable_w * cell_h >= usable_h * cell_w {
-            // Horizontal surplus
-            let surplus = usable_w - grid_w;
-            let offset_x = match self.alignment {
-                Alignment::Center => surplus / 2.0,
-                Alignment::End => surplus,
-                _ => 0.0,
-            };
-            (actual_ml + offset_x, actual_mt)
-        } else {
-            // Vertical surplus
-            let surplus = usable_h - grid_h;
-            let offset_y = match self.alignment {
-                Alignment::Center => surplus / 2.0,
-                Alignment::End => surplus,
-                _ => 0.0,
-            };
-            (actual_ml, actual_mt + offset_y)
-        };
+        let (base_x, base_y) = (offset_x + actual_ml, offset_y + actual_mt);
 
         // Only place actual children; padding cells from min_cell_count are empty.
         for (i, child) in children.iter().enumerate() {

@@ -389,25 +389,9 @@ impl TestPanel {
         p.paint_ellipse(0.07, 0.805, 0.01, 0.005, Color::WHITE);
         p.paint_ellipse(0.0925, 0.805, 0.0025, 0.005, Color::WHITE);
 
-        // Ellipse sectors
-        p.paint_ellipse_sector(
-            0.105,
-            0.805,
-            0.005,
-            0.005,
-            45.0_f64.to_radians(),
-            350.0_f64.to_radians(),
-            Color::WHITE,
-        );
-        p.paint_ellipse_sector(
-            0.12,
-            0.805,
-            0.01,
-            0.005,
-            45.0_f64.to_radians(),
-            -350.0_f64.to_radians(),
-            Color::WHITE,
-        );
+        // Ellipse sectors (degrees: start_angle, sweep_angle)
+        p.paint_ellipse_sector(0.105, 0.805, 0.005, 0.005, 45.0, 305.0, Color::WHITE);
+        p.paint_ellipse_sector(0.12, 0.805, 0.01, 0.005, 45.0, -395.0, Color::WHITE);
 
         // Rect outlines
         let thin_stroke = Stroke::new(Color::WHITE, 0.001);
