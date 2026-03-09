@@ -950,6 +950,27 @@ protected:
 };
 
 // ═══════════════════════════════════════════════════════════════════
+// PaintingPanel — fills its entire area with a solid color
+// ═══════════════════════════════════════════════════════════════════
+
+class PaintingPanel : public emPanel {
+public:
+    PaintingPanel(ParentArg parent, const emString& name, emColor color = 0)
+        : emPanel(parent, name), fill_color(color) {}
+    void DoLayout(double x, double y, double w, double h, emColor cc = 0) {
+        Layout(x, y, w, h, cc);
+    }
+protected:
+    virtual void Paint(const emPainter& painter, emColor canvasColor) const override {
+        if (fill_color.GetAlpha() > 0) {
+            painter.PaintRect(0, 0, 1, GetTallness(), fill_color, canvasColor);
+        }
+    }
+private:
+    emColor fill_color;
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // GoldenViewPort — exposes protected SetViewFocused / InputToView
 // ═══════════════════════════════════════════════════════════════════
 
@@ -965,6 +986,7 @@ public:
     void DoInputToView(emInputEvent& event, const emInputState& state) {
         InputToView(event, state);
     }
+    void DoPaintView(const emPainter& p, emColor cc) { PaintView(p, cc); }
 };
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1323,6 +1345,148 @@ static void gen_input_drag_sequence() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Compositor dump helper
+// ═══════════════════════════════════════════════════════════════════
+
+static void dump_compositor(const char* name, const emImage& img) {
+    FILE* f = open_golden("compositor", name, "compositor.golden");
+    write_u32(f, (uint32_t)img.GetWidth());
+    write_u32(f, (uint32_t)img.GetHeight());
+    write_bytes(f, (const uint8_t*)img.GetMap(),
+                img.GetWidth() * img.GetHeight() * img.GetChannelCount());
+    fclose(f);
+    printf("  compositor/%s\n", name);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Compositor golden generators
+// ═══════════════════════════════════════════════════════════════════
+
+// Test 1: Single root panel fills viewport with RED.
+static void gen_composite_single_panel() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    auto* root = new PaintingPanel(view, "root", emColor::RED);
+    root->DoLayout(0, 0, 1.0, 0.75);
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    emImage img(800, 600, 4);
+    emPainter p;
+    if (!img.PreparePainter(&p, ctx, 0.0, 0.0, 800.0, 600.0)) {
+        fprintf(stderr, "PreparePainter failed for composite_single_panel\n");
+        exit(1);
+    }
+    vp.DoPaintView(p, 0);
+    dump_compositor("composite_single_panel", img);
+}
+
+// Test 2: Left half RED, right half BLUE.
+static void gen_composite_two_children() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    auto* root = new PaintingPanel(view, "root", 0);
+    root->DoLayout(0, 0, 1.0, 0.75);
+    auto* left = new PaintingPanel(*root, "left", emColor::RED);
+    left->DoLayout(0, 0, 0.5, 0.75);
+    auto* right = new PaintingPanel(*root, "right", emColor::BLUE);
+    right->DoLayout(0.5, 0, 0.5, 0.75);
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    emImage img(800, 600, 4);
+    emPainter p;
+    if (!img.PreparePainter(&p, ctx, 0.0, 0.0, 800.0, 600.0)) {
+        fprintf(stderr, "PreparePainter failed for composite_two_children\n");
+        exit(1);
+    }
+    vp.DoPaintView(p, 0);
+    dump_compositor("composite_two_children", img);
+}
+
+// Test 3: Overlapping panels — A=RED, B=BLUE on top.
+static void gen_composite_overlap() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    auto* root = new PaintingPanel(view, "root", 0);
+    root->DoLayout(0, 0, 1.0, 0.75);
+    auto* panelA = new PaintingPanel(*root, "panelA", emColor::RED);
+    panelA->DoLayout(0.1, 0.1, 0.4, 0.3);
+    auto* panelB = new PaintingPanel(*root, "panelB", emColor::BLUE);
+    panelB->DoLayout(0.3, 0.2, 0.4, 0.3);
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    emImage img(800, 600, 4);
+    emPainter p;
+    if (!img.PreparePainter(&p, ctx, 0.0, 0.0, 800.0, 600.0)) {
+        fprintf(stderr, "PreparePainter failed for composite_overlap\n");
+        exit(1);
+    }
+    vp.DoPaintView(p, 0);
+    dump_compositor("composite_overlap", img);
+}
+
+// Test 4: Nested panels — parent (no paint) contains child GREEN.
+static void gen_composite_nested() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    auto* root = new PaintingPanel(view, "root", 0);
+    root->DoLayout(0, 0, 1.0, 0.75);
+    auto* parent = new PaintingPanel(*root, "parent", 0);
+    parent->DoLayout(0.1, 0.075, 0.8, 0.6);
+    auto* child = new PaintingPanel(*parent, "child", emColor::GREEN);
+    child->DoLayout(0.1, 0.075, 0.8, 0.6);
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    emImage img(800, 600, 4);
+    emPainter p;
+    if (!img.PreparePainter(&p, ctx, 0.0, 0.0, 800.0, 600.0)) {
+        fprintf(stderr, "PreparePainter failed for composite_nested\n");
+        exit(1);
+    }
+    vp.DoPaintView(p, 0);
+    dump_compositor("composite_nested", img);
+}
+
+// Test 5: Canvas color propagation — root WHITE, child RED@128 alpha.
+static void gen_composite_canvas_color() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, emView::VF_NO_ACTIVE_HIGHLIGHT);
+    GoldenViewPort vp(view);
+
+    auto* root = new PaintingPanel(view, "root", emColor::WHITE);
+    root->DoLayout(0, 0, 1.0, 0.75);
+    auto* child = new PaintingPanel(*root, "child", emColor(255, 0, 0, 128));
+    child->DoLayout(0.1, 0.075, 0.8, 0.6, emColor::WHITE);
+
+    { TerminateEngine ctrl(sched, 30); sched.Run(); }
+
+    emImage img(800, 600, 4);
+    emPainter p;
+    if (!img.PreparePainter(&p, ctx, 0.0, 0.0, 800.0, 600.0)) {
+        fprintf(stderr, "PreparePainter failed for composite_canvas_color\n");
+        exit(1);
+    }
+    vp.DoPaintView(p, 0);
+    dump_compositor("composite_canvas_color", img);
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1420,6 +1584,13 @@ int main() {
     gen_input_key_to_focused();
     gen_input_scroll_delta();
     gen_input_drag_sequence();
+
+    printf("Generating compositor golden files...\n");
+    gen_composite_single_panel();
+    gen_composite_two_children();
+    gen_composite_overlap();
+    gen_composite_nested();
+    gen_composite_canvas_color();
 
     printf("Done!\n");
 

@@ -507,78 +507,40 @@ layout-level comparison (bounding boxes) with appropriate tolerance.
 
 ---
 
-## Phase 3: Tile compositor (framebuffer comparison — new harness type)
+## Phase 3: Compositor (framebuffer comparison — new harness type)
 
-**Effort:** High. Requires scene-level golden generator + possibly new
-infrastructure.
+**Effort:** High. Required scene-level golden generator + SoftwareCompositor.
 **Blocked by:** Phase 1 (transforms must be correct first).
 **Value:** Validates the full render pipeline end-to-end.
 
-### Discovery (Phase 3-specific)
+### STATUS: COMPLETE (5 tests)
 
-This phase has the most open questions. Answer ALL of these before writing
-any code.
+Completed 2026-03-09. Added `SoftwareCompositor` (CPU-only path:
+`Image::fill → Painter::new → View::paint`), `PaintingPanel` C++ class,
+`DoPaintView` on `GoldenViewPort`, `ColorFillBehavior` Rust behavior.
 
-1. **What does the Rust compositor look like now?** Read `src/render/`
-   and search for compositor, tile_cache, tile, composit. The compositor
-   may have been rewritten, removed, or restructured since this plan was
-   written. Record what exists, what rendering backend it uses (wgpu? CPU?),
-   and what its public API looks like.
+Also fixed `compute_viewed_recursive` in view.rs: child y/h coordinates
+now scaled by parent `abs.w` (not `abs.h`), matching C++ convention where
+all layout coordinates are in parent-width units.
 
-2. **Does C++ have an equivalent compositor?** Search the C++ source for
-   tiling, compositing, or viewport rendering. If C++ has a tile compositor,
-   golden tests can compare tiled output. If C++ does NOT tile (just paints
-   panels directly), then the golden comparison is full-scene rendering, not
-   tile-level.
-
-3. **Can the Rust compositor run without GPU?** If it uses wgpu, can it
-   use a software backend? Or does a `SoftwareCompositor` need to be
-   written? This is a blocking question — golden tests cannot depend on GPU
-   availability.
-
-4. **What is the tile size?** Read the tile cache code. It may not be
-   256×256 as this plan assumed.
-
-5. **What scene API exists?** How do you construct a panel tree and paint
-   it via the compositor? Read the actual code paths.
-
-**STOP gate:** If question 3 reveals no way to run without GPU, you must
-either write a SoftwareCompositor or redesign this phase before proceeding.
-
-### Design decisions to resolve
-
-After discovery, resolve these before coding:
-
-- **Software fallback:** If GPU is required, add a `SoftwareCompositor`
-  that composites tiles into a CPU Image, OR use wgpu's software backend.
-- **Scene definition:** Both C++ and Rust must construct identical panel
-  layouts. Use hardcoded structs, not divergent code.
-- **Comparison scope:** Is this comparing the final composited framebuffer,
-  or individual tiles? The answer depends on what C++ does.
-
-### Test file organization
-
-- Create `tests/golden_parity/compositor.rs` for Phase 3 tests.
-- Add `mod compositor;` to `tests/golden_parity/main.rs`.
-- Golden files go in `golden/compositor/` (e.g., `composite_single_tile.compositor.golden`).
-- Test function prefix: `compositor_` (e.g., `fn compositor_single_tile()`).
-- Copy the `require_golden!()` macro into the new module (it is defined
-  per-module, not in common.rs).
+Root layout tallness must match viewport aspect ratio (0.75 for 800x600)
+so the area-based zoom fills the viewport. C++ DoLayout(0, 0, 1.0, 0.75)
+on root panels in all generators.
 
 ### Test cases
 
-| # | Test | What it exercises |
+| # | Test | What it validates |
 |---|------|-------------------|
-| 1 | `composite_single_tile` | One panel smaller than one tile |
-| 2 | `composite_multi_tile` | Panel spanning 2×2 tiles |
-| 3 | `composite_overlap` | Two panels overlapping across tile boundary |
-| 4 | `composite_dirty_update` | Change one panel, verify only its tiles re-render |
-| 5 | `composite_viewport_scroll` | Shift viewport, verify tile reuse |
+| 1 | `composite_single_panel` | Root=RED fills viewport — basic View→Panel→Paint pipeline |
+| 2 | `composite_two_children` | Left=RED, right=BLUE — per-panel coordinate transforms |
+| 3 | `composite_overlap` | A=RED, B=BLUE on top — paint order (DFS, later siblings on top) |
+| 4 | `composite_nested` | Parent→Child=GREEN — recursive coordinate composition |
+| 5 | `composite_canvas_color` | Root=WHITE, Child=RED@128 — canvas color propagation for alpha |
 
-### Tolerance target
+### Tolerance
 
-(1, 0.5) — compositing should not introduce pixel error beyond what the
-painter already produces.
+(1, 0.5) — all tests pass at tight tolerance. Compositor rendering is
+deterministic math.
 
 ---
 
@@ -793,11 +755,11 @@ Exact match.
 |-------|-------|---------|--------|--------|
 | 1. Transforms | 7 | pixel (existing) | Low | COMPLETE |
 | 2. Text | 6 | pixel (existing) | Medium | COMPLETE |
-| 3. Tiling | ~5 | framebuffer (new) | High | NOT STARTED (software compositor decision) |
+| 3. Compositor | 5 | framebuffer (new) | High | COMPLETE |
 | 4. Interaction | 22 | behavioral (new) | High | COMPLETE |
 | 5. Window | 3/3 | behavioral (Phase 4) | Medium | COMPLETE |
 
-**Total:** 37 complete + ~5 remaining across 3 harness types.
+**Total:** 93 golden tests complete across 4 harness types (pixel, framebuffer, behavioral, layout).
 
 ### What this gives us when complete
 
@@ -833,8 +795,10 @@ Phase 5 is **complete** — 3/3 tests: `notice_window_focus_gained/lost` +
 `notice_window_resize`. The resize test also fixed `set_viewport()` parity
 with C++ `SetGeometry` (inline root layout update for `ROOT_SAME_TALLNESS`).
 
-Phase 3 requires design decisions (software compositor, scene definition).
-Unblocked by Phase 1 completion.
+Phase 3 is **complete** — 5 tests: single_panel, two_children, overlap,
+nested, canvas_color. Added `SoftwareCompositor` CPU path and fixed
+`compute_viewed_recursive` child coordinate scaling to match C++
+parent-width-unit convention.
 
 ---
 

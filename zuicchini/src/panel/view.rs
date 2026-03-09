@@ -996,11 +996,14 @@ impl View {
         let children: Vec<PanelId> = tree.children(id).collect();
         for child in children {
             let lr = tree.get(child).map(|p| p.layout_rect).unwrap_or_default();
+            // C++ emPanel scales ALL layout coords by parent ViewedWidth
+            // (not ViewedHeight), because layout coordinates are all in
+            // parent-width units.
             let child_abs = Rect::new(
                 abs.x + lr.x * abs.w,
-                abs.y + lr.y * abs.h,
+                abs.y + lr.y * abs.w,
                 lr.w * abs.w,
-                lr.h * abs.h,
+                lr.h * abs.w,
             );
             self.compute_viewed_recursive(tree, child, child_abs, viewport);
         }
