@@ -837,6 +837,96 @@ static void gen_activate_remove() {
     dump_behavioral("activate_remove", {root, child2});
 }
 
+// Tab forward: child1 focused → GetFocusableNext → child2 focused.
+static void gen_focus_tab_forward() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, 0);
+
+    emPanel* root = new emPanel(view, "root");
+    emPanel* child1 = new emPanel(*root, "child1");
+    emPanel* child2 = new emPanel(*root, "child2");
+
+    child1->Focus();
+    emPanel* next = child1->GetFocusableNext();
+    if (next) next->Focus();
+
+    dump_behavioral("focus_tab_forward", {root, child1, child2});
+}
+
+// Tab backward: child2 focused → GetFocusablePrev → child1 focused.
+static void gen_focus_tab_backward() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, 0);
+
+    emPanel* root = new emPanel(view, "root");
+    emPanel* child1 = new emPanel(*root, "child1");
+    emPanel* child2 = new emPanel(*root, "child2");
+
+    child2->Focus();
+    emPanel* prev = child2->GetFocusablePrev();
+    if (prev) prev->Focus();
+
+    dump_behavioral("focus_tab_backward", {root, child1, child2});
+}
+
+// Tab skips non-focusable: child1 → child2 (unfocusable) → child3.
+static void gen_focus_unfocusable_skip() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, 0);
+
+    emPanel* root = new emPanel(view, "root");
+    emPanel* child1 = new emPanel(*root, "child1");
+    emPanel* child2 = new emPanel(*root, "child2");
+    emPanel* child3 = new emPanel(*root, "child3");
+
+    child2->SetFocusable(false);
+    child1->Focus();
+    emPanel* next = child1->GetFocusableNext();
+    if (next) next->Focus();
+
+    // child2 is skipped, child3 is active
+    dump_behavioral("focus_unfocusable_skip", {root, child1, child2, child3});
+}
+
+// Focus into child: root → child1 → grandchild.
+static void gen_focus_nested() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, 0);
+
+    emPanel* root = new emPanel(view, "root");
+    emPanel* child1 = new emPanel(*root, "child1");
+    emPanel* gc = new emPanel(*child1, "gc");
+    emPanel* child2 = new emPanel(*root, "child2");
+
+    child1->Focus();
+    emPanel* fc = child1->GetFocusableFirstChild();
+    if (fc) fc->Focus();
+
+    // gc should be active, child1 and root in active path
+    dump_behavioral("focus_nested", {root, child1, gc, child2});
+}
+
+// Remove focused panel → focus moves to parent.
+static void gen_focus_remove_focused() {
+    emStandardScheduler sched;
+    emRootContext ctx(sched);
+    emView view(ctx, 0);
+
+    emPanel* root = new emPanel(view, "root");
+    emPanel* child1 = new emPanel(*root, "child1");
+    emPanel* child2 = new emPanel(*root, "child2");
+
+    child1->Focus();
+    delete child1;
+
+    // After removal, root should be active
+    dump_behavioral("focus_remove_focused", {root, child2});
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════════════════
@@ -915,6 +1005,11 @@ int main() {
     gen_focus_click();
     gen_activate_nonfocusable();
     gen_activate_remove();
+    gen_focus_tab_forward();
+    gen_focus_tab_backward();
+    gen_focus_unfocusable_skip();
+    gen_focus_nested();
+    gen_focus_remove_focused();
 
     printf("Done!\n");
 

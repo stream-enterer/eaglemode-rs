@@ -1327,6 +1327,20 @@ impl View {
         Some(id)
     }
 
+    /// Remove a panel from the tree, moving activation to its parent if needed.
+    /// Matches C++ `~emPanel` which calls `SetFocusable(false)` before unlinking,
+    /// causing `View.SetActivePanel(Parent, false)`.
+    pub fn remove_panel(&mut self, tree: &mut PanelTree, id: PanelId) {
+        if tree.get(id).map(|p| p.in_active_path).unwrap_or(false) {
+            if let Some(parent) = tree.parent(id) {
+                self.set_active_panel(tree, parent, false);
+            } else {
+                self.active = None;
+            }
+        }
+        tree.remove(id);
+    }
+
     // --- Panel-level wrappers ---
 
     /// Activate a panel (delegate to set_active_panel).
