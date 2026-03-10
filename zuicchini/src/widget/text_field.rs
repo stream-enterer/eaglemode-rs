@@ -929,12 +929,13 @@ impl TextField {
         self.border
             .paint_border(painter, w, h, &self.look, false, self.editable);
 
+        let (content, radius) = self.border.content_round_rect(w, h, &self.look);
         let Rect {
             x: cx,
             y: cy,
             w: cw,
             h: ch,
-        } = self.border.content_rect(w, h, &self.look);
+        } = content;
 
         painter.push_state();
         painter.clip_rect(cx, cy, cw, ch);
@@ -942,22 +943,56 @@ impl TextField {
         if self.multi_line {
             self.paint_multi_line(painter, cx, cy, cw, ch);
         } else {
-            self.paint_single_line(painter, cx, cy, cw, ch);
+            self.paint_single_line(painter, cx, cy, cw, ch, radius);
         }
 
         painter.pop_state();
     }
 
-    fn paint_single_line(&mut self, painter: &mut Painter, cx: f64, cy: f64, cw: f64, ch: f64) {
+    fn paint_single_line(
+        &mut self,
+        painter: &mut Painter,
+        cx: f64,
+        cy: f64,
+        cw: f64,
+        ch: f64,
+        radius: f64,
+    ) {
         let display_text = if self.password_mode {
             "*".repeat(self.text.chars().count())
         } else {
             self.text.clone()
         };
 
-        let char_w = Painter::measure_text_width("X", TEXT_SIZE);
+        // C++ DoTextField text sizing: d = min(h,w)*0.1 + r*0.5;
+        // tx=x+d; ty=y+d; tw=w-2*d; th=h-2*d; cell_h=th/rows; cell_w=GetTextSize("X",cell_h)
+        let d = ch.min(cw) * 0.1 + radius * 0.5;
+        let tx = cx + d;
+        let ty = cy + d;
+        let tw = (cw - 2.0 * d).max(0.0);
+        let th = (ch - 2.0 * d).max(0.0);
 
-        // Build char_positions
+        let (cols, rows) = self.calc_total_cols_rows();
+        let cell_h = if rows > 0 { th / rows as f64 } else { th };
+        let cell_w = Painter::measure_text_width("X", cell_h);
+
+        // C++ width scaling: ws=1.0; if(cw*cols>tw) ws=tw/(cw*cols); ...
+        let mut ws = 1.0;
+        let mut effective_cw = cell_w;
+        let mut effective_ty = ty;
+        let mut effective_ch = cell_h;
+        if cell_w * cols as f64 > tw {
+            ws = tw / (cell_w * cols as f64);
+            effective_cw = tw / cols as f64;
+            if ws < 0.66 {
+                let shrink = effective_ch - effective_ch * ws / 0.66;
+                effective_ty += shrink * 0.5;
+                effective_ch -= shrink;
+                ws = 0.66;
+            }
+        }
+
+        // Build char_positions using dynamic text size
         self.char_positions.clear();
         self.char_positions.push(0.0);
         for (i, _ch) in display_text.char_indices() {
@@ -967,7 +1002,7 @@ impl TextField {
                 .map(|c| c.len_utf8())
                 .unwrap_or(1);
             let end = i + next;
-            let w_px = Painter::measure_text_width(&display_text[..end], TEXT_SIZE);
+            let w_px = Painter::measure_text_width(&display_text[..end], cell_h) * ws;
             self.char_positions.push(w_px);
         }
 
@@ -977,13 +1012,13 @@ impl TextField {
             let sel_end = anchor.max(self.cursor);
             let sx_px = Painter::measure_text_width(
                 &display_text[..sel_start.min(display_text.len())],
-                TEXT_SIZE,
-            );
+                cell_h,
+            ) * ws;
             let ex_px = Painter::measure_text_width(
                 &display_text[..sel_end.min(display_text.len())],
-                TEXT_SIZE,
-            );
-            Some((cx + TEXT_PADDING + sx_px - self.scroll_x, ex_px - sx_px))
+                cell_h,
+            ) * ws;
+            Some((tx + sx_px - self.scroll_x, ex_px - sx_px))
         } else {
             None
         };
@@ -993,10 +1028,10 @@ impl TextField {
         } else {
             self.text[..self.cursor].to_string()
         };
-        let cursor_x_px = Painter::measure_text_width(&cursor_text, TEXT_SIZE);
+        let cursor_x_px = Painter::measure_text_width(&cursor_text, cell_h) * ws;
 
         // Update scroll_x so the cursor stays visible
-        let visible_w = cw - 2.0 * TEXT_PADDING;
+        let visible_w = tw;
         if cursor_x_px - self.scroll_x > visible_w {
             self.scroll_x = cursor_x_px - visible_w;
         }
@@ -1009,12 +1044,12 @@ impl TextField {
 
         // Selection highlight
         if let Some((sx, sw)) = sel_rect {
-            painter.paint_rect(sx, cy, sw, ch, self.look.input_hl_color);
+            painter.paint_rect(sx, effective_ty, sw, effective_ch, self.look.input_hl_color);
         }
 
-        // Text
-        let text_x = cx + TEXT_PADDING - self.scroll_x;
-        let text_y = cy + (ch - TEXT_SIZE) / 2.0;
+        // Text — C++: PaintText(tx + col*cw, ty + row*ch, text, ch, ws, ...)
+        let text_x = tx - self.scroll_x;
+        let text_y = effective_ty;
 
         let fg = if self.editable {
             self.look.input_fg_color
@@ -1028,24 +1063,32 @@ impl TextField {
             text_x,
             text_y,
             &display_text,
-            TEXT_SIZE,
-            1.0,
+            effective_ch,
+            ws,
             fg,
             Color::TRANSPARENT,
         );
 
         // Cursor
-        let cursor_x = cx + TEXT_PADDING + cursor_x_px - self.scroll_x;
+        let cursor_x = tx + cursor_x_px - self.scroll_x;
         if self.overwrite_mode && self.cursor < self.text.len() {
-            // Box cursor
-            let ch_w = if self.cursor < display_text.len() {
-                char_w
-            } else {
-                char_w + 1.0
-            };
-            painter.paint_rect(cursor_x, cy + 1.0, ch_w, ch - 2.0, fg.with_alpha(80));
+            let ch_w = effective_cw;
+            painter.paint_rect(
+                cursor_x,
+                effective_ty + effective_ch * 0.02,
+                ch_w,
+                effective_ch * 0.96,
+                fg.with_alpha(80),
+            );
         } else {
-            painter.paint_rect(cursor_x, cy + 1.0, 1.0, ch - 2.0, fg);
+            let cursor_w = effective_ch * 0.03;
+            painter.paint_rect(
+                cursor_x,
+                effective_ty + effective_ch * 0.02,
+                cursor_w.max(1.0),
+                effective_ch * 0.96,
+                fg,
+            );
         }
     }
 

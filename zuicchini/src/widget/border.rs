@@ -1079,15 +1079,31 @@ impl Border {
             }
         }
 
-        // Caption
+        // Caption — C++ DoLabel proportional scaling: compute a uniform scale
+        // factor `f` that fits both width and height, maintaining aspect ratio.
         if let Some(ref cr) = label.caption_rect {
+            let (natural_tw, natural_th) = Painter::get_text_size(&self.caption, 1.0, false, 0.0);
+            let cap_font = if natural_tw > 0.0 && natural_th > 0.0 {
+                let mut f = cr.h / natural_th;
+                let w2 = f * natural_tw;
+                if w2 > cr.w {
+                    let min_ws = 0.5;
+                    let min_total_w = natural_tw * min_ws;
+                    if f * min_total_w > cr.w {
+                        f = cr.w / min_total_w;
+                    }
+                }
+                f.max(0.001)
+            } else {
+                label._caption_font_size
+            };
             painter.paint_text_boxed(
                 cr.x,
                 cr.y,
                 cr.w,
                 cr.h,
                 &self.caption,
-                label._caption_font_size,
+                cap_font,
                 dim_color(look.fg_color),
                 Color::TRANSPARENT,
                 cap_align,

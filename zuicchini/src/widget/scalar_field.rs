@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
-use crate::render::Painter;
+use crate::render::{Painter, TextAlignment, VAlign};
 
 use super::border::{Border, InnerBorderType, OuterBorderType};
 use super::look::Look;
@@ -221,82 +221,161 @@ impl ScalarField {
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
-        let Rect {
-            x: cx,
-            y: cy,
-            w: cw,
-            h: ch,
-        } = self.border.content_rect(w, h, &self.look);
-        let range = self.max - self.min;
+        let (content, radius) = self.border.content_round_rect(w, h, &self.look);
+        let Rect { x, y, w: cw, h: ch } = content;
+        let r = radius;
+        let v_range = self.max - self.min;
 
-        if range > 0.0 {
-            // Fill bar
-            let fill_frac = (self.value - self.min) / range;
-            let fill_w = cw * fill_frac;
-            painter.paint_rect(cx, cy, fill_w, ch, self.look.input_hl_color);
-
-            // Scale marks — use configured intervals, with hiding logic
-            let ivals = &self.scale_mark_intervals;
-            let mut start = 0;
-            if !self.marks_never_hidden && ivals.len() > 1 {
-                // Skip intervals that exceed the value range
-                let v_range = range as u64;
-                while start < ivals.len() - 1 && ivals[start] > v_range {
-                    start += 1;
-                }
-            }
-
-            for (level, &interval_u64) in ivals.iter().enumerate().skip(start) {
-                let interval = interval_u64 as f64;
-                if interval <= 0.0 {
-                    continue;
-                }
-                let first_mark = (self.min / interval).ceil() as i64;
-                let last_mark = (self.max / interval).floor() as i64;
-                for k in first_mark..=last_mark {
-                    let mark_val = k as f64 * interval;
-                    if (mark_val - self.min).abs() < f64::EPSILON
-                        || (mark_val - self.max).abs() < f64::EPSILON
-                    {
-                        continue;
-                    }
-                    let mx = cx + cw * (mark_val - self.min) / range;
-                    // Marks at higher levels (smaller intervals) are shorter
-                    let height_frac = 1.0 - (level - start) as f64 * 0.2;
-                    let mark_h = ch * height_frac.max(0.3);
-                    let mark_y = cy + ch - mark_h;
-                    painter.paint_rect(mx, mark_y, 1.0, mark_h, self.look.disabled_fg());
-                }
-            }
-        }
-
-        // Value text — use the text_of_value_fn
-        let mark_iv = if self.scale_mark_intervals.is_empty() {
-            1u64
+        let bg_col = if self.editable {
+            self.look.input_bg_color
         } else {
-            *self
-                .scale_mark_intervals
-                .last()
-                .expect("non-empty intervals")
+            self.look.output_bg_color
         };
-        let text = (self.text_of_value_fn)(self.value as i64, mark_iv);
-        let display_text = if self.precision > 0 {
-            format!("{:.prec$}", self.value, prec = self.precision)
-        } else {
-            text
-        };
-        let text_h = 13.0_f64.min(ch);
-        let tw = Painter::measure_text_width(&display_text, text_h);
-        let tx = cx + (cw - tw) / 2.0;
-        let ty = cy + (ch - text_h) / 2.0;
-
-        let fg = if self.editable {
+        let fg_col = if self.editable {
             self.look.input_fg_color
         } else {
             self.look.output_fg_color
         };
 
-        painter.paint_text(tx, ty, &display_text, text_h, 1.0, fg, Color::TRANSPARENT);
+        // C++ DoScalarField layout matching emScalarField.cpp
+        let rx = x + r * 0.5;
+        let ry = y + r * 0.5;
+        let rw = cw - r;
+        let rh = ch - r;
+
+        let s = rh.min(rw);
+        let d_base = s * 0.04;
+        let mut ax = rx + d_base;
+        let mut ay = ry + d_base;
+        let mut aw = rw - 2.0 * d_base;
+        let mut ah = rh - 2.0 * d_base;
+
+        let mut e = s * 0.3 * 0.5;
+
+        // Scale mark layout calculations
+        let ivals = &self.scale_mark_intervals;
+        let ival_cnt = ivals.len();
+        let ival_sum: u64 = ivals.iter().sum();
+
+        let mtw0 = 1.0_f64;
+        let mth0 = self.text_box_tallness;
+        let mah0 = mtw0.min(mth0) * 0.5;
+        let norm = 1.0 / (mth0 + mah0);
+        let mtw = mtw0 * norm;
+        let mth = mth0 * norm;
+        let mah = mtw0.min(mth0) * 0.5 * norm;
+        let mw = mtw * 1.5;
+
+        let mut d = e - d_base;
+        if d < 0.0 {
+            d = 0.0;
+        }
+        if ival_cnt > 0 && v_range > 0.0 {
+            let mut th_mark = ah;
+            let f_mark = th_mark * ivals[0] as f64 / ival_sum as f64;
+            let tw_mark = f_mark * mw * v_range / ivals[0] as f64;
+            let mut f2 = f_mark * mtw;
+            if tw_mark + f2 > aw {
+                f2 *= aw / (tw_mark + f2);
+            }
+            f2 *= 0.5;
+            if d < f2 {
+                d = f2;
+            }
+            let f_max = aw * 0.2;
+            if d > f_max {
+                d = f_max;
+            }
+            if tw_mark > aw - 2.0 * d {
+                th_mark *= (aw - 2.0 * d) / tw_mark;
+            }
+            ay += ah - th_mark;
+            ah = th_mark;
+        }
+        ax += d;
+        aw -= 2.0 * d;
+
+        // Side bars — C++: col = bgCol.GetBlended(fgCol, 25)
+        let side_col = bg_col.lerp(fg_col, 0.25);
+        if ax > rx {
+            painter.paint_rect(rx, ry, ax - rx, rh, side_col);
+        }
+        if ax + aw < rx + rw {
+            painter.paint_rect(ax + aw, ry, rx + rw - ax - aw, rh, side_col);
+        }
+
+        // Value arrow polygon (5-point downward arrow)
+        let tx = if v_range > 0.0 {
+            ax + aw * ((self.value - self.min) / v_range)
+        } else {
+            ax + aw * 0.5
+        };
+        if e > ay + ah - ry {
+            e = ay + ah - ry;
+        }
+        let arrow = [
+            (tx - e, ry),
+            (tx + e, ry),
+            (tx + e, ay + ah - e),
+            (tx, ay + ah),
+            (tx - e, ay + ah - e),
+        ];
+        painter.paint_polygon(&arrow, fg_col);
+
+        // Scale marks with text labels and small arrows
+        if ival_cnt > 0 && v_range > 0.0 {
+            let f = aw / v_range;
+            let mark_col = bg_col.lerp(fg_col, 0.66);
+            let mut mark_ty = ay;
+            for &ival in ivals.iter().take(ival_cnt) {
+                let th = ah / ival_sum as f64 * ival as f64;
+                let tw = mtw * th;
+                let h4 = mth * th;
+                let h5 = mah * th;
+
+                // Iterate visible marks
+                let interval = ival as f64;
+                let k1 = (self.min - 0.01) / interval;
+                let k2 = (aw / f + self.min + 0.01) / interval;
+                let mut k = k1.ceil() as i64;
+                let k_end = k2.floor() as i64;
+                while k <= k_end {
+                    let v = k as f64 * interval;
+                    let mark_tx = (v - self.min) * f + ax;
+
+                    // Text label
+                    let mark_iv = ival;
+                    let label = (self.text_of_value_fn)(v as i64, mark_iv);
+                    painter.paint_text_boxed(
+                        mark_tx - tw * 0.5,
+                        mark_ty,
+                        tw,
+                        h4,
+                        &label,
+                        h4,
+                        mark_col,
+                        Color::TRANSPARENT,
+                        TextAlignment::Center,
+                        VAlign::Center,
+                        TextAlignment::Center,
+                        0.0,
+                        false,
+                        0.0,
+                    );
+
+                    // Small downward arrow below label
+                    let mini_arrow = [
+                        (mark_tx - h5 * 0.5, mark_ty + h4),
+                        (mark_tx + h5 * 0.5, mark_ty + h4),
+                        (mark_tx, mark_ty + h4 + h5),
+                    ];
+                    painter.paint_polygon(&mini_arrow, mark_col);
+
+                    k += 1;
+                }
+                mark_ty += th;
+            }
+        }
     }
 
     // --- Input ---

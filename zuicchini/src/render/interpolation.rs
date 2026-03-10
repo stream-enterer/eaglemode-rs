@@ -77,6 +77,82 @@ pub(crate) fn sample_bilinear(image: &Image, x: f64, y: f64, ext: ImageExtension
     Color::rgba(result[0], result[1], result[2], result[3])
 }
 
+/// Bilinear interpolation with premultiplied alpha (matches C++ emPainter_ScTlIntImg).
+///
+/// For 4-channel RGBA images, premultiplies RGB by alpha before interpolation,
+/// then unpremultiplies the result. This produces correct blending when alpha
+/// varies across the 2x2 kernel (e.g. semi-transparent border edges).
+/// For fully-opaque pixels, the result is identical to `sample_bilinear`.
+pub(crate) fn sample_bilinear_premul(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
+    let fx = x.floor();
+    let fy = y.floor();
+    let ix = fx as i32;
+    let iy = fy as i32;
+    let tx = ((x - fx) * 256.0) as u64;
+    let ty = ((y - fy) * 256.0) as u64;
+    let itx = 256 - tx;
+    let ity = 256 - ty;
+
+    let p00 = sample_pixel(image, ix, iy, ext);
+    let p10 = sample_pixel(image, ix + 1, iy, ext);
+    let p01 = sample_pixel(image, ix, iy + 1, ext);
+    let p11 = sample_pixel(image, ix + 1, iy + 1, ext);
+
+    // Fast path: all opaque — premultiplication is identity.
+    if p00[3] == 255 && p10[3] == 255 && p01[3] == 255 && p11[3] == 255 {
+        let mut result = [0u8; 4];
+        for c in 0..4 {
+            let top = p00[c] as u64 * itx + p10[c] as u64 * tx;
+            let bot = p01[c] as u64 * itx + p11[c] as u64 * tx;
+            result[c] = ((top * ity + bot * ty + 0x8000) >> 16) as u8;
+        }
+        return Color::rgba(result[0], result[1], result[2], result[3]);
+    }
+
+    // C++ premultiplied bilinear: for each pixel, accumulate r*a*w and a*w
+    // where w = wx * wy (combined bilinear weight, scale 256*256 = 65536).
+    let pixels = [p00, p10, p01, p11];
+    let weights = [itx * ity, tx * ity, itx * ty, tx * ty];
+
+    let mut pm_r = 0u64;
+    let mut pm_g = 0u64;
+    let mut pm_b = 0u64;
+    let mut pm_a = 0u64;
+
+    for (p, &w) in pixels.iter().zip(weights.iter()) {
+        let a = p[3] as u64;
+        let aw = a * w;
+        pm_r += p[0] as u64 * aw;
+        pm_g += p[1] as u64 * aw;
+        pm_b += p[2] as u64 * aw;
+        pm_a += aw;
+    }
+
+    // C++ FINPREMUL_SHR_COLOR(c, 16):
+    //   alpha: (c_a + ((1<<16)>>1) - 1) >> 16
+    //   rgb:   (c_r + ((0xff<<16)>>1) - 1) / (0xff<<16)
+    let final_a = ((pm_a + 0x7FFF) >> 16).min(255);
+    if final_a == 0 {
+        return Color::TRANSPARENT;
+    }
+
+    let div = 0xFF_u64 << 16; // 0xFF0000 = 255 * 65536
+    let round = (div >> 1) - 1; // 0x7F7FFF
+    let final_r = ((pm_r + round) / div).min(final_a);
+    let final_g = ((pm_g + round) / div).min(final_a);
+    let final_b = ((pm_b + round) / div).min(final_a);
+
+    // Convert from premultiplied to straight alpha for blend_pixel.
+    if final_a == 255 {
+        return Color::rgba(final_r as u8, final_g as u8, final_b as u8, 255);
+    }
+    let sr = (final_r * 255 / final_a).min(255) as u8;
+    let sg = (final_g * 255 / final_a).min(255) as u8;
+    let sb = (final_b * 255 / final_a).min(255) as u8;
+
+    Color::rgba(sr, sg, sb, final_a as u8)
+}
+
 /// Scaling context for area sampling.
 pub(crate) struct ScaleContext {
     pub src_w: f64,

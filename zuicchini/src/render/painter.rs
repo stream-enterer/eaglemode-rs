@@ -1951,10 +1951,13 @@ impl<'a> Painter<'a> {
                                     accum[3] += 255.0 * w;
                                 }
                                 _ => {
-                                    accum[0] += p[0] as f64 * w;
-                                    accum[1] += p[1] as f64 * w;
-                                    accum[2] += p[2] as f64 * w;
-                                    accum[3] += p[3] as f64 * w;
+                                    // Premultiplied-alpha area sampling:
+                                    // accumulate r*a*w and a*w, matching C++.
+                                    let a = p[3] as f64;
+                                    accum[0] += p[0] as f64 * a * w;
+                                    accum[1] += p[1] as f64 * a * w;
+                                    accum[2] += p[2] as f64 * a * w;
+                                    accum[3] += a * w;
                                 }
                             }
                             wsum += w;
@@ -1962,23 +1965,38 @@ impl<'a> Painter<'a> {
                     }
 
                     if wsum > 0.0 {
-                        let color = Color::rgba(
-                            (accum[0] / wsum + 0.5) as u8,
-                            (accum[1] / wsum + 0.5) as u8,
-                            (accum[2] / wsum + 0.5) as u8,
-                            (accum[3] / wsum + 0.5) as u8,
-                        );
+                        let color = if image.channel_count() >= 4 && accum[3] > 0.0 {
+                            // Unpremultiply: straight_r = sum(r*a*w) / sum(a*w),
+                            // alpha = sum(a*w) / sum(w).
+                            let alpha = (accum[3] / wsum + 0.5).min(255.0);
+                            Color::rgba(
+                                (accum[0] / accum[3] + 0.5).min(255.0) as u8,
+                                (accum[1] / accum[3] + 0.5).min(255.0) as u8,
+                                (accum[2] / accum[3] + 0.5).min(255.0) as u8,
+                                alpha as u8,
+                            )
+                        } else {
+                            Color::rgba(
+                                (accum[0] / wsum + 0.5) as u8,
+                                (accum[1] / wsum + 0.5) as u8,
+                                (accum[2] / wsum + 0.5) as u8,
+                                (accum[3] / wsum + 0.5) as u8,
+                            )
+                        };
                         self.blend_pixel(col, row, color);
                     }
                 }
             }
         } else {
-            // Upscaling or 1:1: bilinear interpolation.
+            // Upscaling or 1:1: premultiplied-alpha bilinear with pixel-center offset.
+            // C++ maps dest pixel center (+0.5) to source, then offsets by -0.5 for
+            // the bilinear kernel center.
             for row in start_y..end_y {
                 for col in start_x..end_x {
-                    let src_x = sx + (col - px) as f64 * sw / pw as f64;
-                    let src_y = sy + (row - py) as f64 * sh / ph as f64;
-                    let color = interpolation::sample_bilinear(image, src_x, src_y, extension);
+                    let src_x = sx + ((col - px) as f64 + 0.5) * sw / pw as f64 - 0.5;
+                    let src_y = sy + ((row - py) as f64 + 0.5) * sh / ph as f64 - 0.5;
+                    let color =
+                        interpolation::sample_bilinear_premul(image, src_x, src_y, extension);
                     self.blend_pixel(col, row, color);
                 }
             }
