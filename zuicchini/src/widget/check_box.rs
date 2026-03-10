@@ -1,15 +1,19 @@
 use std::rc::Rc;
 
-use crate::foundation::Color;
+use crate::foundation::{Color, Rect};
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
-use crate::render::Painter;
+use crate::render::{LineCap, LineJoin, Painter, Stroke};
 
 use super::border::{Border, OuterBorderType};
 use super::look::Look;
 use super::toolkit_images::with_toolkit_images;
 
-/// CheckBox widget — InstrumentMoreRound border with checkbox image overlay.
+/// CheckBox widget — Margin border with ShownBoxed paint path.
 /// Matches C++ `emCheckBox` (which extends `emCheckButton` extends `emButton`).
+///
+/// C++ constructor chain:
+///   emButton: OBT_INSTRUMENT_MORE_ROUND, LabelInBorder=false, ALIGN_CENTER
+///   emCheckBox overrides: OBT_MARGIN, ALIGN_LEFT, ShownBoxed=true
 pub struct CheckBox {
     border: Border,
     look: Rc<Look>,
@@ -20,7 +24,10 @@ pub struct CheckBox {
 impl CheckBox {
     pub fn new(label: &str, look: Rc<Look>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::InstrumentMoreRound).with_caption(label),
+            border: Border::new(OuterBorderType::Margin)
+                .with_caption(label)
+                .with_label_in_border(false)
+                .with_label_alignment(crate::render::TextAlignment::Left),
             look,
             checked: false,
             on_check: None,
@@ -35,36 +42,88 @@ impl CheckBox {
         self.checked = checked;
     }
 
+    /// Paint using the C++ ShownBoxed path (emButton.cpp:233-341).
+    ///
+    /// Layout: small checkbox box on the left, label text on the right.
+    /// The box contains: InputBgColor face → checkmark symbol → CheckBox image overlay.
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+        // Paint outer border (Margin = transparent spacing only).
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
-        // C++ DoButton: content round rect, face, then checkbox image.
-        let (cr, r) = self.border.content_round_rect(w, h, &self.look);
-        let d = (1.0 - 250.0 / 264.0) * r;
-        let fr = (r - d).max(0.0);
-        let face_color = self.look.button_bg_color;
-        painter.paint_round_rect(
-            cr.x + d,
-            cr.y + d,
-            cr.w - 2.0 * d,
-            cr.h - 2.0 * d,
-            fr,
-            face_color,
-        );
+        // C++ DoButton ShownBoxed: GetContentRect, then compute box + label geometry.
+        let cr = self.border.content_rect(w, h, &self.look);
+
+        let has_label = self.border.has_label();
+        let (bx0, by0, bw0, lx, ly, lw, lh);
+        if has_label {
+            // C++ lines 239-249: label tallness drives proportions.
+            let label_tallness = self.border.best_label_tallness().max(0.2);
+            let mut box_w = label_tallness;
+            let mut d = box_w * 0.1;
+            let f = (cr.w / (box_w + d + 1.0)).min(cr.h / label_tallness);
+            box_w *= f;
+            d *= f;
+            lw = cr.w - box_w - d;
+            lh = box_w;
+            lx = cr.x + cr.w - lw;
+            ly = cr.y + (cr.h - lh) * 0.5;
+            bw0 = box_w;
+            bx0 = cr.x;
+            by0 = cr.y + (cr.h - bw0) * 0.5;
+        } else {
+            bw0 = cr.w.min(cr.h);
+            bx0 = cr.x;
+            by0 = cr.y + (cr.h - bw0) * 0.5;
+            lx = cr.x;
+            ly = cr.y;
+            lw = 0.0;
+            lh = 0.0;
+        }
+
+        // Paint label to the right of the box.
+        if has_label {
+            self.border
+                .paint_label(painter, Rect::new(lx, ly, lw, lh), &self.look, true);
+        }
+
+        // Inset for image area: d = bw * 0.13 (C++ line 262).
+        let d = bw0 * 0.13;
+        let bx = bx0 + d;
+        let by = by0 + d;
+        let bw = bw0 - 2.0 * d;
+        let bh = bw;
+
+        // Face inset: d = bw * 30/380 (C++ line 268).
+        let d2 = bw * 30.0 / 380.0;
+        let fx = bx + d2;
+        let fy = by + d2;
+        let fw = bw - 2.0 * d2;
+        let fh = bh - 2.0 * d2;
+        let fr = bw * 50.0 / 380.0;
+
+        // Paint face (InputBgColor).
+        let face_color = self.look.input_bg_color;
+        painter.paint_round_rect(fx, fy, fw, fh, fr, face_color);
         painter.set_canvas_color(face_color);
 
-        // C++ DoButton ShowBox: paint checkbox image inside content rect.
-        let bw = cr.w.min(cr.h) * 0.7;
-        let bx = cr.x + (cr.w - bw) * 0.5;
-        let by = cr.y + (cr.h - bw) * 0.5;
+        // Paint check symbol if checked (C++ PaintBoxSymbol, emButton.cpp:160-184).
+        if self.checked {
+            let check_color = self.look.input_fg_color;
+            let verts = [
+                (fx + fw * 0.2, fy + fh * 0.6),
+                (fx + fw * 0.4, fy + fh * 0.8),
+                (fx + fw * 0.8, fy + fh * 0.2),
+            ];
+            let mut stroke = Stroke::new(check_color, fw * 0.16);
+            stroke.join = LineJoin::Round;
+            stroke.cap = LineCap::Round;
+            painter.paint_solid_polyline(&verts, &stroke, false);
+        }
+
+        // Paint checkbox image overlay (C++ line 318-331).
         with_toolkit_images(|img| {
-            let image = if self.checked {
-                &img.check_box_pressed
-            } else {
-                &img.check_box
-            };
-            painter.paint_image_full(bx, by, bw, bw, image, 255, Color::TRANSPARENT);
+            painter.paint_image_full(bx, by, bw, bh, &img.check_box, 255, Color::TRANSPARENT);
         });
     }
 

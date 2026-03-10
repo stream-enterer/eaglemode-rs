@@ -67,6 +67,10 @@ impl ScalarField {
         }
     }
 
+    pub fn set_caption(&mut self, caption: &str) {
+        self.border.caption = caption.to_string();
+    }
+
     // --- Editable ---
 
     pub fn is_editable(&self) -> bool {

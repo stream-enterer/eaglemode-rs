@@ -75,7 +75,8 @@ pub struct ListBox {
 impl ListBox {
     pub fn new(look: Rc<Look>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Rect).with_inner(InnerBorderType::InputField),
+            border: Border::new(OuterBorderType::Instrument)
+                .with_inner(InnerBorderType::InputField),
             look,
             items: Vec::new(),
             name_index: HashMap::new(),
@@ -90,6 +91,10 @@ impl ListBox {
             on_selection: None,
             on_trigger: None,
         }
+    }
+
+    pub fn set_caption(&mut self, caption: &str) {
+        self.border.caption = caption.to_string();
     }
 
     // ── Selection mode ──────────────────────────────────────────────
@@ -531,25 +536,56 @@ impl ListBox {
         painter.push_state();
         painter.clip_rect(cx, cy, cw, ch);
 
+        // C++ DefaultItemPanel::Paint: each item has its own coordinate system.
+        // Item coords: x=0, y=0, w=item_w, h=item_h.
+        // Margins: dx=min(w,h)*0.15, dy=min(w,h)*0.03.
+        // Selected: round-rect highlight with r=min(w,h)*0.15, inset by min(w,h)*0.015.
         for (i, item) in self.items.iter().enumerate() {
-            let y = cy + i as f64 * ROW_HEIGHT - self.scroll_y;
-            if y + ROW_HEIGHT < cy || y > cy + ch {
+            let iy = cy + i as f64 * ROW_HEIGHT - self.scroll_y;
+            if iy + ROW_HEIGHT < cy || iy > cy + ch {
                 continue;
             }
 
+            let item_w = cw;
+            let item_h = ROW_HEIGHT;
+            let s = item_w.min(item_h);
+
             if item.selected {
-                painter.paint_rect(cx, y, cw, ROW_HEIGHT, self.look.input_hl_color);
+                let rdx = s * 0.015;
+                let rdy = s * 0.015;
+                let r = s * 0.15;
+                painter.paint_round_rect(
+                    cx + rdx,
+                    iy + rdy,
+                    item_w - 2.0 * rdx,
+                    item_h - 2.0 * rdy,
+                    r,
+                    self.look.input_hl_color,
+                );
             }
 
-            let text_h = ROW_HEIGHT - 2.0;
-            painter.paint_text(
-                cx + 2.0,
-                y + 1.0,
+            let dx = s * 0.15;
+            let dy = s * 0.03;
+            let text_color = if item.selected {
+                self.look.input_bg_color
+            } else {
+                self.look.input_fg_color
+            };
+            painter.paint_text_boxed(
+                cx + dx,
+                iy + dy,
+                (item_w - 2.0 * dx).max(0.0),
+                (item_h - 2.0 * dy).max(0.0),
                 &item.text,
-                text_h,
-                1.0,
-                self.look.input_fg_color,
+                item_h,
+                text_color,
                 Color::TRANSPARENT,
+                crate::render::TextAlignment::Left,
+                crate::render::VAlign::Top,
+                crate::render::TextAlignment::Left,
+                0.5,
+                true,
+                0.0,
             );
         }
 

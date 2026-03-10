@@ -11,12 +11,13 @@ pub(crate) struct ToolkitImages {
     pub custom_rect_border: Image,
     pub button: Image,
     pub button_pressed: Image,
+    pub button_checked: Image,
     pub splitter: Image,
     pub splitter_pressed: Image,
     pub check_box: Image,
-    pub check_box_pressed: Image,
-    pub radio_box: Image,
-    pub radio_box_pressed: Image,
+    pub _check_box_pressed: Image,
+    pub _radio_box: Image,
+    pub _radio_box_pressed: Image,
 }
 
 fn decode(data: &[u8], name: &str, expected_w: u32, expected_h: u32) -> Image {
@@ -82,6 +83,12 @@ impl ToolkitImages {
                 648,
                 648,
             ),
+            button_checked: decode(
+                include_bytes!("../../res/toolkit/ButtonChecked.tga"),
+                "ButtonChecked",
+                648,
+                648,
+            ),
             splitter: decode(
                 include_bytes!("../../res/toolkit/Splitter.tga"),
                 "Splitter",
@@ -100,19 +107,19 @@ impl ToolkitImages {
                 380,
                 380,
             ),
-            check_box_pressed: decode(
+            _check_box_pressed: decode(
                 include_bytes!("../../res/toolkit/CheckBoxPressed.tga"),
                 "CheckBoxPressed",
                 380,
                 380,
             ),
-            radio_box: decode(
+            _radio_box: decode(
                 include_bytes!("../../res/toolkit/RadioBox.tga"),
                 "RadioBox",
                 380,
                 380,
             ),
-            radio_box_pressed: decode(
+            _radio_box_pressed: decode(
                 include_bytes!("../../res/toolkit/RadioBoxPressed.tga"),
                 "RadioBoxPressed",
                 380,

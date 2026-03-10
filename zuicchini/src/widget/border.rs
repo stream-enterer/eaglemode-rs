@@ -328,8 +328,42 @@ impl Border {
         }
     }
 
-    fn has_label(&self) -> bool {
+    pub(crate) fn has_label(&self) -> bool {
         !self.caption.is_empty() || !self.description.is_empty() || self.icon.is_some()
+    }
+
+    /// Best (natural) height-to-width ratio of the label.
+    ///
+    /// C++ equivalent: `emBorder::GetBestLabelTallness()`.
+    pub(crate) fn best_label_tallness(&self) -> f64 {
+        let has_cap = !self.caption.is_empty();
+        let has_desc = !self.description.is_empty();
+
+        let cap_units: f64 = if has_cap { 1.0 } else { 0.0 };
+        let desc_units: f64 = if has_desc { 0.15 } else { 0.0 };
+
+        let gap2_units: f64 = if has_cap && has_desc {
+            desc_units * 0.05
+        } else {
+            0.0
+        };
+        let total_h = cap_units + gap2_units + desc_units;
+        if total_h <= 0.0 {
+            return 1.0;
+        }
+
+        let cap_w = if has_cap {
+            Painter::measure_text_width(&self.caption, 1.0)
+        } else {
+            0.0
+        };
+        let desc_w = if has_desc {
+            Painter::measure_text_width(&self.description, 0.15)
+        } else {
+            0.0
+        };
+        let total_w = cap_w.max(desc_w).max(1e-100);
+        total_h / total_w
     }
 
     /// Horizontal offset for positioning a block of width `block_w` within

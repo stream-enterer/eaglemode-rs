@@ -147,6 +147,10 @@ impl TextField {
         }
     }
 
+    pub fn set_caption(&mut self, caption: &str) {
+        self.border.caption = caption.to_string();
+    }
+
     // ── Property accessors ──────────────────────────────────────────────
 
     pub fn text(&self) -> &str {

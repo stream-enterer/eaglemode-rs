@@ -295,6 +295,7 @@ fn widget_textfield_empty() {
     require_golden!();
     let look = Look::new();
     let mut tf = TextField::new(look);
+    tf.set_caption("Name");
     tf.set_editable(true);
     render_and_compare(
         "widget_textfield_empty",
@@ -310,6 +311,7 @@ fn widget_textfield_content() {
     require_golden!();
     let look = Look::new();
     let mut tf = TextField::new(look);
+    tf.set_caption("Name");
     tf.set_editable(true);
     tf.set_text("Hello");
     render_and_compare(
@@ -326,6 +328,8 @@ fn widget_scalarfield() {
     require_golden!();
     let look = Look::new();
     let mut sf = ScalarField::new(0.0, 100.0, look);
+    sf.set_caption("Value");
+    sf.set_editable(true);
     sf.set_value(50.0);
     render_and_compare(
         "widget_scalarfield",
@@ -387,6 +391,7 @@ fn widget_colorfield() {
     require_golden!();
     let look = Look::new();
     let mut cf = ColorField::new(look);
+    cf.set_caption("Color");
     cf.set_color(zuicchini::foundation::Color::rgba(255, 0, 0, 255));
     render_and_compare(
         "widget_colorfield",
@@ -418,6 +423,7 @@ fn widget_listbox() {
     require_golden!();
     let look = Look::new();
     let mut lb = ListBox::new(look);
+    lb.set_caption("Items");
     lb.add_item("item0".to_string(), "Alpha".to_string());
     lb.add_item("item1".to_string(), "Beta".to_string());
     lb.add_item("item2".to_string(), "Gamma".to_string());

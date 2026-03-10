@@ -1,11 +1,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::foundation::Color;
+use crate::foundation::{Color, Rect};
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
 use crate::layout::linear::LinearLayout;
 use crate::layout::raster::RasterLayout;
-use crate::render::Painter;
+use crate::render::{Painter, BORDER_EDGES_ONLY};
 
 use super::border::{Border, OuterBorderType};
 use super::look::Look;
@@ -180,36 +180,101 @@ impl RadioButton {
         }
     }
 
+    /// Paint using the non-boxed C++ DoButton path (emButton.cpp:343-421).
+    ///
+    /// RadioButton renders as a normal button (face + centered label).
+    /// When checked (ShownChecked=true), the label is slightly shrunk and
+    /// a ButtonChecked overlay is painted instead of the normal Button overlay.
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
-        // C++ DoButton: content round rect, face, then radio image.
+        // C++ DoButton non-boxed path: GetContentRoundRect, clamp r.
         let (cr, r) = self.border.content_round_rect(w, h, &self.look);
-        let d = (1.0 - 250.0 / 264.0) * r;
+        let r = r.max(cr.w.min(cr.h) * self.border.border_scaling * 0.223);
+
+        // Face inset: d = (14/264) * r (C++ line 348).
+        let d = (14.0 / 264.0) * r;
+        let fx = cr.x + d;
+        let fy = cr.y + d;
+        let fw = cr.w - 2.0 * d;
+        let fh = cr.h - 2.0 * d;
         let fr = (r - d).max(0.0);
+
         let face_color = self.look.button_bg_color;
-        painter.paint_round_rect(
-            cr.x + d,
-            cr.y + d,
-            cr.w - 2.0 * d,
-            cr.h - 2.0 * d,
-            fr,
-            face_color,
-        );
+        painter.paint_round_rect(fx, fy, fw, fh, fr, face_color);
         painter.set_canvas_color(face_color);
 
-        // C++ DoButton ShowBox: paint radio image.
-        let bw = cr.w.min(cr.h) * 0.7;
-        let bx = cr.x + (cr.w - bw) * 0.5;
-        let by = cr.y + (cr.h - bw) * 0.5;
+        // Label inside face with padding (C++ lines 370-391).
+        let d_min = fw.min(fh) * 0.1;
+        let dx = (r * 0.7).max(d_min);
+        let dy = (r * 0.4).max(d_min);
+        let mut lx = fx + dx;
+        let mut ly = fy + dy;
+        let mut lw = fw - 2.0 * dx;
+        let mut lh = fh - 2.0 * dy;
+
+        let checked = self.is_selected();
+        if checked {
+            // C++ line 378: ShownChecked → scale 0.983.
+            let s = 0.983;
+            lx += (1.0 - s) * 0.5 * lw;
+            lw *= s;
+            ly += (1.0 - s) * 0.5 * lh;
+            lh *= s;
+        }
+        self.border.paint_label_colored(
+            painter,
+            Rect::new(lx, ly, lw, lh),
+            &self.look,
+            self.look.button_fg_color,
+            true,
+        );
+
+        // Button overlay image (C++ lines 393-421).
         with_toolkit_images(|img| {
-            let image = if self.is_selected() {
-                &img.radio_box_pressed
+            if checked {
+                // ShownChecked: ButtonChecked overlay (C++ lines 402-409).
+                painter.paint_border_image(
+                    cr.x,
+                    cr.y,
+                    cr.w,
+                    cr.h,
+                    340.0 / 264.0 * r,
+                    374.0 / 264.0 * r,
+                    r,
+                    r,
+                    &img.button_checked,
+                    340,
+                    374,
+                    264,
+                    264,
+                    255,
+                    Color::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
+                );
             } else {
-                &img.radio_box
-            };
-            painter.paint_image_full(bx, by, bw, bw, image, 255, Color::TRANSPARENT);
+                // Normal: Button overlay (C++ lines 411-420).
+                let extra = (658.0 - 648.0) / 264.0 * r;
+                painter.paint_border_image(
+                    cr.x,
+                    cr.y,
+                    cr.w + extra,
+                    cr.h + extra,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    278.0 / 264.0 * r,
+                    &img.button,
+                    278,
+                    278,
+                    278,
+                    278,
+                    255,
+                    Color::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
+                );
+            }
         });
     }
 

@@ -1847,7 +1847,7 @@ impl<'a> Painter<'a> {
         sy: f64,
         sw: f64,
         sh: f64,
-        quality: super::texture::ImageQuality,
+        _quality: super::texture::ImageQuality,
         extension: super::texture::ImageExtension,
     ) {
         if dw <= 0.0 || dh <= 0.0 || sw <= 0.0 || sh <= 0.0 {
@@ -1877,24 +1877,110 @@ impl<'a> Painter<'a> {
             .min(clip_y + clip_h)
             .min(self.target.height() as i32);
 
-        let interp_quality = match quality {
-            super::texture::ImageQuality::Nearest => interpolation::InterpolationQuality::Nearest,
-            _ => interpolation::InterpolationQuality::Bilinear,
-        };
-        let ctx = interpolation::ScaleContext {
-            src_w: sw,
-            src_h: sh,
-            dest_w: pw as f64,
-            dest_h: ph as f64,
-        };
+        // Match C++ emPainter scaling: pre-reduced area sampling for downscaling,
+        // bilinear for upscaling, nearest for 1:1.
+        let ratio_x = sw / pw as f64;
+        let ratio_y = sh / ph as f64;
+        let downscaling = ratio_x > 1.0 || ratio_y > 1.0;
 
-        for row in start_y..end_y {
-            for col in start_x..end_x {
-                let src_x = sx + (col - px) as f64 * sw / pw as f64;
-                let src_y = sy + (row - py) as f64 * sh / ph as f64;
-                let color =
-                    interpolation::sample(image, src_x, src_y, interp_quality, extension, &ctx);
-                self.blend_pixel(col, row, color);
+        if downscaling {
+            // C++ pre-reduction: stride = ceil(ratio/3) for DQ_3X3
+            let sw_u = sw as u32;
+            let sh_u = sh as u32;
+            let stride_x = ((ratio_x / 3.0).ceil() as u32).max(1);
+            let stride_y = ((ratio_y / 3.0).ceil() as u32).max(1);
+            let red_w = sw_u.div_ceil(stride_x);
+            let red_h = sh_u.div_ceil(stride_y);
+            // C++ centers the reduced grid
+            let off_x = (sw_u as i32 - (red_w as i32 - 1) * stride_x as i32 - 1) / 2;
+            let off_y = (sh_u as i32 - (red_h as i32 - 1) * stride_y as i32 - 1) / 2;
+            let red_ratio_x = red_w as f64 / pw as f64;
+            let red_ratio_y = red_h as f64 / ph as f64;
+            let sx_u = sx as u32;
+            let sy_u = sy as u32;
+
+            for row in start_y..end_y {
+                for col in start_x..end_x {
+                    let rx0 = (col - px) as f64 * red_ratio_x;
+                    let rx1 = rx0 + red_ratio_x;
+                    let ry0 = (row - py) as f64 * red_ratio_y;
+                    let ry1 = ry0 + red_ratio_y;
+
+                    let ix0 = (rx0.floor() as i32).max(0) as u32;
+                    let ix1 = (rx1.ceil() as u32).min(red_w);
+                    let iy0 = (ry0.floor() as i32).max(0) as u32;
+                    let iy1 = (ry1.ceil() as u32).min(red_h);
+
+                    let mut accum = [0.0f64; 4];
+                    let mut wsum = 0.0f64;
+                    for iy in iy0..iy1 {
+                        let y_lo = (iy as f64).max(ry0);
+                        let y_hi = ((iy + 1) as f64).min(ry1);
+                        let wy = y_hi - y_lo;
+
+                        let real_y = off_y + iy as i32 * stride_y as i32;
+                        if real_y < 0 || real_y as u32 >= sh_u {
+                            continue;
+                        }
+
+                        for ix in ix0..ix1 {
+                            let x_lo = (ix as f64).max(rx0);
+                            let x_hi = ((ix + 1) as f64).min(rx1);
+                            let wx = x_hi - x_lo;
+
+                            let real_x = off_x + ix as i32 * stride_x as i32;
+                            if real_x < 0 || real_x as u32 >= sw_u {
+                                continue;
+                            }
+
+                            let p = image.pixel(sx_u + real_x as u32, sy_u + real_y as u32);
+                            let ch = image.channel_count();
+                            let w = wx * wy;
+                            match ch {
+                                1 => {
+                                    let v = p[0] as f64;
+                                    accum[0] += v * w;
+                                    accum[1] += v * w;
+                                    accum[2] += v * w;
+                                    accum[3] += 255.0 * w;
+                                }
+                                3 => {
+                                    accum[0] += p[0] as f64 * w;
+                                    accum[1] += p[1] as f64 * w;
+                                    accum[2] += p[2] as f64 * w;
+                                    accum[3] += 255.0 * w;
+                                }
+                                _ => {
+                                    accum[0] += p[0] as f64 * w;
+                                    accum[1] += p[1] as f64 * w;
+                                    accum[2] += p[2] as f64 * w;
+                                    accum[3] += p[3] as f64 * w;
+                                }
+                            }
+                            wsum += w;
+                        }
+                    }
+
+                    if wsum > 0.0 {
+                        let color = Color::rgba(
+                            (accum[0] / wsum + 0.5) as u8,
+                            (accum[1] / wsum + 0.5) as u8,
+                            (accum[2] / wsum + 0.5) as u8,
+                            (accum[3] / wsum + 0.5) as u8,
+                        );
+                        self.blend_pixel(col, row, color);
+                    }
+                }
+            }
+        } else {
+            // Upscaling or 1:1: bilinear interpolation.
+            for row in start_y..end_y {
+                for col in start_x..end_x {
+                    let src_x = sx + (col - px) as f64 * sw / pw as f64;
+                    let src_y = sy + (row - py) as f64 * sh / ph as f64;
+                    let color = interpolation::sample_bilinear(image, src_x, src_y, extension);
+                    self.blend_pixel(col, row, color);
+                }
             }
         }
     }

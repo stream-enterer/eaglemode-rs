@@ -24,7 +24,8 @@ const SWATCH_SIZE: f64 = 20.0;
 impl ColorField {
     pub fn new(look: Rc<Look>) -> Self {
         Self {
-            border: Border::new(OuterBorderType::Rect),
+            border: Border::new(OuterBorderType::Instrument)
+                .with_inner(InnerBorderType::OutputField),
             look,
             color: Color::BLACK,
             editable: false,
@@ -32,6 +33,10 @@ impl ColorField {
             expanded: false,
             on_color: None,
         }
+    }
+
+    pub fn set_caption(&mut self, caption: &str) {
+        self.border.caption = caption.to_string();
     }
 
     pub fn color(&self) -> Color {
@@ -88,24 +93,38 @@ impl ColorField {
         self.expanded = expanded;
     }
 
+    /// Paint using C++ emColorField::PaintContent (emColorField.cpp:371-404).
+    ///
+    /// Gets content round rect, insets by d=min(w,h)*0.1, paints color rect + outline.
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
-        let Rect {
-            x: cx,
-            y: cy,
-            w: cw,
-            h: ch,
-        } = self.border.content_rect(w, h, &self.look);
+        // C++ PaintContent: GetContentRoundRect, then inset by d.
+        let (cr, _r) = self.border.content_round_rect(w, h, &self.look);
+        let d = cr.w.min(cr.h) * 0.1;
 
-        // Color swatch
-        let sw = if self.expanded {
-            SWATCH_SIZE.min(cw)
-        } else {
-            cw
-        };
-        painter.paint_rect(cx, cy, sw, ch.min(SWATCH_SIZE), self.color);
+        let rx = cr.x + d;
+        let ry = cr.y + d;
+        let rw = (cr.w - 2.0 * d).max(0.0);
+        let rh = (cr.h - 2.0 * d).max(0.0);
+
+        // Paint color rect.
+        painter.paint_rect(rx, ry, rw, rh, self.color);
+
+        // Paint rect outline (C++ PaintRectOutline with d*0.08 thickness).
+        let thickness = d * 0.08;
+        let outline_color = self.look.input_fg_color;
+        if thickness > 0.0 {
+            // Top edge.
+            painter.paint_rect(rx, ry, rw, thickness, outline_color);
+            // Bottom edge.
+            painter.paint_rect(rx, ry + rh - thickness, rw, thickness, outline_color);
+            // Left edge.
+            painter.paint_rect(rx, ry, thickness, rh, outline_color);
+            // Right edge.
+            painter.paint_rect(rx + rw - thickness, ry, thickness, rh, outline_color);
+        }
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {
