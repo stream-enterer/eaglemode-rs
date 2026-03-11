@@ -722,21 +722,25 @@ impl<'a> Painter<'a> {
             dest_h: ph as f64,
         };
 
+        // 24-bit fixed-point scaling transform matching C++ emPainter_ScTl.
+        let sxfm = self.scale_transform_24(image.width(), image.height(), x, y, w, h);
+
         for row in start_y..end_y {
             for col in start_x..end_x {
                 let src_color = if upscaling {
-                    // C++ pixel-center offset: maps dest pixel center to source.
-                    let sx = ((col - px) as f64 + 0.5) * src_w / pw as f64 - 0.5;
-                    let sy = ((row - py) as f64 + 0.5) * src_h / ph as f64 - 0.5;
-                    interpolation::sample_bicubic_premul(image, sx, sy, ext)
+                    // Bicubic with -0x180_0000 (-1.5) offset for 4-tap kernel centering.
+                    let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x - 0x180_0000;
+                    let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x180_0000;
+                    interpolation::sample_bicubic_premul_fp(image, tx, ty, ext)
                 } else if downscaling {
                     let sx = (col - px) as f64 * src_w / pw as f64;
                     let sy = (row - py) as f64 * src_h / ph as f64;
                     interpolation::sample_area(image, sx, sy, &ctx, ext)
                 } else {
-                    let sx = (col - px) as f64 * src_w / pw as f64;
-                    let sy = (row - py) as f64 * src_h / ph as f64;
-                    interpolation::sample_nearest(image, sx, sy, ext)
+                    // Nearest: no method offset.
+                    let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x;
+                    let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y;
+                    interpolation::sample_nearest(image, (tx >> 24) as f64, (ty >> 24) as f64, ext)
                 };
                 self.blend_pixel(col, row, src_color);
             }
@@ -1988,15 +1992,18 @@ impl<'a> Painter<'a> {
                 }
             }
         } else {
-            // Upscaling or 1:1: premultiplied-alpha bilinear with pixel-center offset.
-            // C++ maps dest pixel center (+0.5) to source, then offsets by -0.5 for
-            // the bilinear kernel center.
+            // Upscaling or 1:1: 24-bit fixed-point bilinear matching C++ emPainter_ScTl.
+            let sxfm = self.scale_transform_24(sw as u32, sh as u32, dx, dy, dw, dh);
+            let src_ox = sx as i32;
+            let src_oy = sy as i32;
+
             for row in start_y..end_y {
                 for col in start_x..end_x {
-                    let src_x = sx + ((col - px) as f64 + 0.5) * sw / pw as f64 - 0.5;
-                    let src_y = sy + ((row - py) as f64 + 0.5) * sh / ph as f64 - 0.5;
-                    let color =
-                        interpolation::sample_bilinear_premul(image, src_x, src_y, extension);
+                    let tx = (col - px) as i64 * sxfm.tdx + sxfm.base_x - 0x80_0000;
+                    let ty = (row - py) as i64 * sxfm.tdy + sxfm.base_y - 0x80_0000;
+                    let color = interpolation::sample_bilinear_premul_fp(
+                        image, tx, ty, src_ox, src_oy, extension,
+                    );
                     self.blend_pixel(col, row, color);
                 }
             }
@@ -4312,6 +4319,36 @@ impl<'a> Painter<'a> {
     }
 
     // --- Coordinate transform helpers ---
+
+    /// Build a 24-bit fixed-point scaling transform for image scaling.
+    fn scale_transform_24(
+        &self,
+        src_w: u32,
+        src_h: u32,
+        dest_x: f64,
+        dest_y: f64,
+        dest_w: f64,
+        dest_h: f64,
+    ) -> interpolation::ScaleTransform24 {
+        let px = self.to_pixel_x(dest_x);
+        let py = self.to_pixel_y(dest_y);
+        let tw = dest_w * self.state.scale_x;
+        let th = dest_h * self.state.scale_y;
+        let tdx_f64 = ((src_w as i64) << 24) as f64 / tw;
+        let tdy_f64 = ((src_h as i64) << 24) as f64 / th;
+        let tdx = tdx_f64 as i64;
+        let tdy = tdy_f64 as i64;
+        let tx_sub = dest_x * self.state.scale_x + self.state.offset_x;
+        let ty_sub = dest_y * self.state.scale_y + self.state.offset_y;
+        let tx_origin = ((tx_sub - 0.5) * tdx_f64) as i64;
+        let ty_origin = ((ty_sub - 0.5) * tdy_f64) as i64;
+        interpolation::ScaleTransform24 {
+            tdx,
+            tdy,
+            base_x: px as i64 * tdx - tx_origin,
+            base_y: py as i64 * tdy - ty_origin,
+        }
+    }
 
     fn to_pixel_x(&self, x: f64) -> i32 {
         (x * self.state.scale_x + self.state.offset_x) as i32

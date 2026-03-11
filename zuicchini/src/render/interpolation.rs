@@ -77,42 +77,68 @@ pub(crate) fn sample_bilinear(image: &Image, x: f64, y: f64, ext: ImageExtension
     Color::rgba(result[0], result[1], result[2], result[3])
 }
 
-/// Bilinear interpolation with premultiplied alpha (matches C++ emPainter_ScTlIntImg).
+/// 24-bit fixed-point scaling transform matching C++ emPainter_ScTl.
 ///
-/// For 4-channel RGBA images, premultiplies RGB by alpha before interpolation,
-/// then unpremultiplies the result. This produces correct blending when alpha
-/// varies across the 2x2 kernel (e.g. semi-transparent border edges).
-/// For fully-opaque pixels, the result is identical to `sample_bilinear`.
-pub(crate) fn sample_bilinear_premul(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
-    let fx = x.floor();
-    let fy = y.floor();
-    let ix = fx as i32;
-    let iy = fy as i32;
-    let tx = ((x - fx) * 256.0) as u64;
-    let ty = ((y - fy) * 256.0) as u64;
-    let itx = 256 - tx;
-    let ity = 256 - ty;
+/// Setup uses f64 for TDX/TDY/TX/TY derivation (matching C++ which computes
+/// these as `double` then casts to `emInt64`). The per-pixel inner loop
+/// is pure i64 integer arithmetic.
+pub(crate) struct ScaleTransform24 {
+    /// Source-per-dest horizontal step (24fp).
+    pub tdx: i64,
+    /// Source-per-dest vertical step (24fp).
+    pub tdy: i64,
+    /// Precomputed X base: `px * tdx - tx_origin`.
+    pub base_x: i64,
+    /// Precomputed Y base: `py * tdy - ty_origin`.
+    pub base_y: i64,
+}
 
-    let p00 = sample_pixel(image, ix, iy, ext);
-    let p10 = sample_pixel(image, ix + 1, iy, ext);
-    let p01 = sample_pixel(image, ix, iy + 1, ext);
-    let p11 = sample_pixel(image, ix + 1, iy + 1, ext);
+/// Bilinear interpolation with premultiplied alpha, 24-bit fixed-point coordinates.
+/// Matches C++ emPainter_ScTlIntImg bilinear inner loop exactly.
+///
+/// `tx`, `ty`: source position in 24fp, with method offset (-0x80_0000) already applied.
+/// `src_ox`, `src_oy`: pixel offset into the full image (for 9-slice sub-region fetch).
+pub(crate) fn sample_bilinear_premul_fp(
+    image: &Image,
+    tx: i64,
+    ty: i64,
+    src_ox: i32,
+    src_oy: i32,
+    ext: ImageExtension,
+) -> Color {
+    // Integer source position (arithmetic right shift preserves sign).
+    let iy = (ty >> 24) as i32;
+    let ix = (tx >> 24) as i32;
+
+    // Fractional part → 0–256 weight.
+    // Mask extracts low 24 bits (always non-negative after mask).
+    // +0x7FFF is C++'s half-LSB rounding bias before the >>16 reduction.
+    let oy1 = (((ty & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
+    let oy0 = 256 - oy1;
+    let ox1 = (((tx & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
+    let ox0 = 256 - ox1;
+
+    let p00 = sample_pixel(image, src_ox + ix, src_oy + iy, ext);
+    let p10 = sample_pixel(image, src_ox + ix + 1, src_oy + iy, ext);
+    let p01 = sample_pixel(image, src_ox + ix, src_oy + iy + 1, ext);
+    let p11 = sample_pixel(image, src_ox + ix + 1, src_oy + iy + 1, ext);
 
     // Fast path: all opaque — premultiplication is identity.
     if p00[3] == 255 && p10[3] == 255 && p01[3] == 255 && p11[3] == 255 {
+        let (ox0, ox1, oy0, oy1) = (ox0 as u64, ox1 as u64, oy0 as u64, oy1 as u64);
         let mut result = [0u8; 4];
         for c in 0..4 {
-            let top = p00[c] as u64 * itx + p10[c] as u64 * tx;
-            let bot = p01[c] as u64 * itx + p11[c] as u64 * tx;
-            result[c] = ((top * ity + bot * ty + 0x8000) >> 16) as u8;
+            let top = p00[c] as u64 * ox0 + p10[c] as u64 * ox1;
+            let bot = p01[c] as u64 * ox0 + p11[c] as u64 * ox1;
+            result[c] = ((top * oy0 + bot * oy1 + 0x8000) >> 16) as u8;
         }
         return Color::rgba(result[0], result[1], result[2], result[3]);
     }
 
-    // C++ premultiplied bilinear: for each pixel, accumulate r*a*w and a*w
-    // where w = wx * wy (combined bilinear weight, scale 256*256 = 65536).
+    // Premultiplied alpha path: accumulate r*a*w and a*w.
+    let (ox0, ox1, oy0, oy1) = (ox0 as u64, ox1 as u64, oy0 as u64, oy1 as u64);
     let pixels = [p00, p10, p01, p11];
-    let weights = [itx * ity, tx * ity, itx * ty, tx * ty];
+    let weights = [ox0 * oy0, ox1 * oy0, ox0 * oy1, ox1 * oy1];
 
     let mut pm_r = 0u64;
     let mut pm_g = 0u64;
@@ -128,21 +154,18 @@ pub(crate) fn sample_bilinear_premul(image: &Image, x: f64, y: f64, ext: ImageEx
         pm_a += aw;
     }
 
-    // C++ FINPREMUL_SHR_COLOR(c, 16):
-    //   alpha: (c_a + ((1<<16)>>1) - 1) >> 16
-    //   rgb:   (c_r + ((0xff<<16)>>1) - 1) / (0xff<<16)
+    // C++ FINPREMUL_SHR_COLOR(c, 16)
     let final_a = ((pm_a + 0x7FFF) >> 16).min(255);
     if final_a == 0 {
         return Color::TRANSPARENT;
     }
 
-    let div = 0xFF_u64 << 16; // 0xFF0000 = 255 * 65536
-    let round = (div >> 1) - 1; // 0x7F7FFF
+    let div = 0xFF_u64 << 16;
+    let round = (div >> 1) - 1;
     let final_r = ((pm_r + round) / div).min(final_a);
     let final_g = ((pm_g + round) / div).min(final_a);
     let final_b = ((pm_b + round) / div).min(final_a);
 
-    // Convert from premultiplied to straight alpha for blend_pixel.
     if final_a == 255 {
         return Color::rgba(final_r as u8, final_g as u8, final_b as u8, 255);
     }
@@ -151,6 +174,62 @@ pub(crate) fn sample_bilinear_premul(image: &Image, x: f64, y: f64, ext: ImageEx
     let sb = (final_b * 255 / final_a).min(255) as u8;
 
     Color::rgba(sr, sg, sb, final_a as u8)
+}
+
+/// Bicubic sampling with premultiplied alpha, 24-bit fixed-point coordinates.
+/// Matches C++ emPainter_ScTlIntImg bicubic inner loop exactly.
+///
+/// `tx`, `ty`: source position in 24fp, with method offset (-0x180_0000) already applied.
+/// The -1.5 offset means `ty >> 24` is already shifted so rows [iy..iy+3] are centered.
+pub(crate) fn sample_bicubic_premul_fp(
+    image: &Image,
+    tx: i64,
+    ty: i64,
+    ext: ImageExtension,
+) -> Color {
+    let iy = (ty >> 24) as i32;
+    let ix = (tx >> 24) as i32;
+
+    let oy = (((ty & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
+    let ox = (((tx & 0xFF_FFFF) as u32) + 0x7FFF) >> 16;
+    let wy = bicubic_factors_hi()[oy as usize];
+    let wx = bicubic_factors_hi()[ox as usize];
+
+    // Full 2D premul interpolation: 4x4 kernel.
+    // C++ kernel rows are [iy, iy+1, iy+2, iy+3] (offset already in iy).
+    let mut pm_rgb = [0i64; 3];
+    let mut pm_a = 0i64;
+    for row in 0..4i32 {
+        let yw = wy[row as usize] as i64;
+        for col in 0..4i32 {
+            let p = sample_pixel(image, ix + col, iy + row, ext);
+            let a = p[3] as i64;
+            let w = wx[col as usize] as i64 * yw;
+            let aw = a * w;
+            pm_a += aw;
+            pm_rgb[0] += p[0] as i64 * aw;
+            pm_rgb[1] += p[1] as i64 * aw;
+            pm_rgb[2] += p[2] as i64 * aw;
+        }
+    }
+
+    // C++ WRITE_SHR_CLIP: shift right by 20 (1024^2 = 2^20).
+    let final_a = (pm_a >> 20).clamp(0, 255);
+    let mut result = [0u8; 4];
+    for c in 0..3 {
+        let v = ((pm_rgb[c] / 255) >> 20).clamp(0, final_a);
+        result[c] = v as u8;
+    }
+    result[3] = final_a as u8;
+
+    // Convert from premultiplied to straight alpha.
+    if final_a > 0 && final_a < 255 {
+        for item in result.iter_mut().take(3) {
+            *item = (*item as u16 * 255 / final_a as u16).min(255) as u8;
+        }
+    }
+
+    Color::rgba(result[0], result[1], result[2], result[3])
 }
 
 /// Scaling context for area sampling.
@@ -306,65 +385,6 @@ pub(crate) fn sample_bicubic(image: &Image, x: f64, y: f64, ext: ImageExtension)
     for c in 0..4 {
         result[c] = (accum[c] >> 8).clamp(0, 255) as u8;
     }
-    Color::rgba(result[0], result[1], result[2], result[3])
-}
-
-/// Bicubic sampling with premultiplied alpha (matches C++ emPainter_ScTlIntImg).
-/// C++ accumulates r*a*weight across all 16 taps in premul space, then
-/// FINPREMUL divides RGB by 255 and WRITE_SHR_CLIP shifts + clamps.
-/// Falls back to premul bilinear when the 4x4 kernel reaches outside the image,
-/// matching C++ adaptive behavior at boundaries with EXTEND_ZERO.
-pub(crate) fn sample_bicubic_premul(image: &Image, x: f64, y: f64, ext: ImageExtension) -> Color {
-    let fx = x.floor();
-    let fy = y.floor();
-    let ix = fx as i32;
-    let iy = fy as i32;
-
-    let tx = ((x - fx) * 256.0) as usize;
-    let ty = ((y - fy) * 256.0) as usize;
-
-    // Use high-precision (1024-scale) factor table matching C++ BicubicFactorsTable.
-    let wx = bicubic_factors_hi()[tx.min(256)];
-    let wy = bicubic_factors_hi()[ty.min(256)];
-
-    // Full 2D premul interpolation: for each of 16 taps, accumulate
-    // pm_rgb += r * (a * w)  and  pm_a += a * w
-    // where w = wx[col] * wy[row] (combined weight, scale ~1048576 = 1024^2).
-    // Uses i64 to hold r(255) * a(255) * w(1048576) * 16 taps without overflow.
-    let mut pm_rgb = [0i64; 3];
-    let mut pm_a = 0i64;
-    for row in 0..4i32 {
-        let yw = wy[row as usize] as i64;
-        for col in 0..4i32 {
-            let p = sample_pixel(image, ix + col - 1, iy + row - 1, ext);
-            let a = p[3] as i64;
-            let w = wx[col as usize] as i64 * yw;
-            let aw = a * w;
-            pm_a += aw;
-            pm_rgb[0] += p[0] as i64 * aw;
-            pm_rgb[1] += p[1] as i64 * aw;
-            pm_rgb[2] += p[2] as i64 * aw;
-        }
-    }
-
-    // C++ FINPREMUL: divide RGB by 255 (constant, not interpolated alpha).
-    // C++ WRITE_SHR_CLIP: shift right by 20 (weight scale 1024^2=2^20),
-    // clamp alpha to [0,255], clamp RGB to [0, alpha].
-    let final_a = (pm_a >> 20).clamp(0, 255);
-    let mut result = [0u8; 4];
-    for c in 0..3 {
-        let v = ((pm_rgb[c] / 255) >> 20).clamp(0, final_a);
-        result[c] = v as u8;
-    }
-    result[3] = final_a as u8;
-
-    // Convert from premultiplied to straight alpha for blend_pixel.
-    if final_a > 0 && final_a < 255 {
-        for item in result.iter_mut().take(3) {
-            *item = (*item as u16 * 255 / final_a as u16).min(255) as u8;
-        }
-    }
-
     Color::rgba(result[0], result[1], result[2], result[3])
 }
 
