@@ -236,6 +236,9 @@ pub struct ListBox {
     item_panel_factory: Option<ItemPanelFactory>,
     /// Whether item panels are currently expanded.
     expanded: bool,
+    /// Fixed number of columns for the item grid layout.
+    /// Port of C++ `emListBox::SetFixedColumnCount`.
+    fixed_column_count: Option<usize>,
 }
 
 impl ListBox {
@@ -258,7 +261,15 @@ impl ListBox {
             on_trigger: None,
             item_panel_factory: None,
             expanded: false,
+            fixed_column_count: None,
         }
+    }
+
+    /// Set a fixed number of columns for the item grid layout.
+    /// `None` uses auto-computed columns.
+    /// Port of C++ `emListBox::SetFixedColumnCount`.
+    pub fn set_fixed_column_count(&mut self, count: Option<usize>) {
+        self.fixed_column_count = count;
     }
 
     pub fn set_caption(&mut self, caption: &str) {
@@ -828,7 +839,10 @@ impl ListBox {
 
         // Create a RasterLayout child to handle grid positioning.
         // C++ emListBox inherits from emRasterGroup with default settings.
-        let layout = RasterLayout::new();
+        let mut layout = RasterLayout::new();
+        if let Some(cols) = self.fixed_column_count {
+            layout.fixed_columns = Some(cols);
+        }
         let layout_id = ctx.create_child_with("emListBox::Grid", Box::new(layout));
 
         // Create a child panel for each item under the layout.

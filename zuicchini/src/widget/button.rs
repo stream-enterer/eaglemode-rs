@@ -66,6 +66,11 @@ impl Button {
         self.no_eoi = no_eoi;
     }
 
+    /// Set the border description text. Matches C++ `emButton::SetDescription`.
+    pub fn set_description(&mut self, desc: &str) {
+        self.border.description = desc.to_string();
+    }
+
     /// Whether the button is visually shown as checked.
     /// Matches C++ `emButton::IsShownChecked`.
     pub fn is_shown_checked(&self) -> bool {
