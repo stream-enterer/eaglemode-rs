@@ -187,26 +187,27 @@
 
 - id: DIV-008
   area: painter/gradient-rounding
-  kind: expected-divergence
+  kind: bug-fixed
   tests: [gradient_h, gradient_v]
   status: passing
-  evidence:
-    gradient_h: { ch_tol: 2, max_pct: 1.0, max_diff: 2 }
-    gradient_v: { ch_tol: 2, max_pct: 1.0, max_diff: 2 }
-  source: [src/render/interpolation.rs (sample_linear_gradient)]
-  analysis: tests/golden_parity/PARITY_STATUS.md section B1
-  notes: Float-to-u8 conversion in Color::lerp() differs by 1-2/255.
+  source: [src/foundation/color.rs (Color::lerp)]
+  notes: >
+    Fixed Color::lerp to use C++ emPainter gradient hash formula:
+    ((a*(255-g) + b*g) * 257 + 0x8073) >> 16 (round-to-nearest /255).
+    Reduced max_diff from 2 to 1. Residual max_diff=1 (~50% of pixels) is due
+    to pixel sample at integer coords vs C++ pixel center — design difference.
+    Tests now pass at ch_tol=1.
 
 - id: DIV-009
   area: painter/canvas-blend-rounding
-  kind: expected-divergence
+  kind: bug-fixed
   tests: [canvas_color]
   status: passing
-  evidence:
-    canvas_color: { ch_tol: 2, max_pct: 0.5, max_diff: 2 }
-  source: [src/render/painter.rs (blend_pixel)]
-  analysis: tests/golden_parity/PARITY_STATUS.md section B2
-  notes: Integer blend_pixel() arithmetic differs by 1-2/255.
+  source: [src/foundation/color.rs (Color::canvas_blend)]
+  notes: >
+    Fixed Color::canvas_blend to use two separate round-to-nearest /255 terms
+    matching C++ emPainter hash table: (c*a+127)/255 per src and cvs channel.
+    Tests now pass at ch_tol=0 (exact parity).
 
 # ═══════════════════════════════════════════════════════════════════
 # PAINTER — Fixed bugs (Category A from PARITY_STATUS)

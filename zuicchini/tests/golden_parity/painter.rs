@@ -191,8 +191,8 @@ fn painter_gradient_h() {
         let mut p = white_painter(&mut img);
         p.paint_linear_gradient(0.0, 0.0, 256.0, 256.0, Color::RED, Color::BLUE, true);
     }
-    // Category B: gradient interpolation rounding differs by up to 2/255.
-    compare_images(img.data(), &expected, ew, eh, 2, 1.0).unwrap();
+    // Residual: pixel sample at integer coords vs C++ pixel center; max_diff=1.
+    compare_images(img.data(), &expected, ew, eh, 1, 1.0).unwrap();
 }
 
 // ─── Test 11: gradient_v ────────────────────────────────────────
@@ -205,8 +205,8 @@ fn painter_gradient_v() {
         let mut p = white_painter(&mut img);
         p.paint_linear_gradient(0.0, 0.0, 256.0, 256.0, Color::GREEN, Color::YELLOW, false);
     }
-    // Category B: gradient interpolation rounding differs by up to 2/255.
-    compare_images(img.data(), &expected, ew, eh, 2, 1.0).unwrap();
+    // Residual: pixel sample at integer coords vs C++ pixel center; max_diff=1.
+    compare_images(img.data(), &expected, ew, eh, 1, 1.0).unwrap();
 }
 
 // ─── Test 12: gradient_radial ───────────────────────────────────
@@ -461,8 +461,7 @@ fn painter_canvas_color() {
         p.set_canvas_color(Color::grey(200));
         p.paint_rect(20.0, 20.0, 100.0, 80.0, Color::rgba(255, 0, 0, 128));
     }
-    // Category B: canvas-color alpha blend rounding differs by up to 2/255.
-    compare_images(img.data(), &expected, ew, eh, 2, 0.5).unwrap();
+    compare_images(img.data(), &expected, ew, eh, 0, 0.5).unwrap();
 }
 
 // ─── Test 25: image_paint ───────────────────────────────────────

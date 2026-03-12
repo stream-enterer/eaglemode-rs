@@ -149,28 +149,31 @@ impl Color {
 
     /// Linearly interpolate between `self` and `other` by factor `t` (0.0–1.0).
     ///
-    /// Uses integer math with 8-bit fractional weight to match C++ emPainter
-    /// gradient precision: `result = a + (b - a) * t256 / 256`.
+    /// Uses C++ emPainter gradient hash formula: `((a*(255-g) + b*g) * 257 + 0x8073) >> 16`,
+    /// which is round-to-nearest `/255` with g in 0..255.
     pub fn lerp(self, other: Color, t: f64) -> Color {
         let t = t.clamp(0.0, 1.0);
-        let t256 = (t * 256.0) as i32;
-        let r = (self.r() as i32 + (other.r() as i32 - self.r() as i32) * t256 / 256) as u8;
-        let g = (self.g() as i32 + (other.g() as i32 - self.g() as i32) * t256 / 256) as u8;
-        let b = (self.b() as i32 + (other.b() as i32 - self.b() as i32) * t256 / 256) as u8;
-        let a = (self.a() as i32 + (other.a() as i32 - self.a() as i32) * t256 / 256) as u8;
-        Color::rgba(r, g, b, a)
+        let g = (t * 255.0 + 0.5) as i32;
+        let mix = |a: i32, b: i32| -> u8 { (((a * (255 - g) + b * g) * 257 + 0x8073) >> 16) as u8 };
+        Color::rgba(
+            mix(self.r() as i32, other.r() as i32),
+            mix(self.g() as i32, other.g() as i32),
+            mix(self.b() as i32, other.b() as i32),
+            mix(self.a() as i32, other.a() as i32),
+        )
     }
 
-    /// emCore canvas blend: `target += (source - canvas) * alpha / 256`.
+    /// emCore canvas blend: `target += round(source*alpha/255) - round(canvas*alpha/255)`.
     ///
     /// `self` is the current target pixel, `source` is the color being painted,
     /// `canvas` is the background canvas color, `alpha` is blend strength (0–255).
-    /// Uses `/256` (right-shift by 8) matching C++ emPainter integer precision.
+    /// Uses two separate round-to-nearest `/255` terms matching C++ emPainter hash table.
     pub fn canvas_blend(self, source: Color, canvas: Color, alpha: u8) -> Color {
         let a = alpha as i32;
         let blend_ch = |target: u8, src: u8, cvs: u8| -> u8 {
-            let result = target as i32 + ((src as i32 - cvs as i32) * a) / 256;
-            result.clamp(0, 255) as u8
+            let src_term = (src as i32 * a + 127) / 255;
+            let cvs_term = (cvs as i32 * a + 127) / 255;
+            (target as i32 + src_term - cvs_term).clamp(0, 255) as u8
         };
         Color::rgba(
             blend_ch(self.r(), source.r(), canvas.r()),
