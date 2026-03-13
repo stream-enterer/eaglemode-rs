@@ -3,7 +3,7 @@
   "initialized_at": "2026-03-11T02:15:00Z",
   "initializer_version": "1.0.0",
   "cpp_source_root": "/home/ar/.local/git/eaglemode-0.96.4/",
-  "rust_target_root": "/home/ar/Development/egopol/zuicchini/",
+  "rust_target_root": "/home/ar/Development/polgen/zuicchini/",
   "feature_list_path": "state/feature_list.json",
   "progress_log_path": "state/progress.txt",
   "bootstrap_command": "cargo check --workspace 2>&1",

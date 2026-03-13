@@ -2,7 +2,7 @@
   "run_id": "2657fb21-1797-4c49-a466-d1663a6f5c14",
   "generated_at": "2026-03-11T01:59:28.221528+00:00",
   "cpp_source_root": "/home/ar/.local/git/eaglemode-0.96.4/",
-  "rust_target_root": "/home/ar/Development/egopol/zuicchini/",
+  "rust_target_root": "/home/ar/Development/polgen/zuicchini/",
   "items": [
     {
       "item_id": "ITEM-000001",

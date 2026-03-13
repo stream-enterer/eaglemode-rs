@@ -1,8 +1,8 @@
-# EGOPOL
+# polgen
 
 Cargo workspace with two crates:
 - `zuicchini/` — UI framework library (reimplementation of Eagle Mode's emCore in Rust)
-- `egopol/` — game binary, depends on zuicchini via path
+- `polgen/` — game binary, depends on zuicchini via path
 
 ## Commands
 
@@ -10,7 +10,7 @@ Cargo workspace with two crates:
 cargo check --workspace
 cargo clippy --workspace -- -D warnings
 cargo-nextest ntr --workspace
-cargo run -p egopol
+cargo run -p polgen
 ```
 
 ## Pre-commit hook
@@ -28,7 +28,7 @@ Do not skip with `--no-verify`. If a commit fails, fix the cause and retry.
 - **Imports**: std → external → `crate::`. Explicit names. `use super::*` only in `#[cfg(test)]`.
 - **Construction**: `new()` primary, builder `with_*(self) -> Self` for optional config.
 - **Modules**: One primary type per file. Private `mod` + public `use` re-exports in `mod.rs`.
-- **Visibility**: `pub(crate)` default. `pub` only for library API consumed by `egopol`.
+- **Visibility**: `pub(crate)` default. `pub` only for library API consumed by `polgen`.
 - **Unwrap**: `expect("reason")` unless invariant is obvious from context. Bare `unwrap()` fine in tests and same-line proofs.
 - **Warnings**: Fix the cause (remove dead code, prefix `_`, apply clippy fix). Suppress only genuine false positives with a comment.
 

@@ -25,7 +25,7 @@ it would take to eliminate it.
 
 ## 2. How to run things
 
-All commands run from the **workspace root** `/home/ar/Development/egopol`.
+All commands run from the **workspace root** `/home/ar/Development/polgen`.
 
 ```bash
 # Run all parity tests (53 tests)
@@ -106,7 +106,7 @@ or the generator.**
 
 ## 4. Source file map
 
-All paths relative to `/home/ar/Development/egopol/zuicchini/`.
+All paths relative to `/home/ar/Development/polgen/zuicchini/`.
 
 ### Rust source (what you modify)
 

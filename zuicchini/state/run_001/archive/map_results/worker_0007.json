@@ -3,7 +3,7 @@
   "scope": "widget system (emButton, emCheckButton, emCheckBox, emRadioButton, emRadioBox, emLabel, emGroup, emSplitter, emScalarField, emTextField, emListBox, emColorField, emToolkit)",
   "item_id_range": "ITEM-060001 to ITEM-069999",
   "cpp_source_root": "/home/ar/.local/git/eaglemode-0.96.4/",
-  "rust_target_root": "/home/ar/Development/egopol/zuicchini/src/widget/",
+  "rust_target_root": "/home/ar/Development/polgen/zuicchini/src/widget/",
   "results": [
     {
       "id": "ITEM-060001",

@@ -2,7 +2,7 @@
   "worker": "W-0005",
   "scope": "panel, view system (emPanel, emView, emViewAnimator, emViewInputFilter, emSubViewPanel)",
   "cpp_root": "/home/ar/.local/git/eaglemode-0.96.4/",
-  "rust_root": "/home/ar/Development/egopol/zuicchini/src/",
+  "rust_root": "/home/ar/Development/polgen/zuicchini/src/",
   "items": [
     {
       "id": "ITEM-040001",
