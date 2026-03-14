@@ -1438,7 +1438,7 @@ impl<'a> Painter<'a> {
             let p2 = points[i * 3 + 2];
             // P3 = first point of next segment; wraps to points[0] for last segment.
             let p3 = points[((i + 1) * 3) % n];
-            tessellate_cubic_cpp(&mut verts, p0, p1, p2, p3, s);
+            tessellate_cubic_cpp(&mut verts, p0, p1, p2, p3, s, 0.0);
         }
         if verts.len() >= 3 {
             self.fill_polygon_aa(&verts, color, WindingRule::NonZero);
@@ -1460,7 +1460,7 @@ impl<'a> Painter<'a> {
             let p1 = points[i * 3 + 1];
             let p2 = points[i * 3 + 2];
             let p3 = points[((i + 1) * 3) % n];
-            tessellate_cubic_cpp(&mut verts, p0, p1, p2, p3, s);
+            tessellate_cubic_cpp(&mut verts, p0, p1, p2, p3, s, stroke.width);
         }
         if verts.len() >= 2 {
             self.paint_polyline_without_arrows(&verts, stroke, true);
@@ -1491,7 +1491,7 @@ impl<'a> Painter<'a> {
             } else {
                 points[i * 3 + 3]
             };
-            tessellate_cubic_cpp(&mut verts, p0, p1, p2, p3, s);
+            tessellate_cubic_cpp(&mut verts, p0, p1, p2, p3, s, stroke.width);
         }
         // For open bezier lines, add the final endpoint (t=1 of last segment).
         if !closed && !verts.is_empty() {
@@ -4806,6 +4806,8 @@ fn adaptive_circle_segments(rx: f64, ry: f64, scale_x: f64, scale_y: f64) -> usi
 /// adaptive step count with uniform parametric stepping (Horner evaluation).
 ///
 /// `s` is `ScaleX + ScaleY` for scale-aware quality.
+/// `thickness` is the stroke width (0.0 for filled beziers). C++ adds
+/// `thickness * 0.04` to the curvature term so thick strokes get more segments.
 fn tessellate_cubic_cpp(
     out: &mut Vec<(f64, f64)>,
     p0: (f64, f64),
@@ -4813,6 +4815,7 @@ fn tessellate_cubic_cpp(
     p2: (f64, f64),
     p3: (f64, f64),
     s: f64,
+    thickness: f64,
 ) {
     let x1 = p0.0;
     let y1 = p0.1;
@@ -4849,7 +4852,7 @@ fn tessellate_cubic_cpp(
         let bx2 = x2 - 2.0 * x3 + x4;
         let by2 = y2 - 2.0 * y3 + y4;
         let b = ((bx1 * bx1 + by1 * by1).sqrt() + (bx2 * bx2 + by2 * by2).sqrt()) * 3.0;
-        let f = CIRCLE_QUALITY * (b * 0.0228 * s).sqrt();
+        let f = CIRCLE_QUALITY * ((b * 0.0228 + thickness * 0.04) * s).sqrt();
         if f >= 500.0 {
             500
         } else if f > 1.0 {
