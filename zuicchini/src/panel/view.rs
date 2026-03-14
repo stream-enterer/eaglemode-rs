@@ -939,11 +939,12 @@ impl View {
             self.svp = Some(root);
         }
 
-        // Set in_viewed_path from root to SVP
-        if let Some(svp_id) = self.svp {
-            let svp_ancestors = tree.ancestors(svp_id);
-            for &id in &svp_ancestors {
-                if let Some(p) = tree.get_mut(id) {
+        // C++ sets InViewedPath=1 for ALL viewed panels, not just SVP
+        // ancestors (emPanel.cpp:1497). This affects get_memory_limit and
+        // get_update_priority which return 0 when in_viewed_path is false.
+        for id in tree.all_ids() {
+            if let Some(p) = tree.get_mut(id) {
+                if p.viewed {
                     p.in_viewed_path = true;
                 }
             }
@@ -1930,7 +1931,8 @@ impl View {
                 self.viewport_height,
                 self.window_focused,
             );
-            const DEFAULT_MEMORY_LIMIT: u64 = 1_073_741_824;
+            // C++ default: MaxMegabytesPerView = 2048 → 2048 * 1_000_000.
+            const DEFAULT_MEMORY_LIMIT: u64 = 2_048_000_000;
             state.memory_limit = tree.get_memory_limit(
                 id,
                 self.viewport_width,
@@ -2218,9 +2220,9 @@ mod tests {
         assert!(view.is_cursor_invalid());
         view.clear_cursor_invalid();
 
-        // child1 is viewed but NOT in_viewed_path => no-op
+        // child1 is viewed AND in_viewed_path (all viewed panels are)
         view.invalidate_cursor(&tree, child1);
-        assert!(!view.is_cursor_invalid());
+        assert!(view.is_cursor_invalid());
     }
 
     #[test]

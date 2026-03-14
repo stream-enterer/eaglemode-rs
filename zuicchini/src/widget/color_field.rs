@@ -407,59 +407,61 @@ impl ColorField {
 
         let look = self.look.clone();
 
-        // Helper: create a ScalarField child of the layout panel.
-        let create_sf = |tree: &mut crate::panel::PanelTree,
-                         parent: crate::panel::PanelId,
-                         name: &str,
-                         caption: &str,
-                         min: f64,
-                         max: f64,
-                         value: i64| {
+        // C++ emColorField sets scale mark intervals and percent-value
+        // formatters on each ScalarField child (emColorField.cpp:234-309).
+        let pct_intervals: &[u64] = &[2500, 500, 100];
+        let hue_intervals: &[u64] = &[6000, 1500, 500, 100];
+
+        // Helper: create a percent-valued ScalarField child.
+        let create_pct_sf = |tree: &mut crate::panel::PanelTree,
+                             parent: crate::panel::PanelId,
+                             name: &str,
+                             caption: &str,
+                             value: i64| {
             let child = tree.create_child(parent, name);
-            tree.set_behavior(
-                child,
-                Box::new(ScalarFieldPanel::new(
-                    caption,
-                    min,
-                    max,
-                    value as f64,
-                    look.clone(),
-                )),
-            );
+            let mut panel =
+                ScalarFieldPanel::new(caption, 0.0, 10000.0, value as f64, look.clone());
+            panel.scalar_field.set_scale_mark_intervals(pct_intervals);
+            panel
+                .scalar_field
+                .set_text_of_value_fn(Box::new(|val, _iv| format!("{}%", val as f64 / 100.0)));
+            tree.set_behavior(child, Box::new(panel));
             child
         };
 
-        create_sf(ctx.tree, layout_id, "r", "Red", 0.0, 10000.0, exp.sf_red);
-        create_sf(
-            ctx.tree,
-            layout_id,
-            "g",
-            "Green",
-            0.0,
-            10000.0,
-            exp.sf_green,
-        );
-        create_sf(ctx.tree, layout_id, "b", "Blue", 0.0, 10000.0, exp.sf_blue);
-        create_sf(
-            ctx.tree,
-            layout_id,
-            "a",
-            "Alpha",
-            0.0,
-            10000.0,
-            exp.sf_alpha,
-        );
-        create_sf(ctx.tree, layout_id, "h", "Hue", 0.0, 36000.0, exp.sf_hue);
-        create_sf(
-            ctx.tree,
-            layout_id,
-            "s",
-            "Saturation",
-            0.0,
-            10000.0,
-            exp.sf_sat,
-        );
-        create_sf(ctx.tree, layout_id, "v", "Value", 0.0, 10000.0, exp.sf_val);
+        create_pct_sf(ctx.tree, layout_id, "r", "Red", exp.sf_red);
+        create_pct_sf(ctx.tree, layout_id, "g", "Green", exp.sf_green);
+        create_pct_sf(ctx.tree, layout_id, "b", "Blue", exp.sf_blue);
+        create_pct_sf(ctx.tree, layout_id, "a", "Alpha", exp.sf_alpha);
+
+        // Hue field: different intervals, text formatter, and tallness.
+        {
+            let child = ctx.tree.create_child(layout_id, "h");
+            let mut panel =
+                ScalarFieldPanel::new("Hue", 0.0, 36000.0, exp.sf_hue as f64, look.clone());
+            panel.scalar_field.set_scale_mark_intervals(hue_intervals);
+            panel.scalar_field.set_text_box_tallness(0.35);
+            panel.scalar_field.set_text_of_value_fn(Box::new(|val, iv| {
+                if iv >= 6000 {
+                    // C++ TextOfHueValue: major marks show color names
+                    match (val / 6000) % 6 {
+                        0 => "Red".to_string(),
+                        1 => "Yellow".to_string(),
+                        2 => "Green".to_string(),
+                        3 => "Cyan".to_string(),
+                        4 => "Blue".to_string(),
+                        5 => "Magenta".to_string(),
+                        _ => format!("{}\u{00B0}", val as f64 / 100.0),
+                    }
+                } else {
+                    format!("{}\u{00B0}", val as f64 / 100.0)
+                }
+            }));
+            ctx.tree.set_behavior(child, Box::new(panel));
+        }
+
+        create_pct_sf(ctx.tree, layout_id, "s", "Saturation", exp.sf_sat);
+        create_pct_sf(ctx.tree, layout_id, "v", "Value", exp.sf_val);
 
         // TextField child for color name/hex.
         let tf_child = ctx.tree.create_child(layout_id, "n");

@@ -832,7 +832,8 @@ impl PanelBehavior for TestPanel {
             0.15,
         );
 
-        let pri_str = format!("Pri={:.2} MemLim={}", state.priority, state.memory_limit);
+        // C++ emTestPanel.cpp:152 uses %f (6 decimal places) for priority.
+        let pri_str = format!("Pri={:.6} MemLim={}", state.priority, state.memory_limit);
         painter.paint_text_boxed(
             0.05,
             0.45,

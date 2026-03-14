@@ -1368,38 +1368,30 @@ impl PanelTree {
         };
 
         if panel.viewed {
-            let x1 = panel.clip_x;
-            let y1 = panel.clip_y;
-            let x2 = panel.clip_x + panel.clip_w;
-            let y2 = panel.clip_y + panel.clip_h;
+            let cx1 = panel.clip_x;
+            let cy1 = panel.clip_y;
+            let cx2 = panel.clip_x + panel.clip_w;
+            let cy2 = panel.clip_y + panel.clip_h;
 
-            if x1 >= x2 || y1 >= y2 {
+            if cx1 >= cx2 || cy1 >= cy2 {
                 return 0.0;
             }
 
+            // C++ emPanel.cpp:898-906: normalize clip to viewport-relative
+            // [-0.5, +0.5] range, then cubic formula.
             let vw = viewport_width.max(1.0);
             let vh = viewport_height.max(1.0);
-            let cx = vw * 0.5;
-            let cy = vh * 0.5;
+            // vx, vy are the viewport origin (0, 0 for root view)
+            let x1 = cx1 / vw - 0.5;
+            let x2 = cx2 / vw - 0.5;
+            let y1 = cy1 / vh - 0.5;
+            let y2 = cy2 / vh - 0.5;
 
-            // Cubic priority: how centrally located the clip rect is
             let k: f64 = 0.5;
-            let fx = {
-                let left = ((cx - x1) / cx).clamp(0.0, 1.0);
-                let right = ((x2 - cx) / (vw - cx)).clamp(0.0, 1.0);
-                let fl = 1.0 - (1.0 - left).powi(3);
-                let fr = 1.0 - (1.0 - right).powi(3);
-                k + (1.0 - k) * fl * fr
-            };
-            let fy = {
-                let top = ((cy - y1) / cy).clamp(0.0, 1.0);
-                let bottom = ((y2 - cy) / (vh - cy)).clamp(0.0, 1.0);
-                let ft = 1.0 - (1.0 - top).powi(3);
-                let fb = 1.0 - (1.0 - bottom).powi(3);
-                k + (1.0 - k) * ft * fb
-            };
+            let pri = ((x1 * x1 * x1 - x2 * x2 * x2) + (x2 - x1) * (k + 0.25)) / k
+                * (((y1 * y1 * y1 - y2 * y2 * y2) + (y2 - y1) * (k + 0.25)) / k);
 
-            let priority = fx * fy * 0.49;
+            let priority = pri * 0.49;
             if view_focused {
                 priority + 0.5
             } else {
@@ -1457,17 +1449,18 @@ impl PanelTree {
         let view_extension = 0.5_f64;
         let view_extension_valence = 0.5_f64;
 
-        // Extended view rectangle
-        let evx1 = -view_extension * vw;
-        let evy1 = -view_extension * vh;
-        let evx2 = (1.0 + view_extension) * vw;
-        let evy2 = (1.0 + view_extension) * vh;
+        // Extended view rectangle: C++ emPanel.cpp:993-996
+        // vx, vy = viewport origin (0 for root)
+        let evx1 = -vw * (view_extension * 0.5);
+        let evy1 = -vh * (view_extension * 0.5);
+        let evx2 = evx1 + vw * (1.0 + view_extension);
+        let evy2 = evy1 + vh * (1.0 + view_extension);
 
-        // Panel clip rect
-        let ecx1 = panel.clip_x.max(evx1);
-        let ecy1 = panel.clip_y.max(evy1);
-        let ecx2 = (panel.clip_x + panel.clip_w).min(evx2);
-        let ecy2 = (panel.clip_y + panel.clip_h).min(evy2);
+        // C++ uses ViewedX/ViewedWidth (full panel rect), not clip rect.
+        let ecx1 = panel.viewed_x.max(evx1);
+        let ecy1 = panel.viewed_y.max(evy1);
+        let ecx2 = (panel.viewed_x + panel.viewed_width).min(evx2);
+        let ecy2 = (panel.viewed_y + panel.viewed_height).min(evy2);
 
         let ev_area = (evx2 - evx1) * (evy2 - evy1);
         let ec_area = ((ecx2 - ecx1) * (ecy2 - ecy1)).max(0.0);
