@@ -149,12 +149,14 @@ impl Color {
 
     /// Linearly interpolate between `self` and `other` by factor `t` (0.0–1.0).
     ///
-    /// Uses C++ emPainter gradient hash formula: `((a*(255-g) + b*g) * 257 + 0x8073) >> 16`,
-    /// which is round-to-nearest `/255` with g in 0..255.
+    /// Matches C++ `emColor::GetBlended(color, weight)` with 16-bit precision:
+    /// `w2 = (int)(weight * 655.36 + 0.5)`, `result = (a*w1 + b*w2 + 32768) >> 16`.
+    /// C++ weight is 0–100; our `t` is 0.0–1.0, so `t * 100.0 * 655.36 = t * 65536.0`.
     pub fn lerp(self, other: Color, t: f64) -> Color {
         let t = t.clamp(0.0, 1.0);
-        let g = (t * 255.0 + 0.5) as i32;
-        let mix = |a: i32, b: i32| -> u8 { (((a * (255 - g) + b * g) * 257 + 0x8073) >> 16) as u8 };
+        let w2 = (t * 65536.0 + 0.5) as i32;
+        let w1 = 65536 - w2;
+        let mix = |a: i32, b: i32| -> u8 { ((a * w1 + b * w2 + 32768) >> 16) as u8 };
         Color::rgba(
             mix(self.r() as i32, other.r() as i32),
             mix(self.g() as i32, other.g() as i32),

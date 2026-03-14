@@ -231,15 +231,13 @@ impl ScalarField {
         let r = radius;
         let v_range = self.max - self.min;
 
-        let bg_col = if self.editable {
-            self.look.input_bg_color
-        } else {
-            self.look.output_bg_color
-        };
-        let fg_col = if self.editable {
-            self.look.input_fg_color
-        } else {
-            self.look.output_fg_color
+        // C++ DoScalarField selects colors by InnerBorderType, not editable flag.
+        // IBT_INPUT_FIELD → input colors, IBT_OUTPUT_FIELD → output colors,
+        // else (IBT_CUSTOM_RECT etc.) → look bg/fg colors.
+        let (bg_col, fg_col) = match self.border.inner {
+            InnerBorderType::InputField => (self.look.input_bg_color, self.look.input_fg_color),
+            InnerBorderType::OutputField => (self.look.output_bg_color, self.look.output_fg_color),
+            _ => (self.look.bg_color, self.look.fg_color),
         };
 
         // C++ DoScalarField layout matching emScalarField.cpp
@@ -376,6 +374,7 @@ impl ScalarField {
 
                     // Text label
                     let label = (self.text_of_value_fn)(v as i64, ival);
+                    // C++ PaintTextBoxed defaults: minWidthScale=0.5, formatted=true.
                     painter.paint_text_boxed(
                         mark_tx - tw * 0.5,
                         mark_ty,
@@ -388,8 +387,8 @@ impl ScalarField {
                         TextAlignment::Center,
                         VAlign::Center,
                         TextAlignment::Center,
-                        0.0,
-                        false,
+                        0.5,
+                        true,
                         0.0,
                     );
 

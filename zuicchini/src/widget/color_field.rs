@@ -314,10 +314,10 @@ impl ColorField {
                 exp.hue_out = (h * 100.0 + 0.5) as i64;
                 exp.sf_hue = exp.hue_out;
             }
-            exp.sat_out = (s * 100.0 + 0.5) as i64;
+            exp.sat_out = (s * 10000.0 + 0.5) as i64;
             exp.sf_sat = exp.sat_out;
         }
-        exp.val_out = (v * 100.0 + 0.5) as i64;
+        exp.val_out = (v * 10000.0 + 0.5) as i64;
         exp.sf_val = exp.val_out;
     }
 
@@ -457,7 +457,26 @@ impl ColorField {
         create_pct_sf(ctx.tree, layout_id, "r", "Red", exp.sf_red);
         create_pct_sf(ctx.tree, layout_id, "g", "Green", exp.sf_green);
         create_pct_sf(ctx.tree, layout_id, "b", "Blue", exp.sf_blue);
-        let alpha_id = create_pct_sf(ctx.tree, layout_id, "a", "Alpha", exp.sf_alpha);
+        // Alpha field: C++ has description "The lower the more transparent."
+        let alpha_id = {
+            let child = ctx.tree.create_child(layout_id, "a");
+            let mut panel = ScalarFieldPanel::new(
+                "Alpha",
+                0.0,
+                10000.0,
+                exp.sf_alpha as f64,
+                child_look.clone(),
+                editable,
+            );
+            panel.scalar_field.set_scale_mark_intervals(pct_intervals);
+            panel
+                .scalar_field
+                .set_text_of_value_fn(Box::new(|val, _iv| format!("{}%", val as f64 / 100.0)));
+            panel.scalar_field.border_mut().description =
+                "The lower the more transparent.".to_string();
+            ctx.tree.set_behavior(child, Box::new(panel));
+            child
+        };
 
         // C++ UpdateExpAppearance: SfAlpha->SetEnableSwitch(AlphaEnabled)
         if !self.alpha_enabled {
@@ -497,19 +516,18 @@ impl ColorField {
         }
 
         create_pct_sf(ctx.tree, layout_id, "s", "Saturation", exp.sf_sat);
-        create_pct_sf(ctx.tree, layout_id, "v", "Value", exp.sf_val);
+        create_pct_sf(ctx.tree, layout_id, "v", "Value (brightness)", exp.sf_val);
 
         // TextField child for color name/hex.
+        // C++ description: "Here you can enter a color name like 'powder blue',\n
+        //                    or a hexadecimal RGB value like '#c88' or '#73c81D'."
         let tf_child = ctx.tree.create_child(layout_id, "n");
-        ctx.tree.set_behavior(
-            tf_child,
-            Box::new(TextFieldPanel::new(
-                "Name",
-                &exp.tf_name,
-                child_look,
-                editable,
-            )),
-        );
+        let mut tf_panel = TextFieldPanel::new("Name", &exp.tf_name, child_look, editable);
+        tf_panel.text_field.border_mut().description =
+            "Here you can enter a color name like 'powder blue',\n\
+             or a hexadecimal RGB value like '#c88' or '#73c81D'."
+                .to_string();
+        ctx.tree.set_behavior(tf_child, Box::new(tf_panel));
     }
 
     /// Layout children matching C++ `emColorField::LayoutChildren()`.
