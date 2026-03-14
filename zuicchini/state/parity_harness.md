@@ -110,7 +110,7 @@ the rounding direction.
 
 ---
 
-## Baseline (R18, 2026-03-14, post per-call canvas_color refactor)
+## Baseline (R20, 2026-03-14, post TestPanel canvas + winding fix)
 
 | Test | Pixels | Total | Pct | max_diff |
 |------|--------|-------|-----|----------|
@@ -118,10 +118,25 @@ the rounding direction.
 | colorfield_expanded | 12,089 | 640,000 | 1.89% | 158 |
 | widget_scalarfield | 98 | 480,000 | 0.020% | 56 |
 | listbox_expanded | 314 | 640,000 | 0.049% | 33 |
-| testpanel_expanded | 60,137 | 1,000,000 | 6.01% | 255 |
-| testpanel_root | 81,905 | 1,000,000 | 8.19% | 255 |
+| testpanel_expanded | 59,466 | 1,000,000 | 5.95% | 255 |
+| testpanel_root | 81,418 | 1,000,000 | 8.14% | 255 |
 
-Rolling divergence log: `state/post_r18_per_call_canvas.jsonl`
+Rolling divergence log: `state/post_r20_testpanel_canvas.jsonl`
+
+### R20 Three-Number Dashboard (TestPanel canvas + winding fix)
+
+| # | Metric | Value |
+|---|--------|-------|
+| 1 | Fix description | Fixed TestPanel test: (a) changed holed polygon from even-odd to non-zero winding matching C++ PaintPolygon, (b) passed bg as canvas_color to ~25 paint calls where C++ passes BgColor (was TRANSPARENT), (c) set painter canvas_color state before paint_round_rect/paint_round_rect_outlined calls |
+| 2 | Total divergent pixels | 159,346 → 158,188 (-1,158 net) |
+| 3 | Net regression | 0 (no test regressed) |
+
+**Acceptance:** Fix accepted. Test-only code change (no library impact). Two FORMULA
+differences in the TestPanel golden test: (1) C++ uses non-zero winding for both holed
+polygons, Rust incorrectly used even-odd for the first; (2) C++ passes BgColor as
+canvasColor for AA edge blending on polygons, ellipses, rect outlines, round rects,
+beziers, and polylines. Impact is proportional to shape edge perimeter (AA quality),
+not interior area.
 
 ### R18 Three-Number Dashboard (per-call canvas_color refactor)
 
@@ -637,6 +652,7 @@ the pixel landscape is re-measured.
 | S5-canvas-alpha | 5 | RESOLVED R17: canvas_blend no longer modifies dest alpha |
 | S5-outline-canvas | 5 | RESOLVED R17: ColorField outline uses TRANSPARENT canvas |
 | S5-per-call-canvas | 5 | RESOLVED R18: per-call canvas_color on 26 paint functions, -57,550 px |
+| TP-canvas-winding | test | RESOLVED R20: TestPanel winding rule + canvas_color fix, -1,158 px |
 
 ### Low Priority (independent, defer until active items resolved)
 
@@ -644,14 +660,18 @@ the pixel landscape is re-measured.
 |------|-------|--------|
 | S34-border-corner | 3/4 | 7 |
 
-### Next Steps (post R19 investigation):
+### Next Steps (post R20):
 
-**Diagnosis complete: remaining divergence is EVAL_ORDER (coordinate-space FP).**
+**TestPanel canvas + winding fix applied (R20, -1,158 px).**
 
-Both S4-interp and S4-subpixel are now diagnosed as EVAL_ORDER issues stemming
-from the architectural difference between C++ panel-space coordinates (multiplied
-by ScaleX/ScaleY at paint time) and Rust pixel-space coordinates (pre-transformed).
-The area-sampling and polygon rasterization formulas are structurally identical.
+Investigation confirmed testpanel divergence is primarily EVAL_ORDER (coordinate-space
+FP), same root cause as S4-interp. The R20 fix addressed the two FORMULA differences
+found in the TestPanel test code itself: winding rule and canvas_color propagation.
+
+**Widget canvas_color audit complete:** ScalarField and TextField have missing
+canvas_color propagation (hardcode TRANSPARENT instead of receiving from border).
+Estimated impact: ~200-500 px. Requires signature changes to `ScalarField::paint`
+and `TextField::paint` to accept `canvas_color: Color`, plus caller updates.
 
 Remaining options for further parity improvement:
 
@@ -659,16 +679,16 @@ Remaining options for further parity improvement:
    to use C++-style normalized panel coordinates internally, applying ScaleX/Y
    at the same point in the computation as C++. This would eliminate the FP
    differences that cause all remaining S4 divergence. Estimated impact:
-   ~15,000 pixels (widget_colorfield 2,867 + colorfield_expanded 12,089).
+   ~15,000 pixels (widget_colorfield 2,867 + colorfield_expanded 12,089)
+   plus significant testpanel reduction.
 
-2. **Non-default canvas audit** (low effort, low impact): C++ passes explicit
-   canvasColor in ~7 call sites. Currently TRANSPARENT in Rust. Affects AA
-   quality at borders, not correctness. ~200-500 pixels potential.
+2. **ScalarField/TextField canvas propagation** (low effort, low impact): Add
+   `canvas_color: Color` parameter to ScalarField::paint and TextField::paint,
+   pass through to paint calls instead of TRANSPARENT. ~200-500 px potential.
 
-3. **testpanel investigation** (medium effort, high impact): testpanel_expanded
-   (60,137 px) and testpanel_root (81,905 px) are 90% of total divergence.
-   These likely share the same EVAL_ORDER root cause but may also have
-   additional formula differences. Not yet investigated post-R18.
+3. **Testpanel remaining** (141k px): Now confirmed as EVAL_ORDER — same root
+   cause as S4-interp. Requires coordinate-space alignment (option 1) for
+   substantial improvement.
 
 ### Historical Next Steps (post R16):
 
