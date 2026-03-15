@@ -362,17 +362,6 @@ fn widget_scalarfield() {
 
 // ─── Additional behavior wrappers ──────────────────────────────
 
-/// Wraps a ColorField widget as a PanelBehavior.
-struct ColorFieldBehavior {
-    color_field: ColorField,
-}
-
-impl PanelBehavior for ColorFieldBehavior {
-    fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        self.color_field.paint(painter, w, h);
-    }
-}
-
 /// Wraps a RadioButton widget as a PanelBehavior.
 struct RadioButtonBehavior {
     radio_button: RadioButton,
