@@ -1,6 +1,11 @@
 mod clipboard;
 mod color_field;
+mod config_model;
+mod cursor;
 mod default_item_panel;
 mod file_model;
+mod job;
 mod look;
+mod pri_sched_agent;
 mod radio_button;
+mod state_saver;
