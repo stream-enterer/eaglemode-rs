@@ -809,6 +809,7 @@ impl PanelBehavior for TestPanel {
         // Background color field — linked to bg_color_shared
         let bg_for_cf = bg_shared.clone();
         let mut cf = ColorField::new(Look::new());
+        cf.set_caption("Background Color");
         cf.set_editable(true);
         cf.set_alpha_enabled(true);
         cf.set_color(bg_shared.get());

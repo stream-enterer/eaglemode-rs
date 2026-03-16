@@ -1863,14 +1863,10 @@ impl View {
 
     // --- Control panel (C++ CreateControlPanel / GetControlPanelSignal) ---
 
-    /// Create a control panel. In C++ this forwards to the active panel's
-    /// `CreateControlPanel`. This is a complex feature involving panel
-    /// creation in a separate control view.
-    ///
-    /// TODO: Implement when control views are needed. Currently returns None.
+    /// TODO: Port emView::CreateControlPanel (emView.cpp) — creates overlay
+    /// panel when a panel is visited. The TestPanel overrides this to show
+    /// a BgColor field (emTestPanel.cpp:511-517). Currently returns None.
     pub fn create_control_panel(&self, _tree: &PanelTree) -> Option<PanelId> {
-        // C++ forwards to ActivePanel->CreateControlPanel(parent, name).
-        // Requires the control view / panel creation infrastructure.
         None
     }
 
