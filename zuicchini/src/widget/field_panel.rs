@@ -115,6 +115,15 @@ impl PanelBehavior for ListBoxPanel {
         self.list_box.paint(painter, w, h);
     }
 
+    fn input(
+        &mut self,
+        event: &InputEvent,
+        _state: &PanelState,
+        _input_state: &InputState,
+    ) -> bool {
+        self.list_box.input(event)
+    }
+
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
         if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
             self.list_box.on_focus_changed(state.in_active_path);
