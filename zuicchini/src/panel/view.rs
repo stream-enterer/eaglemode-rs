@@ -1,5 +1,6 @@
 use bitflags::bitflags;
 
+use super::ctx::PanelCtx;
 use super::tree::{PanelId, PanelTree};
 use crate::foundation::{ClipRects, Color, Rect};
 use crate::input::Cursor;
@@ -1082,11 +1083,23 @@ impl View {
             let should_expand = vc >= threshold_value;
 
             if should_expand && !currently_expanded {
-                // Expand: set flag and trigger layout_children via notice
+                // Expand: set flag and create children directly via layout_children.
+                // This matches C++ where AutoExpand() creates children, then a
+                // subsequent HandleNotice pass calls LayoutChildren() to position them.
                 if let Some(panel) = tree.get_mut(id) {
                     panel.ae_expanded = true;
                     panel.ae_decision_invalid = false;
                     panel.ae_invalid = false;
+                }
+                if let Some(mut behavior) = tree.take_behavior(id) {
+                    let mut ctx = PanelCtx::new(tree, id);
+                    behavior.layout_children(&mut ctx);
+                    if tree.contains(id) {
+                        tree.put_behavior(id, behavior);
+                    }
+                }
+                // Queue LAYOUT_CHANGED so deliver_notices repositions children
+                if let Some(panel) = tree.get_mut(id) {
                     panel
                         .pending_notices
                         .insert(super::behavior::NoticeFlags::LAYOUT_CHANGED);
