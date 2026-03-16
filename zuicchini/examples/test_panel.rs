@@ -1346,7 +1346,11 @@ fn main() {
         );
         let wid = win.winit_window.id();
         app.windows.insert(wid, win);
-        app.windows.get_mut(&wid).unwrap().view_mut().flags |= ViewFlags::ROOT_SAME_TALLNESS;
+        {
+            let win = app.windows.get_mut(&wid).unwrap();
+            let flags = win.view().flags | ViewFlags::ROOT_SAME_TALLNESS;
+            win.view_mut().set_view_flags(flags, &mut app.tree);
+        }
     }));
     app.run();
 }

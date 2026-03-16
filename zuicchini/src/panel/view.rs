@@ -355,29 +355,22 @@ impl View {
             return;
         }
 
-        // Save zoom state before change
-        let was_zoomed_out = self.visit_stack.last().is_none_or(|s| {
-            s.rel_x.abs() < 0.001 && s.rel_y.abs() < 0.001 && (s.rel_a - 1.0).abs() < 0.001
-        });
+        let was_zoomed_out = self.is_zoomed_out(tree);
 
         self.viewport_width = width;
         self.viewport_height = height;
         self.pixel_tallness = height / width;
 
-        // Preserve zoom state: if was zoomed out, re-apply zoom-out.
-        // Otherwise, keep current visit coords (panel stays at same relative position).
-        if was_zoomed_out {
-            if let Some(state) = self.visit_stack.last_mut() {
-                state.rel_x = 0.0;
-                state.rel_y = 0.0;
-                state.rel_a = 1.0;
-            }
-        }
-
         // C++ SetGeometry parity: inline-update root panel layout when
         // VF_ROOT_SAME_TALLNESS is set (mirrors RootPanel->Layout(0,0,1,GetHomeTallness())).
         if self.flags.contains(ViewFlags::ROOT_SAME_TALLNESS) {
             tree.set_layout_rect(self.root, 0.0, 0.0, 1.0, self.pixel_tallness);
+        }
+
+        // Preserve zoom state: if was zoomed out, re-apply zoom-out with
+        // the new viewport dimensions (computes the correct fit ratio).
+        if was_zoomed_out {
+            self.raw_zoom_out(tree);
         }
 
         self.viewport_changed = true;
@@ -513,20 +506,38 @@ impl View {
     }
 
     pub fn raw_zoom_out(&mut self, tree: &mut PanelTree) {
+        let root_h = tree.get_height(self.root);
+        let rel_a = {
+            let a1 = self.viewport_width * root_h / self.pixel_tallness / self.viewport_height;
+            let a2 = self.viewport_height / root_h * self.pixel_tallness / self.viewport_width;
+            a1.max(a2)
+        };
         if let Some(state) = self.visit_stack.last_mut() {
             state.rel_x = 0.0;
             state.rel_y = 0.0;
-            state.rel_a = 1.0;
+            state.rel_a = rel_a;
             self.viewport_changed = true;
         }
         self.update_viewing(tree);
     }
 
-    pub fn is_zoomed_out(&self, _tree: &PanelTree) -> bool {
+    /// Compute the rel_a that makes the viewport fully contain the root panel.
+    fn zoom_out_rel_a(&self, tree: &PanelTree) -> f64 {
+        let root_h = tree.get_height(self.root);
+        let a1 = self.viewport_width * root_h / self.pixel_tallness / self.viewport_height;
+        let a2 = self.viewport_height / root_h * self.pixel_tallness / self.viewport_width;
+        a1.max(a2)
+    }
+
+    pub fn is_zoomed_out(&self, tree: &PanelTree) -> bool {
+        if self.flags.contains(ViewFlags::POPUP_ZOOM) {
+            return !self.popped_up;
+        }
+        let target_a = self.zoom_out_rel_a(tree);
         if let Some(state) = self.visit_stack.last() {
-            (state.rel_x.abs() < 0.001)
-                && (state.rel_y.abs() < 0.001)
-                && ((state.rel_a - 1.0).abs() < 0.001)
+            state.rel_x.abs() < 0.001
+                && state.rel_y.abs() < 0.001
+                && (state.rel_a - target_a).abs() < 0.001
         } else {
             true
         }
@@ -679,6 +690,13 @@ impl View {
         }
 
         if new_flags.contains(ViewFlags::NO_ZOOM) && !old.contains(ViewFlags::NO_ZOOM) {
+            self.raw_zoom_out(tree);
+        }
+
+        if new_flags.contains(ViewFlags::ROOT_SAME_TALLNESS)
+            && !old.contains(ViewFlags::ROOT_SAME_TALLNESS)
+        {
+            tree.set_layout_rect(self.root, 0.0, 0.0, 1.0, self.pixel_tallness);
             self.raw_zoom_out(tree);
         }
     }
@@ -2477,5 +2495,61 @@ mod tests {
         );
         assert!(correct_hy.is_finite());
         assert!(correct_hh > 0.0);
+    }
+
+    #[test]
+    fn test_raw_zoom_out_computes_fit_ratio() {
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+
+        let mut view = View::new(root, 800.0, 600.0);
+        view.raw_zoom_out(&mut tree);
+
+        let state = view.current_visit();
+        // C++ formula: max(W*H_root/pt/H, H/H_root*pt/W)
+        let pt = 600.0 / 800.0;
+        let expected = (800.0 * 0.75 / pt / 600.0_f64).max(600.0 / 0.75 * pt / 800.0);
+        assert!(
+            (state.rel_a - expected).abs() < 0.001,
+            "rel_a should be {expected}, got {}",
+            state.rel_a
+        );
+        assert!(state.rel_x.abs() < 0.001);
+        assert!(state.rel_y.abs() < 0.001);
+    }
+
+    #[test]
+    fn test_is_zoomed_out_after_raw_zoom_out() {
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+
+        let mut view = View::new(root, 800.0, 600.0);
+        view.raw_zoom_out(&mut tree);
+        assert!(view.is_zoomed_out(&tree));
+
+        // After zooming in, should not be zoomed out
+        view.zoom(2.0, 400.0, 300.0);
+        assert!(!view.is_zoomed_out(&tree));
+    }
+
+    #[test]
+    fn test_set_view_flags_root_same_tallness_updates_layout() {
+        let mut tree = PanelTree::new();
+        let root = tree.create_root("root");
+        tree.set_layout_rect(root, 0.0, 0.0, 1.0, 1.0); // starts square
+
+        let mut view = View::new(root, 800.0, 600.0);
+        // pixel_tallness = 600/800 = 0.75
+        let flags = view.flags | ViewFlags::ROOT_SAME_TALLNESS;
+        view.set_view_flags(flags, &mut tree);
+
+        let rect = tree.layout_rect(root).unwrap();
+        assert!(
+            (rect.h - 0.75).abs() < 0.001,
+            "Root layout_h should match pixel_tallness (0.75), got {}",
+            rect.h
+        );
     }
 }
