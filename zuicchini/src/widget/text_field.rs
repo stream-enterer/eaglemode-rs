@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::foundation::{Color, Rect};
+use crate::foundation::Rect;
 use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
 use crate::render::Painter;
 
@@ -1070,12 +1070,11 @@ impl TextField {
         let text_x = tx - self.scroll_x;
         let text_y = effective_ty;
 
+        // Select colors based on editable state (C++ emTextField.cpp:956-965)
         let fg = if self.editable {
             self.look.input_fg_color
         } else {
-            self.look
-                .input_fg_color
-                .lerp(self.look.input_bg_color, 0.80)
+            self.look.output_fg_color
         };
 
         painter.paint_text(
@@ -1093,26 +1092,60 @@ impl TextField {
         if !self.focused {
             return;
         }
-        if self.overwrite_mode && self.cursor < self.text.len() {
-            let ch_w = effective_cw;
-            painter.paint_rect(
-                cursor_x,
-                effective_ty + effective_ch * 0.02,
-                ch_w,
-                effective_ch * 0.96,
-                fg.with_alpha(80),
-                Color::TRANSPARENT,
-            );
+
+        // Compute cursor color with transparency (C++ emTextField.cpp:1056-1059)
+        let cur_color = if !self.editable {
+            // GetTransparented(75) = 75% transparent = 25% opaque
+            fg.with_alpha((fg.a() as f64 * 0.25) as u8)
+        } else if !self.cursor_blink_on {
+            // GetTransparented(88) = 88% transparent = 12% opaque
+            fg.with_alpha((fg.a() as f64 * 0.12) as u8)
         } else {
-            let cursor_w = effective_ch * 0.03;
-            painter.paint_rect(
-                cursor_x,
-                effective_ty + effective_ch * 0.02,
-                cursor_w.max(1.0),
-                effective_ch * 0.96,
-                fg,
-                Color::TRANSPARENT,
-            );
+            fg
+        };
+
+        // Cursor shape (C++ emTextField.cpp:1063-1089)
+        if self.overwrite_mode && self.cursor < self.text.len() {
+            // Overwrite mode: 10-vertex frame polygon
+            let cx = cursor_x;
+            let cy = effective_ty;
+            let cw = effective_cw;
+            let ch = effective_ch;
+            let d = ch * 0.07;
+            let vertices = [
+                // Outer clockwise
+                (cx - d, cy - d),
+                (cx + cw + d, cy - d),
+                (cx + cw + d, cy + ch + d),
+                (cx - d, cy + ch + d),
+                // Back to start, then inner clockwise
+                (cx - d, cy - d),
+                (cx, cy),
+                (cx, cy + ch),
+                (cx + cw, cy + ch),
+                (cx + cw, cy),
+                (cx, cy),
+            ];
+            painter.paint_polygon(&vertices, cur_color, canvas_color);
+        } else {
+            // Insert mode: 8-vertex I-beam with serifs
+            let cx = cursor_x;
+            let cy = effective_ty;
+            let ch = effective_ch;
+            let d = ch * 0.07;
+            let d1 = d * 0.5;
+            let d2 = d * 2.2;
+            let vertices = [
+                (cx - d2, cy - d),
+                (cx + d2, cy - d),
+                (cx + d1, cy),
+                (cx + d1, cy + ch),
+                (cx + d2, cy + ch + d),
+                (cx - d2, cy + ch + d),
+                (cx - d1, cy + ch),
+                (cx - d1, cy),
+            ];
+            painter.paint_polygon(&vertices, cur_color, canvas_color);
         }
     }
 
@@ -1142,43 +1175,66 @@ impl TextField {
             self.scroll_y = 0.0;
         }
 
+        // Select colors based on editable state (C++ emTextField.cpp:956-965)
         let fg = if self.editable {
             self.look.input_fg_color
         } else {
-            self.look
-                .input_fg_color
-                .lerp(self.look.input_bg_color, 0.80)
+            self.look.output_fg_color
         };
 
         let sel_start = self.selection_start();
         let sel_end = self.selection_end();
         let has_selection = !self.is_selection_empty();
 
-        let mut byte_offset = 0usize;
-        for (row_idx, row_text) in rows.iter().enumerate() {
-            let row_y = cy + row_idx as f64 * LINE_HEIGHT - self.scroll_y;
-            if row_y + LINE_HEIGHT < cy || row_y > cy + ch {
-                byte_offset += row_text.len() + 1; // +1 for \n
-                continue;
-            }
+        // Selection highlight — use polygon for multi-row selection (C++ emTextField.cpp:976-991)
+        if has_selection {
+            let (col0, row0) = self.index_to_col_row(sel_start);
+            let (col1, row1) = self.index_to_col_row(sel_end);
+            let tx = cx + TEXT_PADDING;
+            let ty = cy - self.scroll_y;
 
-            let row_byte_start = byte_offset;
-            let row_byte_end = byte_offset + row_text.len();
+            // Compute column x-positions using text measurement
+            let sel_start_row = self.row_start(sel_start);
+            let sel_end_row = self.row_start(sel_end);
+            let start_text = &self.text[sel_start_row..sel_start];
+            let end_text = &self.text[sel_end_row..sel_end];
+            let x0 = Painter::measure_text_width(start_text, TEXT_SIZE);
+            let x1 = Painter::measure_text_width(end_text, TEXT_SIZE);
 
-            // Selection highlight for this row
-            if has_selection && sel_start < row_byte_end && sel_end > row_byte_start {
-                let hl_start = sel_start.max(row_byte_start) - row_byte_start;
-                let hl_end = sel_end.min(row_byte_end) - row_byte_start;
-                let sx = Painter::measure_text_width(&row_text[..hl_start], TEXT_SIZE);
-                let ex = Painter::measure_text_width(&row_text[..hl_end], TEXT_SIZE);
+            // Total text width for right edge (use max row width)
+            let tw = _cw - 2.0 * TEXT_PADDING;
+
+            if row0 == row1 {
+                // Single row: simple rect
                 painter.paint_rect(
-                    cx + TEXT_PADDING + sx,
-                    row_y,
-                    ex - sx,
+                    tx + x0,
+                    ty + row0 as f64 * LINE_HEIGHT,
+                    x1 - x0,
                     LINE_HEIGHT,
                     self.look.input_hl_color,
                     canvas_color,
                 );
+            } else {
+                // Multi-row: 8-vertex polygon
+                let vertices = [
+                    (tx + x0, ty + row0 as f64 * LINE_HEIGHT),
+                    (tx + tw, ty + row0 as f64 * LINE_HEIGHT),
+                    (tx + tw, ty + row1 as f64 * LINE_HEIGHT),
+                    (tx + x1, ty + row1 as f64 * LINE_HEIGHT),
+                    (tx + x1, ty + (row1 + 1) as f64 * LINE_HEIGHT),
+                    (tx, ty + (row1 + 1) as f64 * LINE_HEIGHT),
+                    (tx, ty + (row0 + 1) as f64 * LINE_HEIGHT),
+                    (tx + x0, ty + (row0 + 1) as f64 * LINE_HEIGHT),
+                ];
+                painter.paint_polygon(&vertices, self.look.input_hl_color, canvas_color);
+            }
+            let _ = (col0, col1); // used via index_to_col_row for row calculation
+        }
+
+        for (row_idx, row_text) in rows.iter().enumerate() {
+            let row_y = cy + row_idx as f64 * LINE_HEIGHT - self.scroll_y;
+            if row_y + LINE_HEIGHT < cy || row_y > cy + ch {
+                continue;
             }
 
             painter.paint_text(
@@ -1190,8 +1246,6 @@ impl TextField {
                 fg,
                 canvas_color,
             );
-
-            byte_offset = row_byte_end + 1; // +1 for \n
         }
 
         // Cursor — C++ only renders when panel is in focused path
@@ -1205,26 +1259,55 @@ impl TextField {
         let cursor_screen_y = cy + cursor_row as f64 * LINE_HEIGHT - self.scroll_y;
         let _ = cursor_col;
 
+        // Compute cursor color with transparency (C++ emTextField.cpp:1056-1059)
+        let cur_color = if !self.editable {
+            fg.with_alpha((fg.a() as f64 * 0.25) as u8)
+        } else if !self.cursor_blink_on {
+            fg.with_alpha((fg.a() as f64 * 0.12) as u8)
+        } else {
+            fg
+        };
+
         if self.overwrite_mode && self.cursor < self.text.len() && self.char_at(self.cursor) != '\n'
         {
+            // Overwrite mode: 10-vertex frame polygon
+            let cxp = cursor_x;
+            let cyp = cursor_screen_y;
             let ch_w = Painter::measure_text_width("X", TEXT_SIZE);
-            painter.paint_rect(
-                cursor_x,
-                cursor_screen_y,
-                ch_w,
-                LINE_HEIGHT,
-                fg.with_alpha(80),
-                Color::TRANSPARENT,
-            );
+            let chp = LINE_HEIGHT;
+            let d = chp * 0.07;
+            let vertices = [
+                (cxp - d, cyp - d),
+                (cxp + ch_w + d, cyp - d),
+                (cxp + ch_w + d, cyp + chp + d),
+                (cxp - d, cyp + chp + d),
+                (cxp - d, cyp - d),
+                (cxp, cyp),
+                (cxp, cyp + chp),
+                (cxp + ch_w, cyp + chp),
+                (cxp + ch_w, cyp),
+                (cxp, cyp),
+            ];
+            painter.paint_polygon(&vertices, cur_color, canvas_color);
         } else {
-            painter.paint_rect(
-                cursor_x,
-                cursor_screen_y,
-                1.0,
-                LINE_HEIGHT,
-                fg,
-                Color::TRANSPARENT,
-            );
+            // Insert mode: 8-vertex I-beam with serifs
+            let cxp = cursor_x;
+            let cyp = cursor_screen_y;
+            let chp = LINE_HEIGHT;
+            let d = chp * 0.07;
+            let d1 = d * 0.5;
+            let d2 = d * 2.2;
+            let vertices = [
+                (cxp - d2, cyp - d),
+                (cxp + d2, cyp - d),
+                (cxp + d1, cyp),
+                (cxp + d1, cyp + chp),
+                (cxp + d2, cyp + chp + d),
+                (cxp - d2, cyp + chp + d),
+                (cxp - d1, cyp + chp),
+                (cxp - d1, cyp),
+            ];
+            painter.paint_polygon(&vertices, cur_color, canvas_color);
         }
     }
 
