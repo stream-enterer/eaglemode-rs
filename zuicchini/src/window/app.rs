@@ -253,27 +253,28 @@ impl ApplicationHandler for App {
         let dt = 1.0 / 60.0; // Fixed timestep for now
         let tree = &mut self.tree;
         for win in self.windows.values_mut() {
-            let mut needs_repaint = had_notices;
+            let mut needs_full_repaint = had_notices;
 
             // Tick animator (take out to avoid borrow conflict)
             if let Some(mut anim) = win.active_animator.take() {
                 if anim.animate(win.view_mut(), tree, dt) {
                     win.active_animator = Some(anim);
-                    needs_repaint = true;
+                    needs_full_repaint = true;
                 }
             }
 
             // Tick VIF animations (wheel zoom spring, grip pan spring)
             if win.tick_vif_animations(tree, dt) {
-                needs_repaint = true;
+                needs_full_repaint = true;
             }
 
             // Update view (recompute viewing coords, auto-select active)
             win.view_mut().update(tree);
 
             // Check for pending dirty rects from invalidate_painting calls.
-            // Coalesce overlapping rects so future partial-repaint can skip
-            // already-covered regions.
+            // Convert each dirty rect to tile grid coordinates and mark only
+            // the overlapping tiles as dirty (partial repaint).
+            let mut has_dirty_rects = false;
             if win.view().has_dirty_rects() {
                 let dirty = win.view_mut().take_dirty_clip_rects();
                 log::trace!(
@@ -281,20 +282,22 @@ impl ApplicationHandler for App {
                     dirty.count(),
                     dirty.get_min_max()
                 );
-                for _r in dirty.iter() {
-                    // TODO: partial-repaint per dirty region
+                for r in dirty.iter() {
+                    win.mark_dirty_rect(r.x1, r.y1, r.x2, r.y2);
                 }
-                needs_repaint = true;
+                has_dirty_rects = true;
             }
 
             // Check for viewport changes (scroll/zoom/visit from VIFs)
             if win.view().viewport_changed() {
                 win.view_mut().clear_viewport_changed();
-                needs_repaint = true;
+                needs_full_repaint = true;
             }
 
-            if needs_repaint {
+            if needs_full_repaint {
                 win.invalidate();
+                win.request_redraw();
+            } else if has_dirty_rects {
                 win.request_redraw();
             }
         }
