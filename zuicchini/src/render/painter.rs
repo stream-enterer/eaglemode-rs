@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
 use super::bitmap_font;
+use super::draw_list::DrawOp;
 use super::em_font;
 use super::interpolation;
 use super::scanline::{self, WindingRule};
@@ -218,9 +219,19 @@ impl SubPixelEdges {
     }
 }
 
+/// Paint target: either a real image or a draw list for recording.
+pub(crate) enum PaintTarget<'a> {
+    /// Direct pixel rendering to an image buffer.
+    Image(&'a mut Image),
+    /// Recording mode: draw operations are captured for parallel replay.
+    DrawList(&'a mut Vec<DrawOp>),
+}
+
 /// CPU software rasterizer that paints into an Image buffer.
 pub struct Painter<'a> {
-    target: &'a mut Image,
+    target: PaintTarget<'a>,
+    target_width: u32,
+    target_height: u32,
     state: PainterState,
     state_stack: Vec<PainterState>,
 }
@@ -236,10 +247,12 @@ impl<'a> Painter<'a> {
             4,
             "Painter requires a 4-channel RGBA image"
         );
-        let w = target.width() as f64;
-        let h = target.height() as f64;
+        let w = target.width();
+        let h = target.height();
         Self {
-            target,
+            target: PaintTarget::Image(target),
+            target_width: w,
+            target_height: h,
             state: PainterState {
                 offset_x: 0.0,
                 offset_y: 0.0,
@@ -248,8 +261,8 @@ impl<'a> Painter<'a> {
                 clip: ClipRect {
                     x1: 0.0,
                     y1: 0.0,
-                    x2: w,
-                    y2: h,
+                    x2: w as f64,
+                    y2: h as f64,
                 },
                 canvas_color: Color::BLACK,
                 alpha: 255,
@@ -258,8 +271,73 @@ impl<'a> Painter<'a> {
         }
     }
 
+    /// Create a painter in recording mode for the given viewport dimensions.
+    ///
+    /// Draw operations are captured into `ops` instead of rasterized.
+    /// State management (push/pop, offset, clip) is tracked locally so
+    /// that getters like `clip_is_empty()` and `canvas_color()` return
+    /// correct values during the recording phase.
+    pub(crate) fn new_recording(width: u32, height: u32, ops: &'a mut Vec<DrawOp>) -> Self {
+        Self {
+            target: PaintTarget::DrawList(ops),
+            target_width: width,
+            target_height: height,
+            state: PainterState {
+                offset_x: 0.0,
+                offset_y: 0.0,
+                scale_x: 1.0,
+                scale_y: 1.0,
+                clip: ClipRect {
+                    x1: 0.0,
+                    y1: 0.0,
+                    x2: width as f64,
+                    y2: height as f64,
+                },
+                canvas_color: Color::BLACK,
+                alpha: 255,
+            },
+            state_stack: Vec::new(),
+        }
+    }
+
+    /// Get a mutable reference to the target image.
+    /// Panics if in recording mode — callers must check `is_recording()` first.
+    fn image(&mut self) -> &mut Image {
+        match &mut self.target {
+            PaintTarget::Image(img) => img,
+            PaintTarget::DrawList(_) => unreachable!("pixel access in recording mode"),
+        }
+    }
+
+    /// Get an immutable reference to the target image.
+    fn image_ref(&self) -> &Image {
+        match &self.target {
+            PaintTarget::Image(img) => img,
+            PaintTarget::DrawList(_) => unreachable!("pixel access in recording mode"),
+        }
+    }
+
+    /// Push a draw op when in recording mode. Returns true if recording.
+    fn record(&mut self, op: DrawOp) -> bool {
+        if let PaintTarget::DrawList(ops) = &mut self.target {
+            ops.push(op);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Read a pixel from the target image, returning an owned copy.
+    /// Avoids borrow issues when both reading and writing pixels.
+    #[inline]
+    fn read_pixel(&self, x: u32, y: u32) -> [u8; 4] {
+        let p = self.image_ref().pixel(x, y);
+        [p[0], p[1], p[2], p[3]]
+    }
+
     /// Push the current state onto the stack.
     pub fn push_state(&mut self) {
+        self.record(DrawOp::PushState);
         self.state_stack.push(self.state.clone());
     }
 
@@ -268,6 +346,7 @@ impl<'a> Painter<'a> {
     /// # Panics
     /// Panics if the state stack is empty.
     pub fn pop_state(&mut self) {
+        self.record(DrawOp::PopState);
         self.state = self.state_stack.pop().expect("State stack underflow");
     }
 
@@ -278,11 +357,13 @@ impl<'a> Painter<'a> {
 
     /// Set the canvas color used for canvas_blend operations.
     pub fn set_canvas_color(&mut self, color: Color) {
+        self.record(DrawOp::SetCanvasColor(color));
         self.state.canvas_color = color;
     }
 
     /// Set the global alpha multiplier.
     pub fn set_alpha(&mut self, alpha: u8) {
+        self.record(DrawOp::SetAlpha(alpha));
         self.state.alpha = alpha;
     }
 
@@ -293,6 +374,7 @@ impl<'a> Painter<'a> {
 
     /// Set the offset absolutely (not cumulative).
     pub fn set_offset(&mut self, ox: f64, oy: f64) {
+        self.record(DrawOp::SetOffset(ox, oy));
         self.state.offset_x = ox;
         self.state.offset_y = oy;
     }
@@ -313,6 +395,7 @@ impl<'a> Painter<'a> {
     /// Computes and stores clip edges in f64, matching C++ emPanel.cpp:1478-1495.
     /// Truncation to i32 happens only at each paint operation's point of use.
     pub fn clip_rect(&mut self, x: f64, y: f64, w: f64, h: f64) {
+        self.record(DrawOp::ClipRect { x, y, w, h });
         let px = x * self.state.scale_x + self.state.offset_x;
         let py = y * self.state.scale_y + self.state.offset_y;
         let px2 = px + w * self.state.scale_x;
@@ -440,6 +523,16 @@ impl<'a> Painter<'a> {
         if w <= 0.0 || h <= 0.0 || color.a() == 0 {
             return;
         }
+        if self.record(DrawOp::PaintRect {
+            x,
+            y,
+            w,
+            h,
+            color,
+            canvas_color,
+        }) {
+            return;
+        }
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
         let dx_px = x * self.state.scale_x + self.state.offset_x;
@@ -448,8 +541,8 @@ impl<'a> Painter<'a> {
         let dh_px = h * self.state.scale_y;
         let sp = SubPixelEdges::new(dx_px, dy_px, dw_px, dh_px);
 
-        let tw = self.target.width() as i32;
-        let th = self.target.height() as i32;
+        let tw = self.target_width as i32;
+        let th = self.target_height as i32;
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
         let cx2 = (self.state.clip.x2.ceil() as i32).min(tw);
@@ -483,6 +576,16 @@ impl<'a> Painter<'a> {
         canvas_color: Color,
     ) {
         if rx <= 0.0 || ry <= 0.0 {
+            return;
+        }
+        if self.record(DrawOp::PaintEllipse {
+            cx,
+            cy,
+            rx,
+            ry,
+            color,
+            canvas_color,
+        }) {
             return;
         }
         let saved_canvas = self.state.canvas_color;
@@ -580,8 +683,8 @@ impl<'a> Painter<'a> {
 
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target.width() as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target.height() as i32);
+        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
+        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = px.max(cx1);
         let start_y = py.max(cy1);
         let end_x = (px + pw).min(cx2);
@@ -703,6 +806,13 @@ impl<'a> Painter<'a> {
     /// Fill a polygon defined by a list of (x, y) vertices.
     /// Uses anti-aliased scanline rasterization with NonZero winding rule.
     pub fn paint_polygon(&mut self, vertices: &[(f64, f64)], color: Color, canvas_color: Color) {
+        if self.record(DrawOp::PaintPolygon {
+            vertices: vertices.to_vec(),
+            color,
+            canvas_color,
+        }) {
+            return;
+        }
         let saved_canvas = self.state.canvas_color;
         self.state.canvas_color = canvas_color;
         self.fill_polygon_aa(vertices, color, WindingRule::NonZero);
@@ -811,6 +921,16 @@ impl<'a> Painter<'a> {
     /// Fill a rounded rectangle using AA polygon approximation.
     /// Reads canvas_color from painter state (set by caller).
     pub fn paint_round_rect(&mut self, x: f64, y: f64, w: f64, h: f64, radius: f64, color: Color) {
+        if self.record(DrawOp::PaintRoundRect {
+            x,
+            y,
+            w,
+            h,
+            radius,
+            color,
+        }) {
+            return;
+        }
         if w <= 0.0 || h <= 0.0 {
             return;
         }
@@ -842,6 +962,17 @@ impl<'a> Painter<'a> {
         if image.channel_count() != 4 || w <= 0.0 || h <= 0.0 || alpha == 0 {
             return;
         }
+        if self.record(DrawOp::PaintImageFull {
+            x,
+            y,
+            w,
+            h,
+            image_ptr: image as *const Image,
+            alpha,
+            canvas_color,
+        }) {
+            return;
+        }
 
         let dx_px = x * self.state.scale_x + self.state.offset_x;
         let dy_px = y * self.state.scale_y + self.state.offset_y;
@@ -861,8 +992,8 @@ impl<'a> Painter<'a> {
 
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target.width() as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target.height() as i32);
+        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
+        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = px.max(cx1);
         let start_y = py.max(cy1);
         let end_x = sp.ix2.min(cx2);
@@ -988,6 +1119,23 @@ impl<'a> Painter<'a> {
         canvas_color: Color,
         extension: ImageExtension,
     ) {
+        if self.record(DrawOp::PaintImageColored {
+            x,
+            y,
+            w,
+            h,
+            image_ptr: image as *const Image,
+            src_x,
+            src_y,
+            src_w,
+            src_h,
+            color1,
+            color2,
+            canvas_color,
+            extension,
+        }) {
+            return;
+        }
         // Floating-point dest rect in pixel space (sub-pixel precision).
         let dx = x * self.state.scale_x + self.state.offset_x;
         let dy = y * self.state.scale_y + self.state.offset_y;
@@ -1004,8 +1152,8 @@ impl<'a> Painter<'a> {
 
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target.width() as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target.height() as i32);
+        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
+        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = px.max(cx1);
         let start_y = py.max(cy1);
         let end_x = px2.min(cx2);
@@ -1190,6 +1338,17 @@ impl<'a> Painter<'a> {
         if text.is_empty() || char_height <= 0.0 || color.a() == 0 {
             return;
         }
+        if self.record(DrawOp::PaintText {
+            x,
+            y,
+            text: text.to_string(),
+            char_height,
+            width_scale,
+            color,
+            canvas_color,
+        }) {
+            return;
+        }
 
         let rcw = char_height / em_font::CHAR_BOX_TALLNESS;
         let char_width = rcw * width_scale;
@@ -1327,6 +1486,24 @@ impl<'a> Painter<'a> {
         rel_line_space: f64,
     ) {
         if text.is_empty() || w <= 0.0 || h <= 0.0 || max_char_height <= 0.0 {
+            return;
+        }
+        if self.record(DrawOp::PaintTextBoxed {
+            x,
+            y,
+            w,
+            h,
+            text: text.to_string(),
+            max_char_height,
+            color,
+            canvas_color,
+            box_h_align,
+            box_v_align,
+            text_alignment,
+            min_width_scale,
+            formatted,
+            rel_line_space,
+        }) {
             return;
         }
 
@@ -1476,6 +1653,17 @@ impl<'a> Painter<'a> {
         if w <= 0.0 || h <= 0.0 {
             return;
         }
+        if self.record(DrawOp::PaintImageScaled {
+            x,
+            y,
+            w,
+            h,
+            image_ptr: image as *const Image,
+            quality,
+            extension,
+        }) {
+            return;
+        }
 
         let px = self.to_pixel_x(x);
         let py = self.to_pixel_y(y);
@@ -1508,8 +1696,8 @@ impl<'a> Painter<'a> {
 
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target.width() as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target.height() as i32);
+        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
+        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = px.max(cx1);
         let start_y = py.max(cy1);
         let end_x = (px + pw).min(cx2);
@@ -1660,6 +1848,26 @@ impl<'a> Painter<'a> {
         which_sub_rects: u16,
     ) {
         if alpha == 0 || w <= 0.0 || h <= 0.0 {
+            return;
+        }
+        if self.record(DrawOp::PaintBorderImage {
+            x,
+            y,
+            w,
+            h,
+            l,
+            t,
+            r,
+            b,
+            image_ptr: image as *const Image,
+            src_l,
+            src_t,
+            src_r,
+            src_b,
+            alpha,
+            canvas_color,
+            which_sub_rects,
+        }) {
             return;
         }
         let iw = image.width() as f64;
@@ -2132,8 +2340,8 @@ impl<'a> Painter<'a> {
 
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target.width() as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target.height() as i32);
+        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
+        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = px.max(cx1);
         let start_y = py.max(cy1);
         let end_x = px2.min(cx2);
@@ -2324,6 +2532,16 @@ impl<'a> Painter<'a> {
         stroke: &Stroke,
         canvas_color: Color,
     ) {
+        if self.record(DrawOp::PaintRectOutlined {
+            x,
+            y,
+            w,
+            h,
+            stroke: stroke.clone(),
+            canvas_color,
+        }) {
+            return;
+        }
         let sw = stroke.width;
         let w = w.max(0.0);
         let h = h.max(0.0);
@@ -2397,6 +2615,16 @@ impl<'a> Painter<'a> {
         stroke: &Stroke,
     ) {
         if w <= 0.0 || h <= 0.0 || stroke.width <= 0.0 {
+            return;
+        }
+        if self.record(DrawOp::PaintRoundRectOutlined {
+            x,
+            y,
+            w,
+            h,
+            radius,
+            stroke: stroke.clone(),
+        }) {
             return;
         }
         let sw = stroke.width;
@@ -2588,8 +2816,8 @@ impl<'a> Painter<'a> {
         };
         let mut sy = y1.floor() as i32;
 
-        let tw = self.target.width() as i32;
-        let th = self.target.height() as i32;
+        let tw = self.target_width as i32;
+        let th = self.target_height as i32;
 
         loop {
             if sy >= cy2 {
@@ -3297,6 +3525,14 @@ impl<'a> Painter<'a> {
         canvas_color: Color,
     ) {
         if vertices.is_empty() || stroke.width <= 0.0 {
+            return;
+        }
+        if self.record(DrawOp::PaintSolidPolyline {
+            vertices: vertices.to_vec(),
+            stroke: stroke.clone(),
+            closed,
+            canvas_color,
+        }) {
             return;
         }
 
@@ -4552,8 +4788,8 @@ impl<'a> Painter<'a> {
 
     /// Blit a single AA span onto the target.
     fn blit_span(&mut self, y: i32, span: &scanline::Span, color: Color) {
-        let tw = self.target.width() as i32;
-        let th = self.target.height() as i32;
+        let tw = self.target_width as i32;
+        let th = self.target_height as i32;
         if y < 0 || y >= th {
             return;
         }
@@ -4628,7 +4864,7 @@ impl<'a> Painter<'a> {
         {
             return;
         }
-        if x < 0 || y < 0 || x >= self.target.width() as i32 || y >= self.target.height() as i32 {
+        if x < 0 || y < 0 || x >= self.target_width as i32 || y >= self.target_height as i32 {
             return;
         }
         let a = pm[3] as u32;
@@ -4643,31 +4879,31 @@ impl<'a> Painter<'a> {
             let cr = (cv.r() as u32 * a + 127) / 255;
             let cg = (cv.g() as u32 * a + 127) / 255;
             let cb = (cv.b() as u32 * a + 127) / 255;
-            let bg = self.target.pixel(x as u32, y as u32);
+            let bg = self.read_pixel(x as u32, y as u32);
             let nr = (bg[0] as i32 + pm[0] as i32 - cr as i32).clamp(0, 255) as u8;
             let ng = (bg[1] as i32 + pm[1] as i32 - cg as i32).clamp(0, 255) as u8;
             let nb = (bg[2] as i32 + pm[2] as i32 - cb as i32).clamp(0, 255) as u8;
-            let out = self.target.pixel_mut(x as u32, y as u32);
+            let out = self.image().pixel_mut(x as u32, y as u32);
             out[0] = nr;
             out[1] = ng;
             out[2] = nb;
             // out[3] unchanged
         } else {
             if a >= 255 {
-                let out = self.target.pixel_mut(x as u32, y as u32);
+                let out = self.image().pixel_mut(x as u32, y as u32);
                 out[0] = pm[0];
                 out[1] = pm[1];
                 out[2] = pm[2];
                 out[3] = 255;
                 return;
             }
-            let bg = self.target.pixel(x as u32, y as u32);
+            let bg = self.read_pixel(x as u32, y as u32);
             let t = (255 - a) * 257;
             let r = (((bg[0] as u32 * t + 0x8073) >> 16) + pm[0] as u32) as u8;
             let g = (((bg[1] as u32 * t + 0x8073) >> 16) + pm[1] as u32) as u8;
             let b = (((bg[2] as u32 * t + 0x8073) >> 16) + pm[2] as u32) as u8;
             let a_out = (((bg[3] as u32 * t + 0x8073) >> 16) + a) as u8;
-            let out = self.target.pixel_mut(x as u32, y as u32);
+            let out = self.image().pixel_mut(x as u32, y as u32);
             out[0] = r;
             out[1] = g;
             out[2] = b;
@@ -4913,8 +5149,8 @@ impl<'a> Painter<'a> {
 
     /// Blit a single textured AA span onto the target.
     fn blit_span_textured(&mut self, y: i32, span: &scanline::Span, texture: &PixelTexture) {
-        let tw = self.target.width() as i32;
-        let th = self.target.height() as i32;
+        let tw = self.target_width as i32;
+        let th = self.target_height as i32;
         if y < 0 || y >= th {
             return;
         }
@@ -5110,13 +5346,13 @@ impl<'a> Painter<'a> {
         {
             return;
         }
-        if x < 0 || y < 0 || x >= self.target.width() as i32 || y >= self.target.height() as i32 {
+        if x < 0 || y < 0 || x >= self.target_width as i32 || y >= self.target_height as i32 {
             return;
         }
 
         if color.is_opaque() && self.state.alpha == 255 {
             // Fully opaque: direct write, no blending needed.
-            let out = self.target.pixel_mut(x as u32, y as u32);
+            let out = self.image().pixel_mut(x as u32, y as u32);
             out[0] = color.r();
             out[1] = color.g();
             out[2] = color.b();
@@ -5139,10 +5375,10 @@ impl<'a> Painter<'a> {
             if combined_alpha == 0 {
                 return;
             }
-            let px = self.target.pixel(x as u32, y as u32);
+            let px = self.read_pixel(x as u32, y as u32);
             let existing = Color::rgba(px[0], px[1], px[2], px[3]);
             let result = existing.canvas_blend(color, self.state.canvas_color, combined_alpha);
-            let out = self.target.pixel_mut(x as u32, y as u32);
+            let out = self.image().pixel_mut(x as u32, y as u32);
             out[0] = result.r();
             out[1] = result.g();
             out[2] = result.b();
@@ -5160,9 +5396,9 @@ impl<'a> Painter<'a> {
             if ea == 0 {
                 return;
             }
-            let bg = self.target.pixel(x as u32, y as u32);
+            let bg = self.read_pixel(x as u32, y as u32);
             if ea >= 255 {
-                let out = self.target.pixel_mut(x as u32, y as u32);
+                let out = self.image().pixel_mut(x as u32, y as u32);
                 out[0] = color.r();
                 out[1] = color.g();
                 out[2] = color.b();
@@ -5182,7 +5418,7 @@ impl<'a> Painter<'a> {
                     + ((color.b() as u32 * alpha * 257 + 0x8073) >> 16);
                 let a =
                     ((bg[3] as u32 * t + 0x8073) >> 16) + ((255u32 * alpha * 257 + 0x8073) >> 16);
-                let out = self.target.pixel_mut(x as u32, y as u32);
+                let out = self.image().pixel_mut(x as u32, y as u32);
                 out[0] = r as u8;
                 out[1] = g as u8;
                 out[2] = b as u8;
@@ -5194,8 +5430,8 @@ impl<'a> Painter<'a> {
     fn fill_rect_pixels(&mut self, x: i32, y: i32, w: i32, h: i32, color: Color) {
         let cx1 = (self.state.clip.x1 as i32).max(0);
         let cy1 = (self.state.clip.y1 as i32).max(0);
-        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target.width() as i32);
-        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target.height() as i32);
+        let cx2 = (self.state.clip.x2.ceil() as i32).min(self.target_width as i32);
+        let cy2 = (self.state.clip.y2.ceil() as i32).min(self.target_height as i32);
         let start_x = x.max(cx1);
         let start_y = y.max(cy1);
         let end_x = (x + w).min(cx2);
@@ -5208,8 +5444,8 @@ impl<'a> Painter<'a> {
         // Fast path: fully opaque fill — bulk write rows directly.
         if color.is_opaque() && self.state.alpha == 255 {
             let pixel = [color.r(), color.g(), color.b(), 255u8];
-            let tw = self.target.width() as usize;
-            let data = self.target.data_mut();
+            let tw = self.target_width as usize;
+            let data = self.image().data_mut();
             for row in start_y..end_y {
                 let row_base = row as usize * tw * 4;
                 for col in start_x..end_x {
@@ -5603,5 +5839,129 @@ mod tests {
         );
         let px = img.pixel(2, 2);
         assert!(px[0] > 0, "area-sampled: center pixel should be non-zero");
+    }
+
+    /// Verify that recording + replay produces byte-identical output to
+    /// direct rendering. This is the foundation for multi-threaded rendering
+    /// correctness: if replay matches direct, then parallel replay also matches.
+    #[test]
+    fn draw_list_replay_matches_direct() {
+        use super::super::draw_list::DrawList;
+        use super::super::thread_pool::RenderThreadPool;
+
+        let w = 64u32;
+        let h = 64u32;
+
+        // --- Direct rendering (single-threaded, no recording) ---
+        let mut direct_img = Image::new(w, h, 4);
+        direct_img.fill(crate::foundation::Color::BLACK);
+        {
+            let mut p = Painter::new(&mut direct_img);
+            draw_test_scene(&mut p);
+        }
+
+        // --- Recording + single-tile replay ---
+        let mut draw_list = DrawList::new();
+        {
+            let mut rec = Painter::new_recording(w, h, draw_list.ops_mut());
+            draw_test_scene(&mut rec);
+        }
+        let mut replay_img = Image::new(w, h, 4);
+        replay_img.fill(crate::foundation::Color::BLACK);
+        {
+            let mut p = Painter::new(&mut replay_img);
+            draw_list.replay(&mut p, (0.0, 0.0));
+        }
+
+        assert_eq!(
+            direct_img.data(),
+            replay_img.data(),
+            "recording + replay must produce byte-identical output to direct rendering"
+        );
+
+        // --- Multi-threaded replay (thread counts 1, 2, 4) ---
+        for thread_count in [1, 2, 4] {
+            let pool = RenderThreadPool::new(thread_count);
+            // Split into 4 tiles of 32x32
+            let tile_size = 32u32;
+            let cols = w / tile_size;
+            let rows = h / tile_size;
+            let tiles: Vec<(u32, u32)> = (0..rows)
+                .flat_map(|r| (0..cols).map(move |c| (c, r)))
+                .collect();
+            let results: Vec<std::sync::Mutex<Option<Image>>> = tiles
+                .iter()
+                .map(|_| std::sync::Mutex::new(None::<Image>))
+                .collect();
+            let results_ref = &results;
+            let tiles_ref = &tiles;
+            let draw_list_ref = &draw_list;
+            let ts = tile_size as f64;
+
+            pool.call_parallel(
+                |idx| {
+                    let (col, row) = tiles_ref[idx];
+                    let mut buf = Image::new(tile_size, tile_size, 4);
+                    buf.fill(crate::foundation::Color::BLACK);
+                    {
+                        let mut p = Painter::new(&mut buf);
+                        draw_list_ref.replay(&mut p, (col as f64 * ts, row as f64 * ts));
+                    }
+                    *results_ref[idx].lock().unwrap() = Some(buf);
+                },
+                tiles.len(),
+            );
+
+            // Reconstruct the full image from tiles
+            let mut composed = Image::new(w, h, 4);
+            composed.fill(crate::foundation::Color::BLACK);
+            for (idx, (col, row)) in tiles.iter().enumerate() {
+                let tile_buf = results[idx].lock().unwrap();
+                let tile = tile_buf.as_ref().unwrap();
+                composed.copy_from_rect(
+                    col * tile_size,
+                    row * tile_size,
+                    tile,
+                    (0, 0, tile_size, tile_size),
+                );
+            }
+
+            assert_eq!(
+                direct_img.data(),
+                composed.data(),
+                "parallel replay with {} threads must match direct rendering",
+                thread_count,
+            );
+        }
+    }
+
+    /// Draw a test scene with various primitives for recording/replay testing.
+    fn draw_test_scene(p: &mut Painter) {
+        let red = Color::rgba(255, 0, 0, 255);
+        let green = Color::rgba(0, 255, 0, 200);
+        let blue = Color::rgba(0, 0, 255, 180);
+        let white = Color::rgba(255, 255, 255, 255);
+        let canvas = Color::rgba(50, 50, 50, 255);
+
+        // Background
+        p.paint_rect(0.0, 0.0, 64.0, 64.0, canvas, Color::BLACK);
+
+        // Overlapping rectangles with transparency
+        p.push_state();
+        p.set_canvas_color(canvas);
+        p.paint_rect(5.0, 5.0, 30.0, 30.0, red, canvas);
+        p.paint_rect(15.0, 15.0, 30.0, 30.0, green, canvas);
+
+        // Ellipse
+        p.paint_ellipse(48.0, 16.0, 12.0, 12.0, blue, canvas);
+
+        // Text
+        p.paint_text(2.0, 50.0, "Hi", 10.0, 1.0, white, canvas);
+
+        // Polygon
+        let verts = [(10.0, 40.0), (30.0, 35.0), (25.0, 55.0)];
+        p.paint_polygon(&verts, blue, canvas);
+
+        p.pop_state();
     }
 }

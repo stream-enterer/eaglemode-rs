@@ -1,5 +1,6 @@
 pub(crate) mod bitmap_font;
 pub mod compositor;
+pub(crate) mod draw_list;
 pub(crate) mod em_font;
 pub(crate) mod interpolation;
 mod painter;
@@ -7,6 +8,7 @@ mod scanline;
 mod software_compositor;
 mod stroke;
 mod texture;
+pub(crate) mod thread_pool;
 pub mod tile_cache;
 
 pub use compositor::WgpuCompositor;

@@ -8,6 +8,7 @@ use crate::panel::{
     KeyboardZoomScrollVIF, MouseZoomScrollVIF, PanelId, PanelTree, View, ViewAnimator,
     ViewInputFilter,
 };
+use crate::render::thread_pool::RenderThreadPool;
 use crate::render::{TileCache, WgpuCompositor};
 use crate::scheduler::SignalId;
 
@@ -51,6 +52,7 @@ pub struct ZuiWindow {
     screensaver_cookie: Option<u32>,
     flags_changed: bool,
     wm_res_name: String,
+    render_pool: RenderThreadPool,
 }
 
 impl ZuiWindow {
@@ -141,6 +143,9 @@ impl ZuiWindow {
             screensaver_cookie: None,
             flags_changed: false,
             wm_res_name: String::from("zuicchini"),
+            render_pool: RenderThreadPool::new(
+                crate::model::CoreConfig::default().max_render_threads,
+            ),
         }
     }
 
@@ -161,6 +166,11 @@ impl ZuiWindow {
         self.tile_cache.resize(w, h);
         self.viewport_buffer.setup(w, h, 4);
         self.view.set_viewport(tree, w as f64, h as f64);
+    }
+
+    /// Update the render thread pool from CoreConfig.
+    pub fn set_max_render_threads(&mut self, max_render_threads: i32) {
+        self.render_pool.update_thread_count(max_render_threads);
     }
 
     /// Render a frame: paint dirty tiles on CPU, upload to GPU, composite.
@@ -206,8 +216,12 @@ impl ZuiWindow {
                     }
                 }
             }
+        } else if self.render_pool.thread_count() > 1 && dirty_count > 1 {
+            // Multi-threaded rendering via display list.
+            // Phase 1: Record all draw operations single-threaded.
+            self.render_parallel(tree, gpu, cols, rows, tile_size);
         } else {
-            // Few dirty tiles: paint per-tile (avoids painting the full viewport).
+            // Few dirty tiles, single-threaded: paint per-tile.
             for row in 0..rows {
                 for col in 0..cols {
                     let tile = self.tile_cache.get_or_create(col, row);
@@ -243,6 +257,89 @@ impl ZuiWindow {
             }
             Err(e) => {
                 log::error!("render error: {e}");
+            }
+        }
+    }
+
+    /// Multi-threaded tile rendering using a display list.
+    ///
+    /// Phase 1 (single-threaded): Walk the panel tree and record all draw
+    /// operations into a `DrawList` using a recording `Painter`.
+    ///
+    /// Phase 2 (parallel): Replay the `DrawList` into each dirty tile's
+    /// buffer concurrently, with tile-specific clipping.
+    ///
+    /// Phase 3 (single-threaded): Upload rendered tiles to GPU.
+    fn render_parallel(
+        &mut self,
+        tree: &mut crate::panel::PanelTree,
+        gpu: &GpuContext,
+        cols: u32,
+        rows: u32,
+        tile_size: u32,
+    ) {
+        use crate::foundation::Color;
+        use crate::render::draw_list::DrawList;
+        use crate::render::Painter;
+
+        let vp_w = self.surface_config.width;
+        let vp_h = self.surface_config.height;
+
+        // Phase 1: Record draw operations.
+        let mut draw_list = DrawList::new();
+        {
+            let mut painter = Painter::new_recording(vp_w, vp_h, draw_list.ops_mut());
+            self.view.paint(tree, &mut painter);
+        }
+
+        // Collect dirty tiles.
+        let mut dirty_tiles: Vec<(u32, u32)> = Vec::new();
+        for row in 0..rows {
+            for col in 0..cols {
+                if self.tile_cache.get_or_create(col, row).dirty {
+                    dirty_tiles.push((col, row));
+                }
+            }
+        }
+
+        if dirty_tiles.is_empty() {
+            return;
+        }
+
+        // Phase 2: Parallel replay into tile buffers.
+        let ts = tile_size as f64;
+        let draw_list_ref = &draw_list;
+        let results: Vec<std::sync::Mutex<Option<crate::foundation::Image>>> = dirty_tiles
+            .iter()
+            .map(|_| std::sync::Mutex::new(None))
+            .collect();
+        let results_ref = &results;
+        let dirty_ref = &dirty_tiles;
+
+        self.render_pool.call_parallel(
+            |idx| {
+                let (col, row) = dirty_ref[idx];
+                let mut buffer = crate::foundation::Image::new(tile_size, tile_size, 4);
+                buffer.fill(Color::BLACK);
+                {
+                    let mut painter = Painter::new(&mut buffer);
+                    let tile_offset = (col as f64 * ts, row as f64 * ts);
+                    draw_list_ref.replay(&mut painter, tile_offset);
+                }
+                *results_ref[idx].lock().expect("result mutex poisoned") = Some(buffer);
+            },
+            dirty_tiles.len(),
+        );
+
+        // Phase 3: Upload results to GPU.
+        for (idx, (col, row)) in dirty_tiles.iter().enumerate() {
+            if let Some(buffer) = results[idx].lock().expect("result mutex poisoned").take() {
+                let tile = self.tile_cache.get_or_create(*col, *row);
+                tile.image = buffer;
+                tile.dirty = false;
+                let tile_ref = self.tile_cache.get(*col, *row).unwrap();
+                self.compositor
+                    .upload_tile(&gpu.device, &gpu.queue, *col, *row, tile_ref);
             }
         }
     }
