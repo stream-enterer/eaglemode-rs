@@ -745,6 +745,12 @@ impl ZuiWindow {
 
             if let Some(mut behavior) = tree.take_behavior(panel_id) {
                 let panel_state = tree.build_panel_state(panel_id, wf, self.view.pixel_tallness());
+                // C++ RecurseInput (emView.cpp:2055-2058): keyboard events are
+                // suppressed for panels not in the active path.
+                if panel_ev.is_keyboard_event() && !panel_state.in_active_path {
+                    tree.put_behavior(panel_id, behavior);
+                    continue;
+                }
                 let consumed = behavior.input(&panel_ev, &panel_state, state);
                 if trace && is_press_release {
                     let name = tree.get(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
