@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::time::Instant;
 
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -82,6 +83,7 @@ pub struct App {
     pub input_state: InputState,
     setup_fn: Option<SetupFn>,
     initialized: bool,
+    last_frame_time: Instant,
 }
 
 impl App {
@@ -95,6 +97,7 @@ impl App {
             input_state: InputState::new(),
             setup_fn: Some(setup),
             initialized: false,
+            last_frame_time: Instant::now(),
         }
     }
 
@@ -254,9 +257,18 @@ impl ApplicationHandler for App {
         let had_notices = self.tree.deliver_notices(window_focused, pixel_tallness);
 
         // Update views and tick animators
-        let dt = 1.0 / 60.0; // Fixed timestep for now
+        let now = Instant::now();
+        let dt = now
+            .duration_since(self.last_frame_time)
+            .as_secs_f64()
+            .clamp(0.001, 0.1);
+        self.last_frame_time = now;
         let tree = &mut self.tree;
         for win in self.windows.values_mut() {
+            // Layout changes from notices require viewed coordinate recomputation.
+            if had_notices {
+                win.view_mut().mark_viewing_dirty();
+            }
             let mut needs_full_repaint = had_notices;
 
             // Tick animator (take out to avoid borrow conflict)

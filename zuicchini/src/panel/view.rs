@@ -91,6 +91,9 @@ pub struct View {
     /// PORT-0129: Countdown for delayed End-Of-Interaction signal.
     /// When `Some(n)`, tick_eoi() decrements each frame and fires when 0.
     eoi_countdown: Option<i32>,
+    /// Whether viewed coordinates need recomputation. Set by viewport_changed,
+    /// visit stack changes, resize, etc. Cleared after update_viewing() runs.
+    viewing_dirty: bool,
     /// The view title. Updated from the active panel's title.
     pub title: String,
     /// Current mouse cursor for this view.
@@ -149,6 +152,7 @@ impl View {
             popped_up: false,
             visited_vw: viewport_width.max(1.0),
             visited_vh: viewport_height.max(1.0),
+            viewing_dirty: true,
         }
     }
 
@@ -201,6 +205,7 @@ impl View {
                 panel.pending_notices.insert(flags);
             }
         }
+        tree.mark_notices_pending();
     }
 
     pub fn is_activation_adherent(&self) -> bool {
@@ -220,10 +225,7 @@ impl View {
         if self.seek_pos_panel != panel {
             // Notify old panel that sought name is cleared
             if let Some(old_id) = self.seek_pos_panel {
-                if let Some(p) = tree.get_mut(old_id) {
-                    p.pending_notices
-                        .insert(super::behavior::NoticeFlags::SOUGHT_NAME_CHANGED);
-                }
+                tree.queue_notice(old_id, super::behavior::NoticeFlags::SOUGHT_NAME_CHANGED);
             }
 
             self.seek_pos_panel = panel;
@@ -231,18 +233,12 @@ impl View {
 
             // Notify new panel that sought name is set
             if let Some(new_id) = self.seek_pos_panel {
-                if let Some(p) = tree.get_mut(new_id) {
-                    p.pending_notices
-                        .insert(super::behavior::NoticeFlags::SOUGHT_NAME_CHANGED);
-                }
+                tree.queue_notice(new_id, super::behavior::NoticeFlags::SOUGHT_NAME_CHANGED);
             }
         } else if panel.is_some() && self.seek_pos_child_name != child_name {
             self.seek_pos_child_name = child_name.to_string();
             if let Some(id) = self.seek_pos_panel {
-                if let Some(p) = tree.get_mut(id) {
-                    p.pending_notices
-                        .insert(super::behavior::NoticeFlags::SOUGHT_NAME_CHANGED);
-                }
+                tree.queue_notice(id, super::behavior::NoticeFlags::SOUGHT_NAME_CHANGED);
             }
         }
     }
@@ -302,6 +298,7 @@ impl View {
         });
         self.active = Some(panel);
         self.viewport_changed = true;
+        self.viewing_dirty = true;
     }
 
     pub fn visit_fullsized(&mut self, tree: &PanelTree, panel: PanelId) {
@@ -341,6 +338,7 @@ impl View {
             self.visit_stack.pop();
             self.active = Some(self.current_visit().panel);
             self.viewport_changed = true;
+            self.viewing_dirty = true;
             true
         } else {
             false
@@ -351,6 +349,7 @@ impl View {
         self.visit_stack.truncate(1);
         self.active = Some(self.root);
         self.viewport_changed = true;
+        self.viewing_dirty = true;
     }
 
     // --- Viewport ---
@@ -385,6 +384,7 @@ impl View {
         }
 
         self.viewport_changed = true;
+        self.viewing_dirty = true;
     }
 
     pub fn viewport_size(&self) -> (f64, f64) {
@@ -435,6 +435,7 @@ impl View {
             state.rel_y = anchor_y + (state.rel_y - anchor_y) * inv_ratio;
             state.rel_a = new_a;
             self.viewport_changed = true;
+            self.viewing_dirty = true;
         }
     }
 
@@ -451,6 +452,7 @@ impl View {
             state.rel_x += dx / self.visited_vw;
             state.rel_y += dy / self.visited_vh;
             self.viewport_changed = true;
+            self.viewing_dirty = true;
         }
     }
 
@@ -482,6 +484,7 @@ impl View {
             self.zoom(area_factor, fix_x, fix_y);
         }
         self.update_viewing(tree);
+        self.viewing_dirty = false;
         let after = self.visit_stack.last().cloned();
         match (before, after) {
             (Some(b), Some(a)) => {
@@ -525,8 +528,10 @@ impl View {
             state.rel_y = 0.0;
             state.rel_a = rel_a;
             self.viewport_changed = true;
+            self.viewing_dirty = true;
         }
         self.update_viewing(tree);
+        self.viewing_dirty = false;
     }
 
     /// Compute the rel_a that makes the viewport fully contain the root panel.
@@ -758,6 +763,7 @@ impl View {
         }
         self.activation_adherent = adherent;
         self.control_panel_invalid = true;
+        tree.mark_notices_pending();
     }
 
     /// Auto-select best visible focusable panel as active.
@@ -986,21 +992,22 @@ impl View {
         // C++ sets InViewedPath=1 for ALL viewed panels, not just SVP
         // ancestors (emPanel.cpp:1497). This affects get_memory_limit and
         // get_update_priority which return 0 when in_viewed_path is false.
-        for id in tree.all_ids() {
-            if let Some(p) = tree.get_mut(id) {
-                if p.viewed {
-                    p.in_viewed_path = true;
-                }
+        tree.for_each_mut(|_, p| {
+            if p.viewed {
+                p.in_viewed_path = true;
             }
-        }
+        });
 
-        // Set in_active_path from root to active
+        // Set in_active_path from root to active (walk parent chain without allocating)
         if let Some(active_id) = self.active {
             if tree.contains(active_id) {
-                let active_ancestors = tree.ancestors(active_id);
-                for &id in &active_ancestors {
+                let mut cur = Some(active_id);
+                while let Some(id) = cur {
                     if let Some(p) = tree.get_mut(id) {
                         p.in_active_path = true;
+                        cur = p.parent;
+                    } else {
+                        break;
                     }
                 }
                 if let Some(p) = tree.get_mut(active_id) {
@@ -1111,11 +1118,7 @@ impl View {
                     }
                 }
                 // Queue LAYOUT_CHANGED so deliver_notices repositions children
-                if let Some(panel) = tree.get_mut(id) {
-                    panel
-                        .pending_notices
-                        .insert(super::behavior::NoticeFlags::LAYOUT_CHANGED);
-                }
+                tree.queue_notice(id, super::behavior::NoticeFlags::LAYOUT_CHANGED);
             } else if !should_expand && currently_expanded {
                 // Shrink: delete children and clear flag
                 tree.delete_all_children(id);
@@ -1129,10 +1132,8 @@ impl View {
                 if let Some(panel) = tree.get_mut(id) {
                     panel.ae_decision_invalid = false;
                     panel.ae_invalid = false;
-                    panel
-                        .pending_notices
-                        .insert(super::behavior::NoticeFlags::LAYOUT_CHANGED);
                 }
+                tree.queue_notice(id, super::behavior::NoticeFlags::LAYOUT_CHANGED);
             }
         }
     }
@@ -1699,6 +1700,7 @@ impl View {
         if self.background_color != color {
             self.background_color = color;
             self.viewport_changed = true;
+            self.viewing_dirty = true;
         }
     }
 
@@ -1922,7 +1924,10 @@ impl View {
     // --- Update loop ---
 
     pub fn update(&mut self, tree: &mut PanelTree) {
-        self.update_viewing(tree);
+        if self.viewing_dirty {
+            self.update_viewing(tree);
+            self.viewing_dirty = false;
+        }
 
         // VIEW-003: After scroll/zoom or viewport change, reselect active panel
         // (C++ calls SetActivePanelBestPossible after Scroll/Zoom)
@@ -1933,6 +1938,11 @@ impl View {
         if need_reselect || self.viewport_changed {
             self.set_active_panel_best_possible(tree);
         }
+    }
+
+    /// Mark viewed coordinates as needing recomputation (e.g. after layout changes).
+    pub fn mark_viewing_dirty(&mut self) {
+        self.viewing_dirty = true;
     }
 
     // --- Supreme panel ---

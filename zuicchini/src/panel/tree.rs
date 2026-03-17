@@ -243,6 +243,9 @@ pub struct PanelTree {
     /// Per-parent name index: (parent, child_name) → child_id.
     /// Root panels use their own id as the "parent" key.
     name_index: HashMap<(PanelId, String), PanelId>,
+    /// Fast check: true when any panel has non-empty pending_notices.
+    /// Set when notices are queued, cleared after deliver_notices drains them.
+    has_pending_notices: bool,
 }
 
 impl PanelTree {
@@ -251,6 +254,7 @@ impl PanelTree {
             panels: SlotMap::with_key(),
             root: None,
             name_index: HashMap::new(),
+            has_pending_notices: false,
         }
     }
 
@@ -283,6 +287,7 @@ impl PanelTree {
         self.root = Some(id);
         // C++ fires all NF_* flags on new panels as initialization notices
         self.panels[id].pending_notices = Self::INIT_NOTICE_FLAGS;
+        self.has_pending_notices = true;
         id
     }
 
@@ -310,6 +315,7 @@ impl PanelTree {
         self.panels[parent]
             .pending_notices
             .insert(NoticeFlags::CHILDREN_CHANGED);
+        self.has_pending_notices = true;
 
         // C++ fires all NF_* flags on new panels as initialization notices
         self.panels[id].pending_notices = Self::INIT_NOTICE_FLAGS;
@@ -342,6 +348,7 @@ impl PanelTree {
             self.panels[parent_id]
                 .pending_notices
                 .insert(NoticeFlags::CHILDREN_CHANGED);
+            self.has_pending_notices = true;
         }
 
         // Remove root reference if needed
@@ -385,6 +392,19 @@ impl PanelTree {
     /// Get a panel's data mutably (crate-internal).
     pub(crate) fn get_mut(&mut self, id: PanelId) -> Option<&mut PanelData> {
         self.panels.get_mut(id)
+    }
+
+    /// Queue notice flags on a panel and mark the tree as having pending notices.
+    pub(crate) fn queue_notice(&mut self, id: PanelId, flags: NoticeFlags) {
+        if let Some(panel) = self.panels.get_mut(id) {
+            panel.pending_notices.insert(flags);
+            self.has_pending_notices = true;
+        }
+    }
+
+    /// Mark the tree as having pending notices (for callers that queue via get_mut directly).
+    pub(crate) fn mark_notices_pending(&mut self) {
+        self.has_pending_notices = true;
     }
 
     // ── Public read accessors ──────────────────────────────────────────
@@ -435,6 +455,7 @@ impl PanelTree {
             if panel.visible != visible {
                 panel.visible = visible;
                 panel.pending_notices.insert(NoticeFlags::VISIBILITY);
+                self.has_pending_notices = true;
             }
         }
     }
@@ -574,6 +595,7 @@ impl PanelTree {
             self.panels[parent]
                 .pending_notices
                 .insert(NoticeFlags::CHILDREN_CHANGED);
+            self.has_pending_notices = true;
         }
     }
 
@@ -764,6 +786,7 @@ impl PanelTree {
         self.panels[parent]
             .pending_notices
             .insert(NoticeFlags::CHILDREN_CHANGED);
+        self.has_pending_notices = true;
     }
 
     // ── Title / Icon ─────────────────────────────────────────────────
@@ -844,6 +867,7 @@ impl PanelTree {
         for child in children {
             if let Some(panel) = self.panels.get_mut(child) {
                 panel.pending_notices.insert(NoticeFlags::LAYOUT_CHANGED);
+                self.has_pending_notices = true;
             }
         }
     }
@@ -870,6 +894,7 @@ impl PanelTree {
                     | NoticeFlags::UPDATE_PRIORITY_CHANGED
                     | NoticeFlags::MEMORY_LIMIT_CHANGED,
             );
+            self.has_pending_notices = true;
         }
     }
 
@@ -878,6 +903,7 @@ impl PanelTree {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.canvas_color = color;
             panel.pending_notices.insert(NoticeFlags::CANVAS_CHANGED);
+            self.has_pending_notices = true;
         }
     }
 
@@ -907,6 +933,7 @@ impl PanelTree {
             if panel.enabled != new_enabled {
                 panel.enabled = new_enabled;
                 panel.pending_notices.insert(NoticeFlags::ENABLE_CHANGED);
+                self.has_pending_notices = true;
             }
         }
 
@@ -963,6 +990,10 @@ impl PanelTree {
     /// Dispatch pending notices to panel behaviors. Returns `true` if any
     /// notices were delivered (meaning visual state may have changed).
     pub fn deliver_notices(&mut self, window_focused: bool, pixel_tallness: f64) -> bool {
+        if !self.has_pending_notices {
+            return false;
+        }
+        self.has_pending_notices = false;
         let mut delivered = false;
         // Loop until no new notices are generated. layout_children may call
         // set_layout_rect on children, queuing LAYOUT_CHANGED notices that
@@ -1001,6 +1032,8 @@ impl PanelTree {
                 break;
             }
         }
+        // All notices drained; clear the flag (may have been re-set during delivery).
+        self.has_pending_notices = false;
         delivered
     }
 
@@ -1684,6 +1717,13 @@ impl PanelTree {
     /// Get all panel IDs.
     pub fn all_ids(&self) -> Vec<PanelId> {
         self.panels.keys().collect()
+    }
+
+    /// Apply a closure to all panels mutably, without allocating an ID list.
+    pub(crate) fn for_each_mut(&mut self, mut f: impl FnMut(PanelId, &mut PanelData)) {
+        for (id, panel) in self.panels.iter_mut() {
+            f(id, panel);
+        }
     }
 
     /// Return viewed panels in depth-first order (root → leaves), matching the
