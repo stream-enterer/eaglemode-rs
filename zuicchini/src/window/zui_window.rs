@@ -673,7 +673,11 @@ impl ZuiWindow {
             for panel_id in viewed {
                 let mut panel_ev = ctrl_ev.clone();
                 panel_ev.mouse_x = self.control_tree.view_to_panel_x(panel_id, ctrl_ev.mouse_x);
-                panel_ev.mouse_y = self.control_tree.view_to_panel_y(panel_id, ctrl_ev.mouse_y);
+                panel_ev.mouse_y = self.control_tree.view_to_panel_y(
+                    panel_id,
+                    ctrl_ev.mouse_y,
+                    self.control_view.pixel_tallness(),
+                );
                 if let Some(mut behavior) = self.control_tree.take_behavior(panel_id) {
                     let panel_state = self.control_tree.build_panel_state(
                         panel_id,
@@ -714,25 +718,49 @@ impl ZuiWindow {
         // Stamp modifier keys from InputState onto the event
         let ev = event.clone().with_modifiers(state);
 
-        // Dispatch to ALL viewed panels in DFS order (root → leaves), matching
-        // C++ emPanel::Input recursive broadcast. Each panel receives the event
+        // Dispatch to ALL viewed panels in post-order, matching C++
+        // emPanel::Input recursive broadcast. Each panel receives the event
         // with mouse coords transformed to its local space.
+        let trace = crate::widget::trace_input_enabled();
+        let is_press_release = matches!(ev.variant, InputVariant::Press | InputVariant::Release)
+            && matches!(
+                ev.key,
+                InputKey::MouseLeft | InputKey::MouseRight | InputKey::MouseMiddle
+            );
+        if trace && is_press_release {
+            eprintln!(
+                "[INPUT] {:?} {:?} view=({:.1},{:.1})",
+                ev.key, ev.variant, ev.mouse_x, ev.mouse_y
+            );
+        }
         let wf = self.view.window_focused();
         let viewed = tree.viewed_panels_dfs();
         for panel_id in viewed {
             let mut panel_ev = ev.clone();
             panel_ev.mouse_x = tree.view_to_panel_x(panel_id, ev.mouse_x);
-            panel_ev.mouse_y = tree.view_to_panel_y(panel_id, ev.mouse_y);
+            panel_ev.mouse_y =
+                tree.view_to_panel_y(panel_id, ev.mouse_y, self.view.pixel_tallness());
 
             if let Some(mut behavior) = tree.take_behavior(panel_id) {
                 let panel_state = tree.build_panel_state(panel_id, wf, self.view.pixel_tallness());
                 let consumed = behavior.input(&panel_ev, &panel_state, state);
+                if trace && is_press_release {
+                    let name = tree.get(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
+                    eprintln!(
+                        "  {:?} {:?} local=({:.4},{:.4}) consumed={}",
+                        panel_id, name, panel_ev.mouse_x, panel_ev.mouse_y, consumed
+                    );
+                }
                 // TF-003: Process scroll-to-visible requests from behaviors
                 if let Some(rect) = behavior.take_scroll_to_visible() {
                     self.view.scroll_to_panel_rect(tree, panel_id, rect);
                 }
                 tree.put_behavior(panel_id, behavior);
                 if consumed {
+                    if trace && is_press_release {
+                        let name = tree.get(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
+                        eprintln!("  >>> CONSUMED by {:?}", name);
+                    }
                     break;
                 }
             }

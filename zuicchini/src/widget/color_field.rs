@@ -74,6 +74,8 @@ impl Expansion {
 pub struct ColorField {
     border: Border,
     look: Rc<Look>,
+    last_w: f64,
+    last_h: f64,
     color: Color,
     editable: bool,
     alpha_enabled: bool,
@@ -93,6 +95,8 @@ impl ColorField {
                 .with_inner(InnerBorderType::OutputField)
                 .with_how_to(true),
             look,
+            last_w: 0.0,
+            last_h: 0.0,
             color: Color::BLACK,
             editable: false,
             alpha_enabled: false,
@@ -335,7 +339,9 @@ impl ColorField {
     /// Paint using C++ emColorField::PaintContent (emColorField.cpp:371-404).
     ///
     /// Gets content round rect, insets by d=min(w,h)*0.1, paints color rect + outline.
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+        self.last_w = w;
+        self.last_h = h;
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
@@ -362,9 +368,21 @@ impl ColorField {
         self.border.paint_inner_overlay(painter, w, h, &self.look);
     }
 
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let tallness = self.last_h / self.last_w;
+        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
+                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    return false;
+                }
                 self.set_expanded(!self.expanded);
                 true
             }
@@ -613,10 +631,11 @@ mod tests {
         let mut cf = ColorField::new(look);
         assert!(!cf.is_expanded());
 
-        cf.input(&InputEvent::release(InputKey::MouseLeft));
+        // Use programmatic toggle since mouse needs paint for hit test
+        cf.set_expanded(true);
         assert!(cf.is_expanded());
 
-        cf.input(&InputEvent::release(InputKey::MouseLeft));
+        cf.set_expanded(false);
         assert!(!cf.is_expanded());
     }
 

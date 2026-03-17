@@ -241,6 +241,8 @@ struct Item {
 pub struct ListBox {
     border: Border,
     look: Rc<Look>,
+    last_w: f64,
+    last_h: f64,
     items: Vec<Item>,
     /// O(1) lookup from item name to index.
     name_index: HashMap<String, usize>,
@@ -283,6 +285,8 @@ impl ListBox {
                 .with_inner(InnerBorderType::InputField)
                 .with_how_to(true),
             look,
+            last_w: 0.0,
+            last_h: 0.0,
             items: Vec::new(),
             name_index: HashMap::new(),
             selected_indices: Vec::new(),
@@ -931,6 +935,8 @@ impl ListBox {
     // ── Paint ───────────────────────────────────────────────────────
 
     pub fn paint(&mut self, painter: &mut Painter, w: f64, h: f64) {
+        self.last_w = w;
+        self.last_h = h;
         self.border
             .paint_border(painter, w, h, &self.look, false, true);
 
@@ -1046,6 +1052,15 @@ impl ListBox {
 
     // ── Input ───────────────────────────────────────────────────────
 
+    fn hit_test(&self, mx: f64, my: f64) -> bool {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return false;
+        }
+        let tallness = self.last_h / self.last_w;
+        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
+        super::check_mouse_round_rect(mx, my, &rect, r)
+    }
+
     pub fn input(&mut self, event: &InputEvent) -> bool {
         if !self.enabled {
             return false;
@@ -1074,7 +1089,12 @@ impl ListBox {
                 true
             }
             InputKey::MouseLeft if event.variant == InputVariant::Press => {
-                let Rect { y: cy, .. } = self.border.content_rect(0.0, 0.0, &self.look);
+                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    return false;
+                }
+                let Rect { y: cy, .. } =
+                    self.border
+                        .content_rect(self.last_w, self.last_h, &self.look);
                 let rel_y = event.mouse_y - cy + self.scroll_y;
                 let clicked_idx = (rel_y / ROW_HEIGHT) as usize;
                 if clicked_idx < self.items.len() && !event.alt && !event.meta {

@@ -331,16 +331,23 @@ impl RadioButton {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
-        let (rect, r) = self
-            .border
-            .content_round_rect(self.last_w, self.last_h, &self.look);
+        let tallness = self.last_h / self.last_w;
+        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
         super::check_mouse_round_rect(mx, my, &rect, r)
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {
+        let trace = super::trace_input_enabled();
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
-                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                let hit = self.hit_test(event.mouse_x, event.mouse_y);
+                if trace {
+                    eprintln!(
+                        "    [RadioButton {:?}] Release mouse=({:.4},{:.4}) last=({:.4},{:.4}) hit={} selected_before={}",
+                        self.border.caption, event.mouse_x, event.mouse_y, self.last_w, self.last_h, hit, self.is_selected()
+                    );
+                }
+                if !hit {
                     return false;
                 }
                 self.group.borrow_mut().select(self.index);

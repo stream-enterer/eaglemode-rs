@@ -506,9 +506,8 @@ impl ScalarField {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
-        let (rect, r) = self
-            .border
-            .content_round_rect(self.last_w, self.last_h, &self.look);
+        let tallness = self.last_h / self.last_w;
+        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
         super::check_mouse_round_rect(mx, my, &rect, r)
     }
 
@@ -532,6 +531,9 @@ impl ScalarField {
                     true
                 }
                 InputVariant::Release => {
+                    if !self.dragging {
+                        return false;
+                    }
                     self.dragging = false;
                     true
                 }

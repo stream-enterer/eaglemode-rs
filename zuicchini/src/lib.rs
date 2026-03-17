@@ -1,3 +1,4 @@
+mod debug;
 pub mod foundation;
 pub mod input;
 pub mod layout;

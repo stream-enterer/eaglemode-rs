@@ -46,6 +46,13 @@ pub use tunnel::{Tunnel, TunnelChildRect};
 
 use crate::foundation::Rect;
 
+/// Returns true if TRACE_INPUT env var is set. Cached after first call.
+pub(crate) fn trace_input_enabled() -> bool {
+    use std::sync::OnceLock;
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| std::env::var("TRACE_INPUT").is_ok())
+}
+
 /// Rounded-rectangle hit test matching the C++ signed-distance formula used by
 /// `emButton::CheckMouse`, `emTextField::CheckMouse`, and
 /// `emScalarField::CheckMouse`.

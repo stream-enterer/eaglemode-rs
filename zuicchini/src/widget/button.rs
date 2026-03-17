@@ -264,17 +264,19 @@ impl Button {
     }
 
     /// Rounded-rect hit test matching C++ `emButton::CheckMouse`.
+    /// Mouse coords are in normalized panel space (0..1, 0..tallness), so
+    /// content_round_rect must also be computed in normalized space.
     fn hit_test(&self, mx: f64, my: f64) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
-        let (rect, r) = self
-            .border
-            .content_round_rect(self.last_w, self.last_h, &self.look);
+        let tallness = self.last_h / self.last_w;
+        let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
         super::check_mouse_round_rect(mx, my, &rect, r)
     }
 
     pub fn input(&mut self, event: &InputEvent) -> bool {
+        let trace = super::trace_input_enabled();
         // Update hover on any event with mouse coordinates
         if event.variant == InputVariant::Move {
             self.update_hover(event.mouse_x, event.mouse_y);
@@ -284,7 +286,15 @@ impl Button {
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
-                    if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    let hit = self.hit_test(event.mouse_x, event.mouse_y);
+                    if trace {
+                        let cap = &self.border.caption;
+                        eprintln!(
+                            "    [Button {:?}] Press mouse=({:.4},{:.4}) last=({:.4},{:.4}) hit={} pressed_before={}",
+                            cap, event.mouse_x, event.mouse_y, self.last_w, self.last_h, hit, self.pressed
+                        );
+                    }
+                    if !hit {
                         return false;
                     }
                     self.pressed = true;
@@ -294,7 +304,15 @@ impl Button {
                     true
                 }
                 InputVariant::Release => {
-                    if !self.hit_test(event.mouse_x, event.mouse_y) {
+                    let hit = self.hit_test(event.mouse_x, event.mouse_y);
+                    if trace {
+                        let cap = &self.border.caption;
+                        eprintln!(
+                            "    [Button {:?}] Release mouse=({:.4},{:.4}) hit={} pressed_before={}",
+                            cap, event.mouse_x, event.mouse_y, hit, self.pressed
+                        );
+                    }
+                    if !hit {
                         return false;
                     }
                     if self.pressed {

@@ -1057,9 +1057,13 @@ impl PanelTree {
     }
 
     /// Convert view-space Y to panel-space Y.
-    pub fn view_to_panel_y(&self, id: PanelId, vy: f64) -> f64 {
+    ///
+    /// C++ emView.cpp:2020: `my = (mouseY - ViewedY) / ViewedWidth * PixelTallness`
+    /// Both axes divide by ViewedWidth (not ViewedHeight) to preserve the panel's
+    /// normalized coordinate system where X is 0..1 and Y is 0..tallness.
+    pub fn view_to_panel_y(&self, id: PanelId, vy: f64, pixel_tallness: f64) -> f64 {
         let p = &self.panels[id];
-        (vy - p.viewed_y) / p.viewed_height
+        (vy - p.viewed_y) / p.viewed_width * pixel_tallness
     }
 
     /// Convert a panel-space delta X to view-space delta X.
