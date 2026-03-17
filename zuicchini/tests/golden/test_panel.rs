@@ -20,7 +20,8 @@ use zuicchini::layout::linear::{LinearGroup, LinearLayout};
 use zuicchini::layout::raster::{RasterGroup, RasterLayout};
 use zuicchini::layout::{ChildConstraint, Orientation};
 use zuicchini::panel::{
-    PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View, ViewConditionType, ViewFlags,
+    NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View, ViewConditionType,
+    ViewFlags,
 };
 use zuicchini::render::{
     ImageExtension, ImageQuality, LineCap, LineJoin, Painter, SoftwareCompositor, Stroke,
@@ -179,6 +180,11 @@ impl PanelBehavior for TextFieldPanel {
     }
     fn is_opaque(&self) -> bool {
         true
+    }
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
+        if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
+            self.widget.on_focus_changed(state.in_focused_path());
+        }
     }
 }
 

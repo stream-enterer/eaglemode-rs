@@ -9,7 +9,7 @@ use std::rc::Rc;
 
 use zuicchini::foundation::Color;
 use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, ViewFlags};
+use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelCtx, PanelState, ViewFlags};
 use zuicchini::render::{Painter, TextAlignment, VAlign};
 use zuicchini::widget::{
     Button, CheckBox, CheckButton, ColorField, ListBox, Look, RadioButton, RadioGroup, ScalarField,
@@ -107,6 +107,11 @@ impl PanelBehavior for TextFieldPanel {
     }
     fn is_opaque(&self) -> bool {
         true
+    }
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
+        if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
+            self.widget.on_focus_changed(state.in_focused_path());
+        }
     }
 }
 

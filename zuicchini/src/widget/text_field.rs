@@ -222,6 +222,11 @@ impl TextField {
         self.editable
     }
 
+    /// Update focus state from panel tree. Matches C++ `IsInFocusedPath()`.
+    pub fn on_focus_changed(&mut self, in_focused_path: bool) {
+        self.focused = in_focused_path;
+    }
+
     pub fn set_multi_line(&mut self, multi_line: bool) {
         if self.multi_line == multi_line {
             return;
@@ -841,7 +846,19 @@ impl TextField {
         if self.char_positions.is_empty() {
             return 0;
         }
-        let adjusted_x = x + self.scroll_x - TEXT_PADDING;
+        // Reconstruct tx (text area left offset) from border geometry,
+        // matching C++ ColRow2Index: adjusted = (xIn - tx) / cw.
+        // char_positions stores cumulative widths already scaled by ws,
+        // so we only need to subtract tx and add scroll_x.
+        let tx = if self.last_w > 0.0 && self.last_h > 0.0 {
+            let (content, radius) =
+                self.border.content_round_rect(self.last_w, self.last_h, &self.look);
+            let d = content.h.min(content.w) * 0.1 + radius * 0.5;
+            content.x + d
+        } else {
+            TEXT_PADDING // fallback before first paint
+        };
+        let adjusted_x = x - tx + self.scroll_x;
         if adjusted_x <= 0.0 {
             return 0;
         }
@@ -1912,6 +1929,15 @@ impl TextField {
                 let pos = self.pos_from_event(event.mouse_x, event.mouse_y);
                 if self.selection_anchor.is_none() {
                     self.selection_anchor = Some(self.cursor);
+                } else if !self.is_selection_empty() {
+                    // C++ ModifySelection closest-endpoint re-anchor (lines 1497-1501):
+                    // on each drag motion, anchor at whichever endpoint is farther
+                    // from the old cursor, so extending reverses direction naturally.
+                    let ss = self.selection_start();
+                    let se = self.selection_end();
+                    let d1 = (self.cursor as isize - ss as isize).unsigned_abs();
+                    let d2 = (self.cursor as isize - se as isize).unsigned_abs();
+                    self.selection_anchor = Some(if d1 < d2 { se } else { ss });
                 }
                 self.cursor = pos;
                 self.fire_selection_change();

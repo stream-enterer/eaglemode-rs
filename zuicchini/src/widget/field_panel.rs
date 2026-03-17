@@ -79,6 +79,12 @@ impl PanelBehavior for TextFieldPanel {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.text_field.paint(painter, w, h, state.enabled);
     }
+
+    fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
+        if flags.intersects(NoticeFlags::FOCUS_CHANGED) {
+            self.text_field.on_focus_changed(state.in_focused_path());
+        }
+    }
 }
 
 /// PanelBehavior wrapper for CheckBox.
