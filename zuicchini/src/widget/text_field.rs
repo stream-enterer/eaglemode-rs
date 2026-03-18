@@ -87,6 +87,9 @@ pub struct TextField {
     pub on_validate: Option<ValidateCb>,
     pub on_clipboard_copy: Option<ClipboardCopyCb>,
     pub on_clipboard_paste: Option<ClipboardPasteCb>,
+    /// Called to clear the primary selection (X11).
+    /// Matches C++ `Clipboard->Clear(true, SelectionId)` in EmptySelection.
+    pub on_clipboard_clear: Option<Box<dyn Fn()>>,
     // Cursor blink state
     cursor_blink_on: bool,
     cursor_blink_time: std::time::Instant,
@@ -157,6 +160,7 @@ impl TextField {
             on_validate: None,
             on_clipboard_copy: None,
             on_clipboard_paste: None,
+            on_clipboard_clear: None,
             cursor_blink_on: true,
             cursor_blink_time: std::time::Instant::now(),
             on_selection_signal: None,
@@ -295,6 +299,10 @@ impl TextField {
 
     pub fn deselect(&mut self) {
         self.selection_anchor = None;
+        // C++ EmptySelection() calls Clipboard->Clear(true, SelectionId).
+        if let Some(cb) = &self.on_clipboard_clear {
+            cb();
+        }
         self.fire_selection_change();
     }
 
