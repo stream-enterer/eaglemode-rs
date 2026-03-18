@@ -27,11 +27,13 @@ When one is fixed, the others may not be. Check that fixes applied to one are re
 **Fixed for**: CheckBox, CheckButton — set_checked now fires on_check callback when state changes.
 **Remaining**: `set_text()`, `set_value()`, `set_color()`, `set_selected()` — not yet checked.
 
-## CC-03: Missing Disabled State Rendering
+## CC-03: Missing Disabled State Rendering — **PARTIALLY FIXED**
 
 **Found in**: CheckBox audit (2026-03-18)
 **Affected widgets**: Potentially all
 **Issue**: C++ paints disabled overlays (gray translucent rect) and makes label colors transparent. Rust may not have this across the board.
+**Fixed for**: Label (fg alpha dim), Button/CheckButton/RadioButton (label fg dim), CheckBox/RadioBox (label dim + gray face overlay 0x888888E0), Splitter (overlay alpha 64, input gate, cursor).
+**Remaining**: TextField, ScalarField, ColorField, ListBox.
 
 ## CC-05: DoLabel Alignment Defaults Wrong (Center vs Left) — **PARTIALLY FIXED**
 
