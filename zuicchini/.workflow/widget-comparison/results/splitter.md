@@ -35,12 +35,12 @@
 - **Fix**: Input gating added on press matching CC-03 pattern.
 - See CC-03
 
-### [LOW] Missing borderScaling factor in grip size
-- Rust uses fixed 0.015. C++ multiplies by GetBorderScaling(). Latent: no callers change scaling.
+### [LOW] Missing borderScaling factor in grip size — **FIXED**
+- **Fix**: Added `border_scaling` field; grip size now multiplied by `border_scaling` matching C++ `GetBorderScaling()`. Latent when callers use default scaling of 1.0.
 - **Confidence**: high | **Coverage**: covered (default scaling)
 
-### [LOW] canvas_color passed as TRANSPARENT
-- Same pattern as Label. Optimization difference, not pixel difference.
+### [LOW] canvas_color passed as TRANSPARENT — **FIXED**
+- **Fix**: Now passes `painter.canvas_color()` instead of `Color::TRANSPARENT`, matching C++ pattern.
 - **Confidence**: low | **Coverage**: covered
 
 ### [LOW] Missing disabled state alpha (255 vs 64) — **FIXED**
@@ -48,6 +48,7 @@
 - See CC-03
 
 ### [LOW] Missing Focus()/Activate() calls on drag
+- Needs `PanelCtx` available in `input()` to call focus infrastructure. Architecture gap — not fixable without broader input context plumbing.
 - **Confidence**: high | **Coverage**: uncovered
 
 ## Summary

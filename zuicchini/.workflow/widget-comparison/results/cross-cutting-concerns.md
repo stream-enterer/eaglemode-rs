@@ -57,3 +57,5 @@ When one is fixed, the others may not be. Check that fixes applied to one are re
 **Found in**: Button audit (2026-03-18, in progress)
 **Affected widgets**: All interactive widgets
 **Issue**: C++ gates input handling on `GetViewCondition(VCT_MIN_EXT) >= threshold`. This prevents interaction with widgets that are too small on screen. Rust may not have this guard.
+**Fixed for**: Button (threshold 8.0), CheckBox/CheckButton/RadioButton/RadioBox (threshold 8.0), ScalarField (threshold 10.0), TextField (threshold 10.0).
+**Remaining**: ListBox, ColorField, Splitter — not yet checked.

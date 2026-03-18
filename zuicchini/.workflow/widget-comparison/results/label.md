@@ -30,10 +30,10 @@
 - **Fix**: `set_label_alignment` and `set_caption_alignment` added matching C++ emBorder API.
 - **Confidence**: high | **Coverage**: uncovered
 
-### [NOTE] canvas_color passed as TRANSPARENT
+### [NOTE] canvas_color passed as TRANSPARENT — **NOTE**
 - **C++**: passes canvasColor from border system through to PaintTextBoxed
-- **Rust**: label.rs:94 — hardcodes `Color::TRANSPARENT`
-- For OBT_MARGIN (Label's default): functionally equivalent since Margin doesn't fill background
+- **Rust**: Label now delegates to `border.paint_label` which handles `canvas_color` correctly through the border chain.
+- Resolved: Label no longer hardcodes `Color::TRANSPARENT`; the border system provides the correct canvas color.
 - **Confidence**: low | **Coverage**: covered (golden passes)
 
 ## Summary

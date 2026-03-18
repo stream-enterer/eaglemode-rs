@@ -32,14 +32,15 @@
 
 ### [LOW] VCT_MIN_EXT missing (see CC-04) — **FIXED**
 
-### [LOW] set_* methods don't fire signals (see CC-02)
+### [LOW] set_* methods don't fire signals (see CC-02) — **NOTE**
+- C++ `SetMinValue`/`SetMaxValue` call `SetValue` for clamping, which fires the value signal. Rust `set_min_value`/`set_max_value` already call `set_value` internally, which fires `on_value_changed`. Behavior matches C++.
 
-### [LOW] HowTo text built at paint-time (string alloc per frame)
-- Functionally produces same text but allocates every frame
+### [LOW] HowTo text built at paint-time (string alloc per frame) — **NOTE**
+- C++ `GetHowTo()` also builds the HowTo string dynamically on every call (no caching). The allocation pattern is therefore the same as C++; this is not a divergence.
 - **Confidence**: medium | **Coverage**: uncovered
 
-### [LOW] preferred_size uses hardcoded dims vs C++ tallness-based
-- Design difference, not a bug
+### [LOW] preferred_size uses hardcoded dims vs C++ tallness-based — **FIXED**
+- **Fix**: `preferred_size` now uses `best_label_tallness()` to derive height matching C++ tallness-based computation.
 - **Confidence**: low | **Coverage**: N/A
 
 ## Summary

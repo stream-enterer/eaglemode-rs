@@ -47,7 +47,7 @@
 
 ### [GAP] No clip rect check on mouse release
 - **C++**: emButton.cpp:101-109 — verifies release position against clip rect
-- **Rust**: no clip rect verification
+- **Rust**: no clip rect verification — needs panel-to-view transform infrastructure before this can be implemented
 - **Confidence**: high | **Coverage**: uncovered
 
 ### [GAP] No IsViewed() check on mouse release — **FIXED**
@@ -57,12 +57,11 @@
 
 ### [GAP] No Focus() call on mouse press
 - **C++**: emButton.cpp:86
-- **Rust**: no focus management in button
+- **Rust**: no focus management in button — needs `PanelCtx` available in `input()` to call focus infrastructure. Architecture gap.
 - **Confidence**: medium | **Coverage**: uncovered
 
-### [GAP] Boxed/RadioBox paint path missing from base Button
-- shown_boxed/shown_radioed flags exist but are dead code in paint()
-- Intentional — separate widgets — but API is misleading
+### [GAP] Boxed/RadioBox paint path missing from base Button — **NOTE**
+- `shown_boxed`/`shown_radioed` flags in base Button are dead code in `paint()`. This is intentional: CheckBox and RadioBox are separate widgets that handle the boxed and radioed paint paths respectively. Base Button only needs the non-boxed path. The API flags are misleading but the behavior is correct for the widget hierarchy.
 - **Confidence**: medium | **Coverage**: uncovered
 
 ### [NOTE] Hover state is Rust-only addition — **FIXED**

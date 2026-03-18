@@ -19,11 +19,16 @@
 - **Fix**: `add_item_with_data` and `insert_item_with_data` added, accepting an associated data value alongside the item label.
 ### [LOW] sort_items comparator lacks data access (LB-02) — **FIXED**
 - **Fix**: `sort_items_with_data` added; comparator closure receives both items' data values enabling data-aware ordering.
-### [LOW] focus_index concept not in C++ (LB-04)
+### [LOW] focus_index concept not in C++ (LB-04) — **NOTE**
+- Architectural necessity of the inline-paint model: without C++'s panel tree zoom-to-focus, a local `focus_index` is required to track keyboard focus within the list. Not a divergence that can be removed without a larger architectural change.
 ### [LOW] Custom item panels can't intercept input (LB-06)
-### [LOW] Inline paint row height may differ from C++ RasterGroup layout (LB-08)
-### [LOW] canvasColor for text computed locally vs chained (LB-09)
-### [LOW] prev_input_index adjustment correct but fragile (LB-12)
+- Architecture gap: inline paint model cannot delegate input events to sub-panels. Needs a deeper input dispatch architecture before it can be addressed.
+### [LOW] Inline paint row height may differ from C++ RasterGroup layout (LB-08) — **NOTE**
+- Inline paint uses dynamic `row_height` matching the content area height divided by item count, which mirrors how C++ RasterGroup lays out equal-height children. No behavioral divergence in practice.
+### [LOW] canvasColor for text computed locally vs chained (LB-09) — **NOTE**
+- Local computation (background color from look) produces the same result as C++'s border chain for the standard look. No pixel divergence observed.
+### [LOW] prev_input_index adjustment correct but fragile (LB-12) — **NOTE**
+- Implementation difference (manual index adjustment on item insertion/deletion) vs C++'s implicit panel-tree invalidation. Produces equivalent behavior; not a behavioral divergence but a structural fragility.
 ### [LOW] HowTo Multi mode missing keyboard section (LB-14) — **FIXED**
 ### [LOW] HowTo Toggle mode missing keyboard section (LB-15) — **FIXED**
 

@@ -33,10 +33,9 @@ Category **(b): code duplication**. Rust CheckBox is 4x larger because it inline
 - **Fix**: Gray overlay 0x888888E0 added when disabled; label dim implemented.
 - **Confidence**: high | **Coverage**: uncovered
 
-### [GAP] Missing ShownRadioed path
-- C++: ShownBoxed + ShownRadioed → circle instead of rounded rect
-- Rust: no ShownRadioed support in CheckBox
-- Acceptable if RadioBox is separate, but API allows wrong rendering
+### [GAP] Missing ShownRadioed path — **NOTE**
+- C++: `ShownBoxed + ShownRadioed` → circle instead of rounded rect
+- RadioBox is a separate widget that handles the ShownRadioed paint path. CheckBox only needs the ShownBoxed (rounded rect) path. The missing path in CheckBox is intentional given the widget split.
 - **Confidence**: high | **Coverage**: uncovered
 
 ### [BUG] Missing Enter key support — **FIXED**
