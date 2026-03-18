@@ -972,6 +972,7 @@ impl WidgetGroupPanel {
     fn new(category: WidgetCategory, caption: &str, look: Rc<Look>) -> Self {
         let mut group = RasterGroup::new();
         group.border.caption = caption.to_string();
+        group.border.set_border_scaling(2.5);
         group.look = (*look).clone();
         Self {
             group,
@@ -1101,12 +1102,18 @@ impl PanelBehavior for WidgetGroupPanel {
 // ═══════════════════════════════════════════════════════════════════════
 
 struct TkTestPanel {
+    group: RasterGroup,
     look: Rc<Look>,
 }
 
 impl TkTestPanel {
     fn new(look: Rc<Look>) -> Self {
-        Self { look }
+        let mut group = RasterGroup::new();
+        group.border.caption = "Toolkit Test".to_string();
+        group.border.set_border_scaling(2.5);
+        group.layout.preferred_child_tallness = 0.3;
+        group.look = (*look).clone();
+        Self { group, look }
     }
 }
 
@@ -1119,64 +1126,32 @@ impl PanelBehavior for TkTestPanel {
         true
     }
 
-    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
-        p.paint_rect(
-            0.0,
-            0.0,
-            w,
-            h,
-            Color::rgba(0x30, 0x40, 0x50, 0xFF),
-            Color::TRANSPARENT,
-        );
+    fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
+        self.group.paint(p, w, h, s);
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
-        let children = ctx.children();
+        if ctx.children().is_empty() {
+            let look = self.look.clone();
 
-        // Grid layout for 7 groups
-        let cols = 3;
-        let margin = 0.02;
-        let cell_w = (1.0 - margin * (cols as f64 + 1.0)) / cols as f64;
-        let cell_h = cell_w * 0.8;
+            let groups: &[(&str, &str, WidgetCategory)] = &[
+                ("grp_btn", "Buttons", WidgetCategory::Buttons),
+                ("grp_chk", "Check Widgets", WidgetCategory::CheckWidgets),
+                ("grp_rad", "Radio Widgets", WidgetCategory::RadioWidgets),
+                ("grp_txt", "Text Fields", WidgetCategory::TextFields),
+                ("grp_scl", "Scalar Fields", WidgetCategory::ScalarFields),
+                ("grp_clr", "Color Fields", WidgetCategory::ColorFields),
+                ("grp_lst", "List Boxes", WidgetCategory::ListBoxes),
+            ];
 
-        if !children.is_empty() {
-            for (i, child) in children.iter().enumerate() {
-                let col = i % cols;
-                let row = i / cols;
-                let x = margin + col as f64 * (cell_w + margin);
-                let y = margin + row as f64 * (cell_h + margin);
-                ctx.layout_child(*child, x, y, cell_w, cell_h);
+            for &(name, caption, cat) in groups {
+                ctx.create_child_with(
+                    name,
+                    Box::new(WidgetGroupPanel::new(cat, caption, look.clone())),
+                );
             }
-            return;
         }
-
-        let look = self.look.clone();
-
-        let groups: &[(&str, &str, WidgetCategory)] = &[
-            ("grp_btn", "Buttons", WidgetCategory::Buttons),
-            ("grp_chk", "Check Widgets", WidgetCategory::CheckWidgets),
-            ("grp_rad", "Radio Widgets", WidgetCategory::RadioWidgets),
-            ("grp_txt", "Text Fields", WidgetCategory::TextFields),
-            ("grp_scl", "Scalar Fields", WidgetCategory::ScalarFields),
-            ("grp_clr", "Color Fields", WidgetCategory::ColorFields),
-            ("grp_lst", "List Boxes", WidgetCategory::ListBoxes),
-        ];
-
-        for &(name, caption, cat) in groups {
-            ctx.create_child_with(
-                name,
-                Box::new(WidgetGroupPanel::new(cat, caption, look.clone())),
-            );
-        }
-
-        let all = ctx.children();
-        for (i, child) in all.iter().enumerate() {
-            let col = i % cols;
-            let row = i / cols;
-            let x = margin + col as f64 * (cell_w + margin);
-            let y = margin + row as f64 * (cell_h + margin);
-            ctx.layout_child(*child, x, y, cell_w, cell_h);
-        }
+        self.group.layout_children(ctx);
     }
 }
 
