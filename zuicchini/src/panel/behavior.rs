@@ -51,6 +51,28 @@ impl PanelState {
     pub fn in_focused_path(&self) -> bool {
         self.in_active_path && self.window_focused
     }
+
+    /// Create a test-only PanelState with sensible defaults.
+    ///
+    /// Useful for unit tests that call widget `input()` methods directly
+    /// without the full panel framework.
+    pub fn default_for_test() -> Self {
+        use super::tree::PanelId;
+        use slotmap::Key as _;
+        Self {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
 }
 
 bitflags! {

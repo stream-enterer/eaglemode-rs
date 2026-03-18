@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
-use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
+use crate::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
+use crate::panel::PanelState;
 use crate::render::{Painter, BORDER_EDGES_ONLY};
 
 use super::border::{Border, OuterBorderType};
@@ -251,7 +252,7 @@ impl RadioBox {
         dx * dx + dy * dy <= fr * fr
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -333,6 +334,29 @@ impl Drop for RadioBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     #[test]
     fn radio_box_selection() {
@@ -341,16 +365,18 @@ mod tests {
 
         let mut rb0 = RadioBox::new("X", look.clone(), group.clone(), 0);
         let mut rb1 = RadioBox::new("Y", look, group.clone(), 1);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         assert!(!rb0.is_selected());
         assert!(!rb1.is_selected());
 
         // Enter is instant: selects on press, no release needed.
-        rb0.input(&InputEvent::press(InputKey::Enter));
+        rb0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(rb0.is_selected()); // Selected immediately on press
         assert!(!rb1.is_selected());
 
-        rb1.input(&InputEvent::press(InputKey::Enter));
+        rb1.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!rb0.is_selected());
         assert!(rb1.is_selected());
     }
@@ -361,8 +387,10 @@ mod tests {
         let look = Look::new();
         let group = RadioGroup::new();
         let mut rb = RadioBox::new("X", look, group.clone(), 0);
+        let ps = default_panel_state();
+        let is = default_input_state();
         assert!(!rb.pressed);
-        rb.input(&InputEvent::press(InputKey::Enter));
+        rb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!rb.pressed); // Enter selects instantly, no press state
         assert!(rb.is_selected()); // But the selection did happen
     }

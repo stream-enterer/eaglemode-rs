@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
-use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
+use crate::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
+use crate::panel::PanelState;
 use crate::render::{Painter, BORDER_EDGES_ONLY};
 
 use super::border::{Border, OuterBorderType};
@@ -297,7 +298,7 @@ impl Button {
         super::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -307,6 +308,11 @@ impl Button {
                 InputVariant::Press => {
                     // C++ emButton.cpp:82: (state.IsNoMod() || state.IsShiftMod())
                     if event.ctrl || event.alt || event.meta {
+                        return false;
+                    }
+                    // C++ emButton.cpp:84: GetViewCondition(VCT_MIN_EXT) >= 8.0
+                    let min_ext = state.viewed_rect.w.min(state.viewed_rect.h);
+                    if min_ext < 8.0 {
                         return false;
                     }
                     let hit = self.hit_test(event.mouse_x, event.mouse_y);
@@ -332,6 +338,18 @@ impl Button {
                     // state when mouse moves away between press and release.
                     if !self.pressed {
                         return false;
+                    }
+                    // C++ emButton.cpp:101-106: IsViewed check.
+                    // NOTE: clip rect check skipped — panel-to-view transform
+                    // is not available in input(). The framework only dispatches
+                    // input to viewed panels, so the viewed check is sufficient.
+                    if !state.viewed {
+                        // consumed but don't click
+                        self.pressed = false;
+                        if let Some(cb) = &mut self.on_press_state {
+                            cb(false);
+                        }
+                        return true;
                     }
                     let hit = self.hit_test(event.mouse_x, event.mouse_y);
                     if trace {
@@ -420,7 +438,30 @@ const HOWTO_EOI_BUTTON: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     #[test]
     fn button_press_release_fires_callback() {
@@ -432,9 +473,11 @@ mod tests {
         btn.on_click = Some(Box::new(move || {
             *fired_clone.borrow_mut() = true;
         }));
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         // C++ Enter: instant Click() on press, no visual press state.
-        btn.input(&InputEvent::press(InputKey::Enter));
+        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(*fired.borrow());
     }
 
@@ -448,12 +491,14 @@ mod tests {
         btn.on_click = Some(Box::new(move || {
             *count_clone.borrow_mut() += 1;
         }));
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         // C++: only Enter activates, instant on press. Space is not handled.
-        btn.input(&InputEvent::press(InputKey::Enter));
+        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*count.borrow(), 1);
         // Space should NOT activate
-        btn.input(&InputEvent::press(InputKey::Space));
+        btn.input(&InputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(*count.borrow(), 1);
     }
 

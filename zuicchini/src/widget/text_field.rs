@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use crate::foundation::Rect;
-use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
+use crate::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
+use crate::panel::PanelState;
 use crate::render::Painter;
 
 use super::border::{Border, InnerBorderType, OuterBorderType};
@@ -1653,7 +1654,12 @@ impl TextField {
 
     // ── Input ───────────────────────────────────────────────────────────
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+        // C++ emTextField: GetViewCondition(VCT_MIN_EXT) >= 10.0
+        let min_ext = state.viewed_rect.w.min(state.viewed_rect.h);
+        if min_ext < 10.0 {
+            return false;
+        }
         // Handle mouse events
         if self.handle_mouse(event) {
             self.scroll_to_cursor();
@@ -2566,7 +2572,30 @@ const HOWTO_READ_ONLY: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     fn key_press(key: InputKey) -> InputEvent {
         InputEvent::press(key)
@@ -2596,20 +2625,22 @@ mod tests {
     fn insert_and_delete() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
-        tf.input(&char_press('H'));
-        tf.input(&char_press('i'));
+        tf.input(&char_press('H'), &ps, &is);
+        tf.input(&char_press('i'), &ps, &is);
         assert_eq!(tf.text(), "Hi");
         assert_eq!(tf.cursor_pos(), 2);
 
-        tf.input(&key_press(InputKey::Backspace));
+        tf.input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.text(), "H");
         assert_eq!(tf.cursor_pos(), 1);
 
-        tf.input(&key_press(InputKey::ArrowLeft));
+        tf.input(&key_press(InputKey::ArrowLeft), &ps, &is);
         assert_eq!(tf.cursor_pos(), 0);
 
-        tf.input(&key_press(InputKey::Delete));
+        tf.input(&key_press(InputKey::Delete), &ps, &is);
         assert_eq!(tf.text(), "");
     }
 
@@ -2617,19 +2648,21 @@ mod tests {
     fn cursor_movement() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("ABCD");
         assert_eq!(tf.cursor_pos(), 4);
 
-        tf.input(&key_press(InputKey::Home));
+        tf.input(&key_press(InputKey::Home), &ps, &is);
         assert_eq!(tf.cursor_pos(), 0);
 
-        tf.input(&key_press(InputKey::End));
+        tf.input(&key_press(InputKey::End), &ps, &is);
         assert_eq!(tf.cursor_pos(), 4);
 
-        tf.input(&key_press(InputKey::ArrowLeft));
+        tf.input(&key_press(InputKey::ArrowLeft), &ps, &is);
         assert_eq!(tf.cursor_pos(), 3);
 
-        tf.input(&key_press(InputKey::ArrowRight));
+        tf.input(&key_press(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.cursor_pos(), 4);
     }
 
@@ -2637,12 +2670,14 @@ mod tests {
     fn max_length() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_max_length(3);
 
-        tf.input(&char_press('A'));
-        tf.input(&char_press('B'));
-        tf.input(&char_press('C'));
-        tf.input(&char_press('D'));
+        tf.input(&char_press('A'), &ps, &is);
+        tf.input(&char_press('B'), &ps, &is);
+        tf.input(&char_press('C'), &ps, &is);
+        tf.input(&char_press('D'), &ps, &is);
         assert_eq!(tf.text(), "ABC");
     }
 
@@ -2653,13 +2688,15 @@ mod tests {
         let changes_clone = changes.clone();
 
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.on_text = Some(Box::new(move |text| {
             changes_clone.borrow_mut().push(text.to_string());
         }));
 
-        tf.input(&char_press('X'));
-        tf.input(&char_press('Y'));
-        tf.input(&key_press(InputKey::Backspace));
+        tf.input(&char_press('X'), &ps, &is);
+        tf.input(&char_press('Y'), &ps, &is);
+        tf.input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(*changes.borrow(), vec!["X", "XY", "X"]);
     }
 
@@ -2685,12 +2722,14 @@ mod tests {
     fn undo_redo() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         // D-WIDGET-03: Consecutive same-type edits merge into one undo entry.
         // Typing A, B, C (all AlphaNum) produces a single merged undo entry.
-        tf.input(&char_press('A'));
-        tf.input(&char_press('B'));
-        tf.input(&char_press('C'));
+        tf.input(&char_press('A'), &ps, &is);
+        tf.input(&char_press('B'), &ps, &is);
+        tf.input(&char_press('C'), &ps, &is);
         assert_eq!(tf.text(), "ABC");
 
         // Single undo reverts the entire merged group.
@@ -2702,7 +2741,7 @@ mod tests {
         assert_eq!(tf.text(), "ABC");
 
         // Typing after redo clears redo stack.
-        tf.input(&char_press('X'));
+        tf.input(&char_press('X'), &ps, &is);
         assert_eq!(tf.text(), "ABCX");
         assert!(!tf.redo());
     }
@@ -2711,13 +2750,15 @@ mod tests {
     fn undo_no_merge_across_types() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         // Type alphanumeric then delete — different edit kinds, no merge.
-        tf.input(&char_press('A'));
-        tf.input(&char_press('B'));
+        tf.input(&char_press('A'), &ps, &is);
+        tf.input(&char_press('B'), &ps, &is);
         assert_eq!(tf.text(), "AB");
 
-        tf.input(&key_press(InputKey::Backspace));
+        tf.input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.text(), "A");
 
         // Undo the backspace (separate entry).
@@ -2733,13 +2774,15 @@ mod tests {
     fn undo_merge_broken_by_cursor_move() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
-        tf.input(&char_press('A'));
-        tf.input(&char_press('B'));
+        tf.input(&char_press('A'), &ps, &is);
+        tf.input(&char_press('B'), &ps, &is);
         // Move cursor (breaks merge chain).
-        tf.input(&key_press(InputKey::ArrowLeft));
-        tf.input(&key_press(InputKey::End));
-        tf.input(&char_press('C'));
+        tf.input(&key_press(InputKey::ArrowLeft), &ps, &is);
+        tf.input(&key_press(InputKey::End), &ps, &is);
+        tf.input(&char_press('C'), &ps, &is);
         assert_eq!(tf.text(), "ABC");
 
         // Undo only reverts the 'C' (separate entry after cursor move).
@@ -2797,13 +2840,15 @@ mod tests {
     fn editable_toggle() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         assert!(tf.is_editable());
 
         tf.set_editable(false);
         assert!(!tf.is_editable());
 
         tf.set_text("readonly");
-        tf.input(&char_press('X'));
+        tf.input(&char_press('X'), &ps, &is);
         assert_eq!(tf.text(), "readonly"); // no change
     }
 
@@ -2811,10 +2856,12 @@ mod tests {
     fn can_undo_redo() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         assert!(!tf.can_undo());
         assert!(!tf.can_redo());
 
-        tf.input(&char_press('A'));
+        tf.input(&char_press('A'), &ps, &is);
         assert!(tf.can_undo());
         assert!(!tf.can_redo());
 
@@ -2901,13 +2948,15 @@ mod tests {
     fn ctrl_left_right_word_nav() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("hello world");
         tf.set_cursor_index(0);
 
-        tf.input(&ctrl_key(InputKey::ArrowRight));
+        tf.input(&ctrl_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.cursor_pos(), 6); // after "hello "
 
-        tf.input(&ctrl_key(InputKey::ArrowLeft));
+        tf.input(&ctrl_key(InputKey::ArrowLeft), &ps, &is);
         assert_eq!(tf.cursor_pos(), 0);
     }
 
@@ -2915,17 +2964,19 @@ mod tests {
     fn shift_selection() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("ABCDEF");
         tf.set_cursor_index(2);
 
-        tf.input(&shift_key(InputKey::ArrowRight));
+        tf.input(&shift_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.selected_text(), "C");
 
-        tf.input(&shift_key(InputKey::ArrowRight));
+        tf.input(&shift_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.selected_text(), "CD");
 
         // Without shift: clears selection
-        tf.input(&key_press(InputKey::ArrowRight));
+        tf.input(&key_press(InputKey::ArrowRight), &ps, &is);
         assert!(tf.is_selection_empty());
     }
 
@@ -2933,10 +2984,12 @@ mod tests {
     fn ctrl_shift_word_selection() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("hello world");
         tf.set_cursor_index(0);
 
-        tf.input(&shift_ctrl_key(InputKey::ArrowRight));
+        tf.input(&shift_ctrl_key(InputKey::ArrowRight), &ps, &is);
         assert_eq!(tf.selected_text(), "hello ");
     }
 
@@ -2944,21 +2997,23 @@ mod tests {
     fn editable_false_blocks_editing_not_nav() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("test");
         tf.set_editable(false);
 
         // Nav works
-        tf.input(&key_press(InputKey::Home));
+        tf.input(&key_press(InputKey::Home), &ps, &is);
         assert_eq!(tf.cursor_pos(), 0);
 
-        tf.input(&key_press(InputKey::End));
+        tf.input(&key_press(InputKey::End), &ps, &is);
         assert_eq!(tf.cursor_pos(), 4);
 
         // Edit blocked
-        tf.input(&key_press(InputKey::Backspace));
+        tf.input(&key_press(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.text(), "test");
 
-        tf.input(&char_press('X'));
+        tf.input(&char_press('X'), &ps, &is);
         assert_eq!(tf.text(), "test");
     }
 
@@ -2966,15 +3021,17 @@ mod tests {
     fn overwrite_mode() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("ABC");
         tf.set_cursor_index(0);
         tf.set_overwrite_mode(true);
 
-        tf.input(&char_press('X'));
+        tf.input(&char_press('X'), &ps, &is);
         assert_eq!(tf.text(), "XBC");
         assert_eq!(tf.cursor_pos(), 1);
 
-        tf.input(&char_press('Y'));
+        tf.input(&char_press('Y'), &ps, &is);
         assert_eq!(tf.text(), "XYC");
     }
 
@@ -2982,10 +3039,12 @@ mod tests {
     fn ctrl_backspace_delete_word() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("hello world");
         tf.set_cursor_index(11);
 
-        tf.input(&ctrl_key(InputKey::Backspace));
+        tf.input(&ctrl_key(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.text(), "hello ");
     }
 
@@ -2993,10 +3052,12 @@ mod tests {
     fn ctrl_delete_word() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("hello world");
         tf.set_cursor_index(0);
 
-        tf.input(&ctrl_key(InputKey::Delete));
+        tf.input(&ctrl_key(InputKey::Delete), &ps, &is);
         assert_eq!(tf.text(), "world");
     }
 
@@ -3004,13 +3065,15 @@ mod tests {
     fn select_all_ctrl_a() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("test");
 
-        tf.input(&ctrl_char('a'));
+        tf.input(&ctrl_char('a'), &ps, &is);
         assert_eq!(tf.selected_text(), "test");
 
         // Ctrl+Shift+A = deselect
-        tf.input(&InputEvent::press(InputKey::Key('a')).with_shift_ctrl());
+        tf.input(&InputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
         assert!(tf.is_selection_empty());
     }
 
@@ -3018,15 +3081,17 @@ mod tests {
     fn validation_rejects_change() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("123");
         tf.on_validate = Some(Box::new(|text| text.chars().all(|c| c.is_ascii_digit())));
 
         // Numeric input accepted
-        tf.input(&char_press('4'));
+        tf.input(&char_press('4'), &ps, &is);
         assert_eq!(tf.text(), "1234");
 
         // Non-numeric rejected
-        tf.input(&char_press('x'));
+        tf.input(&char_press('x'), &ps, &is);
         assert_eq!(tf.text(), "1234");
     }
 
@@ -3034,17 +3099,19 @@ mod tests {
     fn magic_column_up_down() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_multi_line(true);
         tf.set_text("abcde\nfg\nhijklm");
         // cursor at end of "abcde" (col 5, row 0)
         tf.set_cursor_index(5);
 
         // Down: col 5 but row 1 only has "fg" (len 2), so clamps to end of row 1 (idx 8)
-        tf.input(&key_press(InputKey::ArrowDown));
+        tf.input(&key_press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(tf.cursor_pos(), 8);
 
         // Down again: col 5 in row 2 "hijklm" → index 9+5=14
-        tf.input(&key_press(InputKey::ArrowDown));
+        tf.input(&key_press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(tf.cursor_pos(), 14);
     }
 
@@ -3052,11 +3119,13 @@ mod tests {
     fn enter_multi_line() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_multi_line(true);
         tf.set_text("ab");
         tf.set_cursor_index(1);
 
-        tf.input(&key_press(InputKey::Enter));
+        tf.input(&key_press(InputKey::Enter), &ps, &is);
         assert_eq!(tf.text(), "a\nb");
         assert_eq!(tf.cursor_pos(), 2);
     }
@@ -3065,10 +3134,12 @@ mod tests {
     fn enter_single_line_noop() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("ab");
         tf.set_cursor_index(1);
 
-        tf.input(&key_press(InputKey::Enter));
+        tf.input(&key_press(InputKey::Enter), &ps, &is);
         assert_eq!(tf.text(), "ab"); // unchanged
     }
 
@@ -3078,6 +3149,8 @@ mod tests {
     fn clipboard_copy_paste() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         let clipboard = Rc::new(RefCell::new(String::new()));
 
         let clip_w = clipboard.clone();
@@ -3092,12 +3165,12 @@ mod tests {
         tf.select(0, 5);
 
         // Copy
-        tf.input(&ctrl_char('c'));
+        tf.input(&ctrl_char('c'), &ps, &is);
         assert_eq!(*clipboard.borrow(), "Hello");
 
         // Move to end, paste
-        tf.input(&key_press(InputKey::End));
-        tf.input(&ctrl_char('v'));
+        tf.input(&key_press(InputKey::End), &ps, &is);
+        tf.input(&ctrl_char('v'), &ps, &is);
         assert_eq!(tf.text(), "Hello WorldHello");
     }
 
@@ -3105,6 +3178,8 @@ mod tests {
     fn clipboard_cut() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         let clipboard = Rc::new(RefCell::new(String::new()));
 
         let clip_w = clipboard.clone();
@@ -3115,7 +3190,7 @@ mod tests {
         tf.set_text("ABCDEF");
         tf.select(2, 4);
 
-        tf.input(&ctrl_char('x'));
+        tf.input(&ctrl_char('x'), &ps, &is);
         assert_eq!(*clipboard.borrow(), "CD");
         assert_eq!(tf.text(), "ABEF");
     }
@@ -3124,13 +3199,15 @@ mod tests {
     fn paste_respects_max_length() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_max_length(5);
 
         let clip = Rc::new(RefCell::new("ABCDEFGH".to_string()));
         let clip_r = clip.clone();
         tf.on_clipboard_paste = Some(Box::new(move || clip_r.borrow().clone()));
 
-        tf.input(&ctrl_char('v'));
+        tf.input(&ctrl_char('v'), &ps, &is);
         assert_eq!(tf.text(), "ABCDE");
     }
 
@@ -3216,12 +3293,14 @@ mod tests {
     fn insert_toggle() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         assert!(!tf.is_overwrite_mode());
 
-        tf.input(&key_press(InputKey::Insert));
+        tf.input(&key_press(InputKey::Insert), &ps, &is);
         assert!(tf.is_overwrite_mode());
 
-        tf.input(&key_press(InputKey::Insert));
+        tf.input(&key_press(InputKey::Insert), &ps, &is);
         assert!(!tf.is_overwrite_mode());
     }
 
@@ -3237,10 +3316,12 @@ mod tests {
     fn ctrl_shift_backspace_delete_to_row_start() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("hello world");
         tf.set_cursor_index(7); // at "o" in "world"
 
-        tf.input(&shift_ctrl_key(InputKey::Backspace));
+        tf.input(&shift_ctrl_key(InputKey::Backspace), &ps, &is);
         assert_eq!(tf.text(), "orld");
     }
 
@@ -3248,10 +3329,12 @@ mod tests {
     fn ctrl_shift_delete_to_row_end() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_text("hello world");
         tf.set_cursor_index(5);
 
-        tf.input(&shift_ctrl_key(InputKey::Delete));
+        tf.input(&shift_ctrl_key(InputKey::Delete), &ps, &is);
         assert_eq!(tf.text(), "hello");
     }
 
@@ -3259,24 +3342,26 @@ mod tests {
     fn home_end_multi_line_row_vs_text() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         tf.set_multi_line(true);
         tf.set_text("abc\ndef\nghi");
         tf.set_cursor_index(5); // 'e' in row 1
 
         // Home goes to row start
-        tf.input(&key_press(InputKey::Home));
+        tf.input(&key_press(InputKey::Home), &ps, &is);
         assert_eq!(tf.cursor_pos(), 4); // start of "def"
 
         // End goes to row end
-        tf.input(&key_press(InputKey::End));
+        tf.input(&key_press(InputKey::End), &ps, &is);
         assert_eq!(tf.cursor_pos(), 7); // end of "def"
 
         // Ctrl+Home goes to text start
-        tf.input(&ctrl_key(InputKey::Home));
+        tf.input(&ctrl_key(InputKey::Home), &ps, &is);
         assert_eq!(tf.cursor_pos(), 0);
 
         // Ctrl+End goes to text end
-        tf.input(&ctrl_key(InputKey::End));
+        tf.input(&ctrl_key(InputKey::End), &ps, &is);
         assert_eq!(tf.cursor_pos(), 11);
     }
 
@@ -3425,13 +3510,15 @@ mod tests {
     fn can_undo_redo_signal_fires() {
         let look = Look::new();
         let mut tf = TextField::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         let states = Rc::new(RefCell::new(Vec::new()));
         let states_c = states.clone();
         tf.on_can_undo_redo = Some(Box::new(move |can_undo, can_redo| {
             states_c.borrow_mut().push((can_undo, can_redo));
         }));
         // Type a char -> undo becomes available
-        tf.input(&char_press('A'));
+        tf.input(&char_press('A'), &ps, &is);
         assert_eq!(states.borrow().last(), Some(&(true, false)));
         // Undo -> redo becomes available, undo gone
         tf.undo();

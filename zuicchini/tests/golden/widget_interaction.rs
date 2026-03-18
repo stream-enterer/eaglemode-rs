@@ -1,5 +1,5 @@
 use zuicchini::foundation::Rect;
-use zuicchini::input::{InputEvent, InputKey};
+use zuicchini::input::{InputEvent, InputKey, InputState};
 use zuicchini::layout::Orientation;
 use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, PanelTree};
 use zuicchini::render::Painter;
@@ -9,6 +9,14 @@ use zuicchini::widget::{
 };
 
 use super::common::*;
+
+fn default_panel_state() -> PanelState {
+    PanelState::default_for_test()
+}
+
+fn default_input_state() -> InputState {
+    InputState::new()
+}
 
 /// Skip test if golden data hasn't been generated yet.
 macro_rules! require_golden {
@@ -41,6 +49,8 @@ fn widget_checkbox_toggle() {
 
     let look = Look::new();
     let mut cb = CheckBox::new("Check Option", look);
+    let ps = default_panel_state();
+    let is = default_input_state();
 
     // Initial state
     assert_eq!(
@@ -50,11 +60,11 @@ fn widget_checkbox_toggle() {
     );
 
     // After first activation (Enter is instant — no release needed)
-    cb.input(&InputEvent::press(InputKey::Enter));
+    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[1], "after 1st click mismatch");
 
     // After second activation
-    cb.input(&InputEvent::press(InputKey::Enter));
+    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[2], "after 2nd click mismatch");
 }
 
@@ -68,6 +78,8 @@ fn widget_checkbutton_toggle() {
 
     let look = Look::new();
     let mut cb = CheckButton::new("Toggle Option", look);
+    let ps = default_panel_state();
+    let is = default_input_state();
 
     // Initial state
     assert_eq!(
@@ -77,11 +89,11 @@ fn widget_checkbutton_toggle() {
     );
 
     // After first activation (Enter is instant — no release needed)
-    cb.input(&InputEvent::press(InputKey::Enter));
+    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[1], "after 1st click mismatch");
 
     // After second activation
-    cb.input(&InputEvent::press(InputKey::Enter));
+    cb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
     assert_eq!(cb.is_checked() as u8, golden[2], "after 2nd click mismatch");
 }
 
@@ -109,7 +121,9 @@ fn widget_radiobutton_switch() {
     );
 
     // Activate B (Enter is instant — no release needed)
-    rb_b.input(&InputEvent::press(InputKey::Enter));
+    let ps = default_panel_state();
+    let is = default_input_state();
+    rb_b.input(&InputEvent::press(InputKey::Enter), &ps, &is);
     let after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     assert_eq!(
         group.borrow().selected(),
@@ -211,11 +225,13 @@ fn widget_textfield_type() {
     let look = Look::new();
     let mut tf = TextField::new(look);
     tf.set_editable(true);
+    let ps = default_panel_state();
+    let is = default_input_state();
 
     // Type "abc"
     for ch in ['a', 'b', 'c'] {
         let event = InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
-        tf.input(&event);
+        tf.input(&event, &ps, &is);
     }
 
     // Parse golden: [u32 text_len][text_bytes][u32 cursor_pos]
@@ -240,15 +256,17 @@ fn widget_textfield_backspace() {
     let look = Look::new();
     let mut tf = TextField::new(look);
     tf.set_editable(true);
+    let ps = default_panel_state();
+    let is = default_input_state();
 
     // Type "abc"
     for ch in ['a', 'b', 'c'] {
         let event = InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
-        tf.input(&event);
+        tf.input(&event, &ps, &is);
     }
 
     // Backspace
-    tf.input(&InputEvent::press(InputKey::Backspace));
+    tf.input(&InputEvent::press(InputKey::Backspace), &ps, &is);
 
     // Parse golden: [u32 text_len][text_bytes][u32 cursor_pos]
     let text_len = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
@@ -272,16 +290,18 @@ fn widget_textfield_select() {
     let look = Look::new();
     let mut tf = TextField::new(look);
     tf.set_editable(true);
+    let ps = default_panel_state();
+    let is = default_input_state();
 
     // Type "abcdef"
     for ch in ['a', 'b', 'c', 'd', 'e', 'f'] {
         let event = InputEvent::press(InputKey::Key(ch)).with_chars(&ch.to_string());
-        tf.input(&event);
+        tf.input(&event, &ps, &is);
     }
 
     // Shift+ArrowLeft × 3 to select last 3 chars
     for _ in 0..3 {
-        tf.input(&InputEvent::press(InputKey::ArrowLeft).with_shift());
+        tf.input(&InputEvent::press(InputKey::ArrowLeft).with_shift(), &ps, &is);
     }
 
     // Parse golden: [u32 sel_start][u32 sel_end][u32 cursor]
@@ -305,11 +325,13 @@ fn widget_scalarfield_inc() {
     let look = Look::new();
     let mut sf = ScalarField::new(0.0, 100.0, look);
     sf.set_value(50.0);
+    let ps = default_panel_state();
+    let is = default_input_state();
 
     let eps = 1e-9;
 
     // Press "+" to increment
-    sf.input(&InputEvent::press(InputKey::Key('+')));
+    sf.input(&InputEvent::press(InputKey::Key('+')), &ps, &is);
     let expected_inc = f64::from_le_bytes(golden[0..8].try_into().unwrap());
     assert!(
         (sf.value() - expected_inc).abs() < eps,
@@ -319,7 +341,7 @@ fn widget_scalarfield_inc() {
     );
 
     // Press "-" to decrement
-    sf.input(&InputEvent::press(InputKey::Key('-')));
+    sf.input(&InputEvent::press(InputKey::Key('-')), &ps, &is);
     let expected_dec = f64::from_le_bytes(golden[8..16].try_into().unwrap());
     assert!(
         (sf.value() - expected_dec).abs() < eps,
@@ -465,6 +487,8 @@ fn widget_textfield_cursor_nav() {
     tf.set_multi_line(true);
     tf.set_text("abc\ndef");
     tf.set_cursor_index(7); // End of "abc\ndef"
+    let ps = default_panel_state();
+    let is = default_input_state();
 
     let cursor_before = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     assert_eq!(
@@ -474,7 +498,7 @@ fn widget_textfield_cursor_nav() {
     );
 
     // ArrowUp
-    tf.input(&InputEvent::press(InputKey::ArrowUp));
+    tf.input(&InputEvent::press(InputKey::ArrowUp), &ps, &is);
 
     let cursor_after = u32::from_le_bytes(golden[4..8].try_into().unwrap()) as usize;
     assert_eq!(

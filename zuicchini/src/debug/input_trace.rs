@@ -5,15 +5,33 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::foundation::Color;
+    use crate::foundation::{Color, Rect};
     use crate::input::{InputEvent, InputKey, InputState};
+    use crate::panel::PanelId;
     use crate::panel::{
         PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewConditionType, ViewFlags,
     };
     use crate::render::Painter;
     use crate::widget::{Button, CheckButton, Look};
+    use slotmap::Key as _;
 
     use std::rc::Rc;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
 
     struct ButtonPanel {
         widget: Button,
@@ -23,7 +41,7 @@ mod tests {
             self.widget.paint(p, w, h, _s.enabled);
         }
         fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-            self.widget.input(e)
+            self.widget.input(e, _s, _is)
         }
         fn is_opaque(&self) -> bool {
             true
@@ -38,7 +56,7 @@ mod tests {
             self.widget.paint(p, w, h, _s.enabled);
         }
         fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-            self.widget.input(e)
+            self.widget.input(e, _s, _is)
         }
         fn is_opaque(&self) -> bool {
             true
@@ -139,12 +157,14 @@ mod tests {
         eprintln!("  hit_test(-1, -1) [outside]: {}", hit_outside);
 
         // Test via input
+        let ps = default_panel_state();
+        let is = InputState::new();
         let press_center = InputEvent::press(InputKey::MouseLeft).with_mouse(0.5, 0.2);
-        let consumed = btn.input(&press_center);
+        let consumed = btn.input(&press_center, &ps, &is);
         eprintln!("  btn.input(press at center): consumed={}", consumed);
 
         let press_origin = InputEvent::press(InputKey::MouseLeft).with_mouse(0.0, 0.0);
-        let consumed2 = btn.input(&press_origin);
+        let consumed2 = btn.input(&press_origin, &ps, &is);
         eprintln!("  btn.input(press at origin): consumed={}", consumed2);
     }
 

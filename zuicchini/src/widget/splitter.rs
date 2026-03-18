@@ -1,5 +1,6 @@
-use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
+use crate::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
 use crate::layout::{Orientation, ResolvedOrientation};
+use crate::panel::PanelState;
 use crate::panel::PanelCtx;
 use crate::render::{Painter, BORDER_EDGES_ONLY};
 
@@ -161,7 +162,7 @@ impl Splitter {
         }
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
         let w = self.last_w;
         let h = self.last_h;
         let resolved = self.orientation.resolve(w, h);
@@ -265,6 +266,29 @@ impl Splitter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     #[test]
     fn splitter_position_clamping() {
@@ -285,6 +309,8 @@ mod tests {
         let look = Look::new();
         let mut sp = Splitter::new(Orientation::Horizontal, look);
         sp.set_position(0.5);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         // Simulate a paint call to cache dimensions (100x50 panel)
         // In real usage, paint() is always called before input().
@@ -293,7 +319,7 @@ mod tests {
 
         // Press at the divider center (x = 50.0 in 100px wide panel)
         let press = InputEvent::press(InputKey::MouseLeft).with_mouse(50.0, 10.0);
-        assert!(sp.input(&press));
+        assert!(sp.input(&press, &ps, &is));
         assert!(sp.dragging);
 
         // Drag to x = 70.0
@@ -311,12 +337,12 @@ mod tests {
             meta: false,
             eaten: false,
         };
-        sp.input(&drag);
+        sp.input(&drag, &ps, &is);
         assert!((sp.position() - 0.7).abs() < 0.01);
 
         // Release
         let release = InputEvent::release(InputKey::MouseLeft);
-        sp.input(&release);
+        sp.input(&release, &ps, &is);
         assert!(!sp.dragging);
     }
 }

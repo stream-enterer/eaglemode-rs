@@ -2,9 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
-use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
+use crate::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
 use crate::layout::linear::LinearLayout;
 use crate::layout::raster::RasterLayout;
+use crate::panel::PanelState;
 use crate::render::{Painter, BORDER_EDGES_ONLY};
 
 use super::border::{Border, OuterBorderType};
@@ -399,7 +400,7 @@ impl RadioButton {
         super::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -565,6 +566,29 @@ impl Drop for RadioButton {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     #[test]
     fn radio_group_mutual_exclusion() {
@@ -574,21 +598,23 @@ mod tests {
         let mut r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
         let mut r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
         let mut r2 = RadioButton::new("C", look, group.clone(), 2);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         assert!(!r0.is_selected());
         assert!(!r1.is_selected());
         assert!(!r2.is_selected());
 
         // Enter is instant: selects on press, no release needed.
-        r0.input(&InputEvent::press(InputKey::Enter));
+        r0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(r0.is_selected()); // Selected immediately on press
         assert!(!r1.is_selected());
 
-        r2.input(&InputEvent::press(InputKey::Enter));
+        r2.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!r0.is_selected());
         assert!(r2.is_selected());
 
-        r1.input(&InputEvent::press(InputKey::Enter));
+        r1.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!r0.is_selected());
         assert!(r1.is_selected());
         assert!(!r2.is_selected());
@@ -600,8 +626,10 @@ mod tests {
         let look = Look::new();
         let group = RadioGroup::new();
         let mut r0 = RadioButton::new("A", look, group.clone(), 0);
+        let ps = default_panel_state();
+        let is = default_input_state();
         assert!(!r0.pressed);
-        r0.input(&InputEvent::press(InputKey::Enter));
+        r0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!r0.pressed); // Enter selects instantly, no press state
         assert!(r0.is_selected()); // But the selection did happen
     }
@@ -618,10 +646,12 @@ mod tests {
         let look = Look::new();
         let mut r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
         let mut r1 = RadioButton::new("B", look, group.clone(), 1);
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         // Enter is instant: each press fires the callback immediately.
-        r0.input(&InputEvent::press(InputKey::Enter));
-        r1.input(&InputEvent::press(InputKey::Enter));
+        r0.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        r1.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*selections.borrow(), vec![Some(0), Some(1)]);
     }
 

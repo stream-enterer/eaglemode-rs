@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
-use crate::input::{InputEvent, InputKey, InputVariant};
+use crate::input::{InputEvent, InputKey, InputState, InputVariant};
 use crate::layout::raster::RasterLayout;
 use crate::panel::{PanelBehavior, PanelCtx, PanelState};
 use crate::render::Painter;
@@ -1105,7 +1105,7 @@ impl ListBox {
         super::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -1567,7 +1567,30 @@ const HOWTO_TOGGLE_SELECTION: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     fn make_items(texts: &[&str]) -> Vec<String> {
         texts.iter().map(|s| s.to_string()).collect()
@@ -1577,23 +1600,25 @@ mod tests {
     fn single_selection_arrow_keys() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.set_items(make_items(&["A", "B", "C"]));
 
         assert_eq!(lb.focus_index(), 0);
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
         assert_eq!(lb.selected(), &[1]);
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 2);
         assert_eq!(lb.selected(), &[2]);
 
         // Won't go past end
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 2);
 
-        lb.input(&InputEvent::press(InputKey::ArrowUp));
+        lb.input(&InputEvent::press(InputKey::ArrowUp), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
         assert_eq!(lb.selected(), &[1]);
     }
@@ -1602,32 +1627,34 @@ mod tests {
     fn multi_selection_toggle() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.set_selection_mode(SelectionMode::Multi);
         lb.set_items(make_items(&["X", "Y", "Z"]));
 
         // In multi mode, ArrowDown doesn't auto-select
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(lb.focus_index(), 1);
         assert!(lb.selected().is_empty());
 
         // Space toggles selection (via select_by_input with no modifiers -> select solely)
         // In Multi mode without modifiers, space selects solely
-        lb.input(&InputEvent::press(InputKey::Space));
+        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(lb.selected(), &[1]);
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
         // Space without ctrl in multi mode selects solely (replaces)
-        lb.input(&InputEvent::press(InputKey::Space));
+        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(lb.selected(), &[2]);
 
         // With ctrl, toggle
         lb.focus_index = 1;
-        lb.input(&InputEvent::press(InputKey::Space).with_ctrl());
+        lb.input(&InputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
         assert!(lb.selected().contains(&1));
         assert!(lb.selected().contains(&2));
 
         // Toggle off with ctrl
-        lb.input(&InputEvent::press(InputKey::Space).with_ctrl());
+        lb.input(&InputEvent::press(InputKey::Space).with_ctrl(), &ps, &is);
         assert_eq!(lb.selected(), &[2]);
     }
 
@@ -1638,13 +1665,15 @@ mod tests {
         let trig_clone = triggered.clone();
 
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.set_items(make_items(&["A", "B"]));
         lb.on_trigger = Some(Box::new(move |idx| {
             *trig_clone.borrow_mut() = Some(idx);
         }));
 
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
-        lb.input(&InputEvent::press(InputKey::Enter));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
+        lb.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*triggered.borrow(), Some(1));
     }
 
@@ -1655,6 +1684,8 @@ mod tests {
         let sel_clone = selections.clone();
 
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.set_items(make_items(&["A", "B", "C"]));
         lb.on_selection = Some(Box::new(move |sel| {
             sel_clone.borrow_mut().push(sel.to_vec());
@@ -1662,13 +1693,13 @@ mod tests {
 
         // First ArrowDown: selects item 1 solely. No prior selection to deselect.
         // Fires 1 callback (select).
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(selections.borrow().len(), 1);
         assert_eq!(selections.borrow()[0], vec![1]);
 
         // Second ArrowDown: selects item 2 solely. Deselects item 1 first (1 cb),
         // then selects item 2 (1 cb). Total: 3 callbacks.
-        lb.input(&InputEvent::press(InputKey::ArrowDown));
+        lb.input(&InputEvent::press(InputKey::ArrowDown), &ps, &is);
         assert_eq!(selections.borrow().len(), 3);
         // Last callback should have item 2 selected.
         assert_eq!(selections.borrow()[2], vec![2]);
@@ -1815,13 +1846,15 @@ mod tests {
     fn read_only_mode_no_selection() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.set_selection_mode(SelectionMode::ReadOnly);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
 
         // Mouse click: select_by_input is called, but ReadOnly blocks selection.
         let ev = InputEvent::press(InputKey::MouseLeft).with_mouse(0.0, 5.0);
-        lb.input(&ev);
+        lb.input(&ev, &ps, &is);
         assert!(lb.selected().is_empty());
     }
 
@@ -1829,15 +1862,17 @@ mod tests {
     fn toggle_mode_selection() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.set_selection_mode(SelectionMode::Toggle);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
 
         // Space toggles
-        lb.input(&InputEvent::press(InputKey::Space));
+        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
         assert_eq!(lb.selected(), &[0]);
 
-        lb.input(&InputEvent::press(InputKey::Space));
+        lb.input(&InputEvent::press(InputKey::Space), &ps, &is);
         assert!(lb.selected().is_empty());
     }
 
@@ -1845,17 +1880,19 @@ mod tests {
     fn ctrl_a_selects_all_in_multi_mode() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.set_selection_mode(SelectionMode::Multi);
         lb.add_item("a".into(), "A".into());
         lb.add_item("b".into(), "B".into());
         lb.add_item("c".into(), "C".into());
 
         // Ctrl+A selects all
-        lb.input(&InputEvent::press(InputKey::Key('a')).with_ctrl());
+        lb.input(&InputEvent::press(InputKey::Key('a')).with_ctrl(), &ps, &is);
         assert_eq!(lb.selected_indices(), &[0, 1, 2]);
 
         // Shift+Ctrl+A clears
-        lb.input(&InputEvent::press(InputKey::Key('a')).with_shift_ctrl());
+        lb.input(&InputEvent::press(InputKey::Key('a')).with_shift_ctrl(), &ps, &is);
         assert!(lb.selected_indices().is_empty());
     }
 
@@ -1899,12 +1936,14 @@ mod tests {
     fn keywalk_prefix_match() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.add_item("a".into(), "Apple".into());
         lb.add_item("b".into(), "Banana".into());
         lb.add_item("c".into(), "Cherry".into());
 
         let ev = InputEvent::press(InputKey::Key('b')).with_chars("b");
-        lb.input(&ev);
+        lb.input(&ev, &ps, &is);
         assert_eq!(lb.selected_index(), Some(1));
     }
 
@@ -1912,18 +1951,20 @@ mod tests {
     fn keywalk_substring_search() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.add_item("a".into(), "Apple".into());
         lb.add_item("b".into(), "Banana".into());
 
         // Type '*nan' to do substring search — "nan" is unique to "Banana".
         let ev1 = InputEvent::press(InputKey::Key('*')).with_chars("*");
-        lb.input(&ev1);
+        lb.input(&ev1, &ps, &is);
         let ev2 = InputEvent::press(InputKey::Key('n')).with_chars("n");
-        lb.input(&ev2);
+        lb.input(&ev2, &ps, &is);
         let ev3 = InputEvent::press(InputKey::Key('a')).with_chars("a");
-        lb.input(&ev3);
+        lb.input(&ev3, &ps, &is);
         let ev4 = InputEvent::press(InputKey::Key('n')).with_chars("n");
-        lb.input(&ev4);
+        lb.input(&ev4, &ps, &is);
         assert_eq!(lb.selected_index(), Some(1)); // "Banana" contains "nan"
     }
 
@@ -1931,15 +1972,17 @@ mod tests {
     fn keywalk_fuzzy_match() {
         let look = Look::new();
         let mut lb = ListBox::new(look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         lb.add_item("a".into(), "Red-Apple".into());
         lb.add_item("b".into(), "Banana".into());
 
         // Type "ra" — fuzzy matches "Red-Apple" (skips '-')
         // 'r' -> 'R' match, 'a' -> skip '-', match 'A'
         let ev = InputEvent::press(InputKey::Key('r')).with_chars("r");
-        lb.input(&ev);
+        lb.input(&ev, &ps, &is);
         let ev2 = InputEvent::press(InputKey::Key('a')).with_chars("a");
-        lb.input(&ev2);
+        lb.input(&ev2, &ps, &is);
         assert_eq!(lb.selected_index(), Some(0));
     }
 

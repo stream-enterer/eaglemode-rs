@@ -28,7 +28,7 @@ impl PanelBehavior for ButtonPanel {
         self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn get_cursor(&self) -> Cursor {
         self.widget.get_cursor()
@@ -46,7 +46,7 @@ impl PanelBehavior for CheckButtonPanel {
         self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn get_cursor(&self) -> Cursor {
         self.widget.get_cursor()
@@ -64,7 +64,7 @@ impl PanelBehavior for CheckBoxPanel {
         self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn get_cursor(&self) -> Cursor {
         self.widget.get_cursor()
@@ -82,7 +82,7 @@ impl PanelBehavior for RadioButtonPanel {
         self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn get_cursor(&self) -> Cursor {
         self.widget.get_cursor()
@@ -100,7 +100,7 @@ impl PanelBehavior for RadioBoxPanel {
         self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn get_cursor(&self) -> Cursor {
         self.widget.get_cursor()
@@ -119,7 +119,7 @@ impl PanelBehavior for TextFieldPanel {
         self.widget.paint(p, w, h, _s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn get_cursor(&self) -> Cursor {
         self.widget.get_cursor()
@@ -142,7 +142,7 @@ impl PanelBehavior for ScalarFieldPanel {
         self.widget.paint(p, w, h, s.enabled);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn get_cursor(&self) -> Cursor {
         self.widget.get_cursor()
@@ -160,7 +160,7 @@ impl PanelBehavior for ColorFieldPanel {
         self.widget.paint(p, w, h);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn is_opaque(&self) -> bool {
         true
@@ -175,7 +175,7 @@ impl PanelBehavior for ListBoxPanel {
         self.widget.paint(p, w, h);
     }
     fn input(&mut self, e: &InputEvent, _s: &PanelState, _is: &InputState) -> bool {
-        self.widget.input(e)
+        self.widget.input(e, _s, _is)
     }
     fn is_opaque(&self) -> bool {
         true

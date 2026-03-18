@@ -49,7 +49,7 @@ impl PanelBehavior for ScalarFieldPanel {
         _state: &PanelState,
         _input_state: &InputState,
     ) -> bool {
-        self.scalar_field.input(event)
+        self.scalar_field.input(event, _state, _input_state)
     }
 
     fn get_cursor(&self) -> Cursor {
@@ -104,7 +104,7 @@ impl PanelBehavior for CheckBoxPanel {
         _state: &PanelState,
         _input_state: &InputState,
     ) -> bool {
-        self.check_box.input(event)
+        self.check_box.input(event, _state, _input_state)
     }
 
     fn get_cursor(&self) -> Cursor {
@@ -128,7 +128,7 @@ impl PanelBehavior for ListBoxPanel {
         _state: &PanelState,
         _input_state: &InputState,
     ) -> bool {
-        self.list_box.input(event)
+        self.list_box.input(event, _state, _input_state)
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
@@ -157,7 +157,7 @@ impl PanelBehavior for ButtonPanel {
         _state: &PanelState,
         _input_state: &InputState,
     ) -> bool {
-        self.button.input(event)
+        self.button.input(event, _state, _input_state)
     }
 
     fn get_cursor(&self) -> Cursor {

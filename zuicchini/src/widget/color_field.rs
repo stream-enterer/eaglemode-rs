@@ -1,9 +1,10 @@
 use std::rc::Rc;
 
 use crate::foundation::Color;
-use crate::input::{InputEvent, InputKey, InputVariant};
+use crate::input::{InputEvent, InputKey, InputState, InputVariant};
 use crate::layout::raster::RasterLayout;
 use crate::layout::{AlignmentH, AlignmentV, Spacing};
+use crate::panel::PanelState;
 use crate::panel::PanelCtx;
 use crate::render::{Painter, TextAlignment, VAlign};
 
@@ -404,7 +405,7 @@ impl ColorField {
         super::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
         match event.key {
             InputKey::MouseLeft if event.variant == InputVariant::Release => {
                 if !self.hit_test(event.mouse_x, event.mouse_y) {

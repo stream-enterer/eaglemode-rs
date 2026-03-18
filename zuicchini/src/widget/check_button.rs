@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
-use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
+use crate::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
+use crate::panel::PanelState;
 use crate::render::{Painter, BORDER_EDGES_ONLY};
 
 use super::border::{Border, OuterBorderType};
@@ -196,7 +197,7 @@ impl CheckButton {
         super::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -313,17 +314,42 @@ const HOWTO_NOT_CHECKED: &str = "\n\n\
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     #[test]
     fn toggle_state() {
         let look = Look::new();
         let mut btn = CheckButton::new("Toggle", look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         assert!(!btn.is_checked());
         // Enter is instant: toggles on press, no release needed.
-        btn.input(&InputEvent::press(InputKey::Enter));
+        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(btn.is_checked()); // Toggled immediately on press
-        btn.input(&InputEvent::press(InputKey::Enter));
+        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!btn.is_checked());
     }
 
@@ -332,8 +358,10 @@ mod tests {
         // Enter is instant — no visual press state. Verify pressed stays false.
         let look = Look::new();
         let mut btn = CheckButton::new("CB", look);
+        let ps = default_panel_state();
+        let is = default_input_state();
         assert!(!btn.pressed);
-        btn.input(&InputEvent::press(InputKey::Enter));
+        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert!(!btn.pressed); // Enter toggles instantly, no press state
         assert!(btn.is_checked()); // But the toggle did happen
     }
@@ -348,10 +376,12 @@ mod tests {
         btn.on_check = Some(Box::new(move |checked| {
             states_clone.borrow_mut().push(checked);
         }));
+        let ps = default_panel_state();
+        let is = default_input_state();
 
         // Enter is instant: each press fires the callback immediately.
-        btn.input(&InputEvent::press(InputKey::Enter));
-        btn.input(&InputEvent::press(InputKey::Enter));
+        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
+        btn.input(&InputEvent::press(InputKey::Enter), &ps, &is);
         assert_eq!(*states.borrow(), vec![true, false]);
     }
 }

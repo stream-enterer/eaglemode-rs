@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
-use crate::input::{Cursor, InputEvent, InputKey, InputVariant};
+use crate::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
+use crate::panel::PanelState;
 use crate::render::{Painter, TextAlignment, VAlign};
 
 use super::border::{Border, InnerBorderType, OuterBorderType};
@@ -515,9 +516,14 @@ impl ScalarField {
         super::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &InputEvent) -> bool {
+    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
         // C++ emScalarField.cpp:246-268: gates on IsEditable() && IsEnabled().
         if !self.editable || !self.enabled {
+            return false;
+        }
+        // C++ emScalarField: GetViewCondition(VCT_MIN_EXT) >= 10.0
+        let min_ext = state.viewed_rect.w.min(state.viewed_rect.h);
+        if min_ext < 10.0 {
             return false;
         }
 
@@ -742,7 +748,30 @@ impl ScalarField {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::foundation::Rect;
+    use crate::panel::PanelId;
+    use slotmap::Key as _;
     use std::cell::RefCell;
+
+    fn default_panel_state() -> PanelState {
+        PanelState {
+            id: PanelId::null(),
+            is_active: true,
+            in_active_path: true,
+            window_focused: true,
+            enabled: true,
+            viewed: true,
+            clip_rect: Rect::new(0.0, 0.0, 1e6, 1e6),
+            viewed_rect: Rect::new(0.0, 0.0, 200.0, 100.0),
+            priority: 1.0,
+            memory_limit: u64::MAX,
+            pixel_tallness: 1.0,
+        }
+    }
+
+    fn default_input_state() -> InputState {
+        InputState::new()
+    }
 
     #[test]
     fn value_clamping() {
@@ -770,10 +799,10 @@ mod tests {
         sf.last_h = 40.0;
 
         // ScalarField uses '+' and '-' keys (not arrow keys).
-        sf.input(&InputEvent::press(InputKey::Key('+')));
+        sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(sf.value() > 50.0);
 
-        sf.input(&InputEvent::press(InputKey::Key('-')));
+        sf.input(&InputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
         // Should be roughly back to 50
         assert!((sf.value() - 50.0).abs() < 2.0);
     }
@@ -792,7 +821,7 @@ mod tests {
             val_clone.borrow_mut().push(v);
         }));
 
-        sf.input(&InputEvent::press(InputKey::Key('+')));
+        sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert_eq!(values.borrow().len(), 1);
         assert!(values.borrow()[0] > 5.0);
     }
@@ -813,7 +842,7 @@ mod tests {
         sf.set_value(50.0);
         sf.last_w = 200.0;
         sf.last_h = 40.0;
-        let handled = sf.input(&InputEvent::press(InputKey::Key('+')));
+        let handled = sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(!handled);
         assert!((sf.value() - 50.0).abs() < 0.001);
 
@@ -928,10 +957,10 @@ mod tests {
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        sf.input(&InputEvent::press(InputKey::Key('+')));
+        sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!((sf.value() - 60.0).abs() < 1.0);
 
-        sf.input(&InputEvent::press(InputKey::Key('-')));
+        sf.input(&InputEvent::press(InputKey::Key('-')), &default_panel_state(), &default_input_state());
         assert!((sf.value() - 50.0).abs() < 1.0);
     }
 
@@ -953,7 +982,7 @@ mod tests {
         sf.last_w = 200.0;
         sf.last_h = 40.0;
 
-        let handled = sf.input(&InputEvent::press(InputKey::Key('+')));
+        let handled = sf.input(&InputEvent::press(InputKey::Key('+')), &default_panel_state(), &default_input_state());
         assert!(handled);
         assert!(sf.value() > 50.0);
     }
