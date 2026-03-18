@@ -184,11 +184,10 @@ impl Splitter {
                 }
                 InputVariant::Repeat | InputVariant::Move => {
                     if self.dragging {
-                        let (pos, size) = match resolved {
-                            ResolvedOrientation::Horizontal => (event.mouse_x, w),
-                            ResolvedOrientation::Vertical => (event.mouse_y, h),
+                        let (pos, size, gs) = match resolved {
+                            ResolvedOrientation::Horizontal => (event.mouse_x, w, gw),
+                            ResolvedOrientation::Vertical => (event.mouse_y, h, gh),
                         };
-                        let gs = GRIP_FRACTION * size;
                         let travel = size - gs;
                         if travel > 0.0 {
                             let new_pos = (pos - self.drag_offset - gs * 0.5) / travel;
