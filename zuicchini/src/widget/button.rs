@@ -364,7 +364,8 @@ impl Button {
     }
 
     pub fn get_cursor(&self) -> Cursor {
-        Cursor::Hand
+        // C++ emButton doesn't override GetCursor — uses default panel cursor.
+        Cursor::Normal
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {
@@ -437,7 +438,7 @@ mod tests {
     fn button_cursor_is_hand() {
         let look = Look::new();
         let btn = Button::new("X", look);
-        assert_eq!(btn.get_cursor(), Cursor::Hand);
+        assert_eq!(btn.get_cursor(), Cursor::Normal);
     }
 
     #[test]

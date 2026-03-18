@@ -291,7 +291,7 @@ impl CheckBox {
     }
 
     pub fn get_cursor(&self) -> Cursor {
-        Cursor::Hand
+        Cursor::Normal
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {

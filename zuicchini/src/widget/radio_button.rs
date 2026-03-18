@@ -441,7 +441,7 @@ impl RadioButton {
     }
 
     pub fn get_cursor(&self) -> Cursor {
-        Cursor::Hand
+        Cursor::Normal
     }
 
     /// Whether this radio button provides how-to help text.
