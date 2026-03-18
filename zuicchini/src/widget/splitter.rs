@@ -163,14 +163,10 @@ impl Splitter {
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
-                    let hit = match resolved {
-                        ResolvedOrientation::Horizontal => {
-                            event.mouse_x >= gx && event.mouse_x <= gx + gw
-                        }
-                        ResolvedOrientation::Vertical => {
-                            event.mouse_y >= gy && event.mouse_y <= gy + gh
-                        }
-                    };
+                    let hit = event.mouse_x >= gx
+                        && event.mouse_x < gx + gw
+                        && event.mouse_y >= gy
+                        && event.mouse_y < gy + gh;
                     if hit {
                         self.dragging = true;
                         let center = match resolved {
