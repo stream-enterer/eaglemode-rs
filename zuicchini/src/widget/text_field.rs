@@ -500,14 +500,23 @@ impl TextField {
     pub fn undo(&mut self) -> bool {
         self.undo_merge = UndoMergeType::NoMerge;
         if let Some(entry) = self.undo_stack.pop() {
+            // C++ MF_SELECT: compute the range to select after undo.
+            // Diff current text vs entry text to find the restored region.
+            let (sel_start, sel_end) = Self::diff_select_range(&self.text, &entry.text);
             self.redo_stack.push(UndoEntry {
                 text: self.text.clone(),
                 cursor: self.cursor,
             });
             self.text = entry.text;
-            self.cursor = entry.cursor;
-            self.selection_anchor = None;
+            self.cursor = sel_end;
+            // C++ Undo selects the restored text (MF_SELECT).
+            if sel_start < sel_end {
+                self.selection_anchor = Some(sel_start);
+            } else {
+                self.selection_anchor = None;
+            }
             self.fire_change();
+            self.fire_selection_change();
             self.fire_can_undo_redo();
             true
         } else {
@@ -518,19 +527,50 @@ impl TextField {
     pub fn redo(&mut self) -> bool {
         self.undo_merge = UndoMergeType::NoMerge;
         if let Some(entry) = self.redo_stack.pop() {
+            let (sel_start, sel_end) = Self::diff_select_range(&self.text, &entry.text);
             self.undo_stack.push(UndoEntry {
                 text: self.text.clone(),
                 cursor: self.cursor,
             });
             self.text = entry.text;
-            self.cursor = entry.cursor;
-            self.selection_anchor = None;
+            self.cursor = sel_end;
+            if sel_start < sel_end {
+                self.selection_anchor = Some(sel_start);
+            } else {
+                self.selection_anchor = None;
+            }
             self.fire_change();
+            self.fire_selection_change();
             self.fire_can_undo_redo();
             true
         } else {
             false
         }
+    }
+
+    /// Diff two text strings to find the range in `to` that differs from `from`.
+    /// Returns (start, end) byte indices into `to` marking the restored/changed region.
+    /// Used for MF_SELECT behavior: after undo, select the restored text.
+    fn diff_select_range(from: &str, to: &str) -> (usize, usize) {
+        let from_bytes = from.as_bytes();
+        let to_bytes = to.as_bytes();
+        // Find first differing byte from the start.
+        let start = from_bytes
+            .iter()
+            .zip(to_bytes.iter())
+            .position(|(a, b)| a != b)
+            .unwrap_or(from_bytes.len().min(to_bytes.len()));
+        // Find first differing byte from the end.
+        let from_tail = &from_bytes[start..];
+        let to_tail = &to_bytes[start..];
+        let common_tail = from_tail
+            .iter()
+            .rev()
+            .zip(to_tail.iter().rev())
+            .take_while(|(a, b)| a == b)
+            .count();
+        let end = to_bytes.len() - common_tail;
+        (start, end.max(start))
     }
 
     // ── Word/Line Navigation (Phase 2) ──────────────────────────────────
@@ -2826,10 +2866,11 @@ mod tests {
         tf.redo();
         assert_eq!(tf.text(), "ABC");
 
-        // Typing after redo clears redo stack.
+        // After redo, "ABC" is selected (MF_SELECT). Typing replaces selection.
+        assert_eq!(tf.selected_text(), "ABC");
         tf.input(&char_press('X'), &ps, &is);
-        assert_eq!(tf.text(), "ABCX");
-        assert!(!tf.redo());
+        assert_eq!(tf.text(), "X"); // Selection replaced
+        assert!(!tf.redo()); // Redo stack cleared by new edit
     }
 
     #[test]
