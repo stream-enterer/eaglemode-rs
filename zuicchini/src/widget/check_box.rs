@@ -48,7 +48,12 @@ impl CheckBox {
     }
 
     pub fn set_checked(&mut self, checked: bool) {
-        self.checked = checked;
+        if self.checked != checked {
+            self.checked = checked;
+            if let Some(cb) = &mut self.on_check {
+                cb(self.checked);
+            }
+        }
     }
 
     /// Compute the box + label geometry from the content rect (C++ lines 235-260).
