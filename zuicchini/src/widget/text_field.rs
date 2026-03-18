@@ -1155,6 +1155,15 @@ impl TextField {
         } else {
             self.look.output_hl_color
         };
+
+        // C++ emTextField.cpp:967-971: disabled state blends colors toward BgColor.
+        let (fg, bg, hl_color) = if !self.enabled {
+            let base = self.look.bg_color;
+            (fg.lerp(base, 0.8), bg.lerp(base, 0.8), hl_color.lerp(base, 0.8))
+        } else {
+            (fg, bg, hl_color)
+        };
+
         // When not focused, dim selection: bgColor.GetBlended(fgColor,40) (C++ line 977-978)
         let sel_color = if self.focused { hl_color } else { bg.lerp(fg, 0.4) };
 
@@ -1351,6 +1360,15 @@ impl TextField {
         } else {
             self.look.output_hl_color
         };
+
+        // C++ emTextField.cpp:967-971: disabled state blends colors toward BgColor.
+        let (fg, bg, hl_color) = if !self.enabled {
+            let base = self.look.bg_color;
+            (fg.lerp(base, 0.8), bg.lerp(base, 0.8), hl_color.lerp(base, 0.8))
+        } else {
+            (fg, bg, hl_color)
+        };
+
         // When not focused, dim selection: bgColor.GetBlended(fgColor,40) (C++ line 977-978)
         let sel_color = if self.focused { hl_color } else { bg.lerp(fg, 0.4) };
 
