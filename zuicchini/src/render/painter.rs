@@ -557,11 +557,67 @@ impl<'a> Painter<'a> {
             return;
         }
 
-        for py in start_y..end_y {
+        // Interior pixels have full coverage — avoid per-pixel clip/bounds
+        // checks and coverage computation by splitting into edge and interior
+        // regions.  Edge pixels (on the sub-pixel boundary of the rect) still
+        // need per-pixel coverage; interior pixels can be bulk-written.
+
+        // Interior region: rows/cols that are fully inside the rect (full coverage).
+        let inner_x1 = if sp.frac_left < 0x1000 {
+            (sp.ix1 + 1).max(start_x)
+        } else {
+            start_x
+        };
+        let inner_x2 = if sp.frac_right > 0 && sp.frac_right < 0x1000 {
+            (sp.ix2 - 1).min(end_x)
+        } else {
+            end_x
+        };
+        let inner_y1 = if sp.frac_top < 0x1000 {
+            (sp.iy1 + 1).max(start_y)
+        } else {
+            start_y
+        };
+        let inner_y2 = if sp.frac_bottom > 0 && sp.frac_bottom < 0x1000 {
+            (sp.iy2 - 1).min(end_y)
+        } else {
+            end_y
+        };
+
+        // Top edge row (sub-pixel coverage in Y)
+        if start_y < inner_y1 {
             for px in start_x..end_x {
-                self.blend_with_coverage(px, py, color, sp.coverage(px, py));
+                self.blend_with_coverage(px, start_y, color, sp.coverage(px, start_y));
             }
         }
+
+        // Middle rows
+        for py in inner_y1..inner_y2 {
+            // Left edge pixel (sub-pixel coverage in X)
+            if start_x < inner_x1 {
+                self.blend_with_coverage(start_x, py, color, sp.coverage(start_x, py));
+            }
+
+            // Interior span: full coverage, no per-pixel clip/bounds checks.
+            if inner_x1 < inner_x2 {
+                self.fill_span_blended(py, inner_x1, inner_x2, color);
+            }
+
+            // Right edge pixel (sub-pixel coverage in X)
+            if inner_x2 < end_x {
+                let rx = end_x - 1;
+                self.blend_with_coverage(rx, py, color, sp.coverage(rx, py));
+            }
+        }
+
+        // Bottom edge row (sub-pixel coverage in Y)
+        if inner_y2 < end_y {
+            let by = end_y - 1;
+            for px in start_x..end_x {
+                self.blend_with_coverage(px, by, color, sp.coverage(px, by));
+            }
+        }
+
         self.state.canvas_color = saved_canvas;
     }
 
@@ -5423,6 +5479,88 @@ impl<'a> Painter<'a> {
                 out[1] = g as u8;
                 out[2] = b as u8;
                 out[3] = a as u8;
+            }
+        }
+    }
+
+    /// Write a horizontal span of pixels at full coverage with no per-pixel
+    /// clip or bounds checks.  Caller must guarantee that `y` and `x1..x2`
+    /// are within both the clip rect and the target image.
+    #[inline]
+    fn fill_span_blended(&mut self, y: i32, x1: i32, x2: i32, color: Color) {
+        debug_assert!(x1 >= 0 && x2 <= self.target_width as i32);
+        debug_assert!(y >= 0 && y < self.target_height as i32);
+        debug_assert!(x1 < x2);
+
+        let tw = self.target_width as usize;
+        let row_base = y as usize * tw * 4;
+
+        if color.is_opaque() && self.state.alpha == 255 {
+            let pixel = [color.r(), color.g(), color.b(), 255u8];
+            let data = self.image().data_mut();
+            for col in x1..x2 {
+                let off = row_base + col as usize * 4;
+                data[off..off + 4].copy_from_slice(&pixel);
+            }
+        } else if self.state.canvas_color.is_opaque() {
+            let combined_alpha = if self.state.alpha == 255 {
+                color.a()
+            } else {
+                ((color.a() as u16 * self.state.alpha as u16 + 128) >> 8) as u8
+            };
+            if combined_alpha == 0 {
+                return;
+            }
+            let cv = self.state.canvas_color;
+            let a = combined_alpha as u32;
+            let cr = (cv.r() as u32 * a + 127) / 255;
+            let cg = (cv.g() as u32 * a + 127) / 255;
+            let cb = (cv.b() as u32 * a + 127) / 255;
+            let pm_r = ((color.r() as u32 * a * 257 + 0x8073) >> 16) as i32;
+            let pm_g = ((color.g() as u32 * a * 257 + 0x8073) >> 16) as i32;
+            let pm_b = ((color.b() as u32 * a * 257 + 0x8073) >> 16) as i32;
+            let delta_r = pm_r - cr as i32;
+            let delta_g = pm_g - cg as i32;
+            let delta_b = pm_b - cb as i32;
+            let data = self.image().data_mut();
+            for col in x1..x2 {
+                let off = row_base + col as usize * 4;
+                data[off] = (data[off] as i32 + delta_r).clamp(0, 255) as u8;
+                data[off + 1] = (data[off + 1] as i32 + delta_g).clamp(0, 255) as u8;
+                data[off + 2] = (data[off + 2] as i32 + delta_b).clamp(0, 255) as u8;
+            }
+        } else {
+            let ca = color.a() as u16;
+            let ea = if self.state.alpha == 255 {
+                ca
+            } else {
+                (ca * self.state.alpha as u16 + 128) >> 8
+            };
+            if ea == 0 {
+                return;
+            }
+            if ea >= 255 {
+                let pixel = [color.r(), color.g(), color.b(), 255u8];
+                let data = self.image().data_mut();
+                for col in x1..x2 {
+                    let off = row_base + col as usize * 4;
+                    data[off..off + 4].copy_from_slice(&pixel);
+                }
+            } else {
+                let alpha = ea as u32;
+                let t = (255 - alpha) * 257;
+                let sr = (color.r() as u32 * alpha * 257 + 0x8073) >> 16;
+                let sg = (color.g() as u32 * alpha * 257 + 0x8073) >> 16;
+                let sb = (color.b() as u32 * alpha * 257 + 0x8073) >> 16;
+                let sa = (255u32 * alpha * 257 + 0x8073) >> 16;
+                let data = self.image().data_mut();
+                for col in x1..x2 {
+                    let off = row_base + col as usize * 4;
+                    data[off] = (((data[off] as u32 * t + 0x8073) >> 16) + sr) as u8;
+                    data[off + 1] = (((data[off + 1] as u32 * t + 0x8073) >> 16) + sg) as u8;
+                    data[off + 2] = (((data[off + 2] as u32 * t + 0x8073) >> 16) + sb) as u8;
+                    data[off + 3] = (((data[off + 3] as u32 * t + 0x8073) >> 16) + sa) as u8;
+                }
             }
         }
     }
