@@ -210,7 +210,7 @@ struct LabelPanel {
 }
 impl PanelBehavior for LabelPanel {
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, _s: &PanelState) {
-        self.widget.paint(p, w, h);
+        self.widget.paint(p, w, h, _s.enabled);
     }
     fn is_opaque(&self) -> bool {
         true

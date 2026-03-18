@@ -66,7 +66,7 @@ struct LabelBehavior {
 
 impl PanelBehavior for LabelBehavior {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
-        self.label.paint(painter, w, h);
+        self.label.paint(painter, w, h, _state.enabled);
     }
 }
 

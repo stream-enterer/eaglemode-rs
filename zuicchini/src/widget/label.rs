@@ -42,9 +42,9 @@ impl Label {
         self.border.set_caption_alignment(Some(a));
     }
 
-    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
+    pub fn paint(&self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, enabled);
 
         if self.border.caption.is_empty() {
             return;
@@ -105,6 +105,16 @@ impl Label {
             .caption_alignment
             .unwrap_or(self.border.label_alignment);
 
+        // C++ emLabel.cpp:44-47: GetTransparented(75.0) when disabled.
+        // 75% transparent → alpha * 0.25 ≈ alpha * 64 / 255.
+        let fg = if enabled {
+            self.look.fg_color
+        } else {
+            self.look
+                .fg_color
+                .with_alpha((self.look.fg_color.a() as u16 * 64 / 255) as u8)
+        };
+
         painter.paint_text_boxed(
             cx,
             cy,
@@ -112,7 +122,7 @@ impl Label {
             ch,
             &self.border.caption,
             char_h,
-            self.look.fg_color,
+            fg,
             Color::TRANSPARENT,
             TextAlignment::Center,
             VAlign::Center,
