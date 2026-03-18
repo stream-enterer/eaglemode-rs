@@ -1129,18 +1129,13 @@ impl TextField {
             }
         }
 
-        // Build char_positions using dynamic text size
+        // Build char_positions using column-grid (C++ tx + col * cw)
         self.char_positions.clear();
         self.char_positions.push(0.0);
-        for (i, _ch) in display_text.char_indices() {
-            let next = display_text[..=i]
-                .chars()
-                .last()
-                .map(|c| c.len_utf8())
-                .unwrap_or(1);
-            let end = i + next;
-            let w_px = Painter::measure_text_width(&display_text[..end], cell_h) * ws;
-            self.char_positions.push(w_px);
+        let mut col = 0usize;
+        for _ch in display_text.chars() {
+            col += 1;
+            self.char_positions.push(col as f64 * cell_w * ws);
         }
 
         // Pre-compute selection rect
@@ -1178,19 +1173,23 @@ impl TextField {
             let sel_end = anchor.max(self.cursor);
             let si = sel_start.min(display_text.len());
             let ei = sel_end.min(display_text.len());
-            let sx_px = Painter::measure_text_width(&display_text[..si], cell_h) * ws;
-            let ex_px = Painter::measure_text_width(&display_text[..ei], cell_h) * ws;
+            let sel_start_col = display_text[..si].chars().count();
+            let sel_end_col = display_text[..ei].chars().count();
+            let sx_px = sel_start_col as f64 * cell_w * ws;
+            let ex_px = sel_end_col as f64 * cell_w * ws;
             Some((si, ei, sx_px, ex_px))
         } else {
             None
         };
 
-        let cursor_text = if self.password_mode {
-            "*".repeat(self.text[..self.cursor].chars().count())
+        let cursor_col = if self.password_mode {
+            self.text[..self.cursor].chars().count()
         } else {
-            self.text[..self.cursor].to_string()
+            display_text[..self.cursor.min(display_text.len())]
+                .chars()
+                .count()
         };
-        let cursor_x_px = Painter::measure_text_width(&cursor_text, cell_h) * ws;
+        let cursor_x_px = cursor_col as f64 * cell_w * ws;
 
         // Update scroll_x so the cursor stays visible
         let visible_w = tw;
@@ -1220,16 +1219,71 @@ impl TextField {
         // C++ line 1023: selected0 ? bgColor : fgColor; line 1024: selected0 ? selColor : canvasColor
         let text_x = tx - self.scroll_x;
         let text_y = effective_ty;
-        if let Some((si, ei, sx_px, ex_px)) = sel_info.filter(|(si, ei, _, _)| si < ei) {
-            if si > 0 {
-                painter.paint_text(text_x, text_y, &display_text[..si], effective_ch, ws, fg, canvas_color);
+        if self.password_mode {
+            // C++ emButton.cpp:1011-1018: paint each '*' at column positions.
+            let total_chars = display_text.chars().count();
+            for j in 0..total_chars {
+                let char_x = text_x + j as f64 * cell_w * ws;
+                let in_sel = sel_info
+                    .filter(|(si, ei, _, _)| si < ei)
+                    .is_some_and(|(si, ei, _, _)| {
+                        let byte_pos = display_text
+                            .char_indices()
+                            .nth(j)
+                            .map_or(display_text.len(), |(i, _)| i);
+                        byte_pos >= si && byte_pos < ei
+                    });
+                let (fg_c, bg_c) = if in_sel {
+                    (bg, sel_color)
+                } else {
+                    (fg, canvas_color)
+                };
+                painter.paint_text(char_x, text_y, "*", effective_ch, ws, fg_c, bg_c);
             }
-            painter.paint_text(text_x + sx_px, text_y, &display_text[si..ei], effective_ch, ws, bg, sel_color);
+        } else if let Some((si, ei, _, _)) = sel_info.filter(|(si, ei, _, _)| si < ei) {
+            let si_col = display_text[..si].chars().count();
+            let ei_col = display_text[..ei].chars().count();
+            if si > 0 {
+                painter.paint_text(
+                    text_x,
+                    text_y,
+                    &display_text[..si],
+                    effective_ch,
+                    ws,
+                    fg,
+                    canvas_color,
+                );
+            }
+            painter.paint_text(
+                text_x + si_col as f64 * cell_w * ws,
+                text_y,
+                &display_text[si..ei],
+                effective_ch,
+                ws,
+                bg,
+                sel_color,
+            );
             if ei < display_text.len() {
-                painter.paint_text(text_x + ex_px, text_y, &display_text[ei..], effective_ch, ws, fg, canvas_color);
+                painter.paint_text(
+                    text_x + ei_col as f64 * cell_w * ws,
+                    text_y,
+                    &display_text[ei..],
+                    effective_ch,
+                    ws,
+                    fg,
+                    canvas_color,
+                );
             }
         } else {
-            painter.paint_text(text_x, text_y, &display_text, effective_ch, ws, fg, canvas_color);
+            painter.paint_text(
+                text_x,
+                text_y,
+                &display_text,
+                effective_ch,
+                ws,
+                fg,
+                canvas_color,
+            );
         }
 
         // Cursor — C++ only renders when panel is in focused path
