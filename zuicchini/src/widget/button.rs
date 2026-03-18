@@ -197,8 +197,9 @@ impl Button {
         let mut ly = fy + dy;
         let mut lw = fw - 2.0 * dx;
         let mut lh = fh - 2.0 * dy;
-        if self.pressed {
-            let s = 0.98;
+        // C++ emButton.cpp:377-382: Pressed → 0.98, ShownChecked → 0.983.
+        if self.pressed || self.shown_checked {
+            let s = if self.pressed { 0.98 } else { 0.983 };
             lx += (1.0 - s) * 0.5 * lw;
             lw *= s;
             ly += (1.0 - s) * 0.5 * lh;
@@ -213,6 +214,7 @@ impl Button {
         );
 
         // C++ DoButton paints button image overlay on top of the face.
+        // Priority: Pressed → ButtonPressed, ShownChecked → ButtonChecked, else → Button.
         with_toolkit_images(|img| {
             if self.pressed {
                 painter.paint_border_image(
@@ -222,10 +224,30 @@ impl Button {
                     cr.h,
                     360.0 / 264.0 * r,
                     374.0 / 264.0 * r,
-                    r, // C++ 264.0/264.0 = 1.0
-                    r, // C++ 264.0/264.0 = 1.0
+                    r,
+                    r,
                     &img.button_pressed,
                     360,
+                    374,
+                    264,
+                    264,
+                    255,
+                    Color::TRANSPARENT,
+                    BORDER_EDGES_ONLY,
+                );
+            } else if self.shown_checked {
+                // C++ emButton.cpp:402-409: ButtonChecked overlay.
+                painter.paint_border_image(
+                    cr.x,
+                    cr.y,
+                    cr.w,
+                    cr.h,
+                    340.0 / 264.0 * r,
+                    374.0 / 264.0 * r,
+                    r,
+                    r,
+                    &img.button_checked,
+                    340,
                     374,
                     264,
                     264,
