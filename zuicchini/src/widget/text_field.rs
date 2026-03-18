@@ -1097,7 +1097,14 @@ impl TextField {
         let tw = (cw - 2.0 * d).max(0.0);
         let th = (ch - 2.0 * d).max(0.0);
 
-        let (cols, rows) = self.calc_total_cols_rows();
+        let (mut cols, rows) = self.calc_total_cols_rows();
+        // C++ emTextField.cpp:920-922: expand cols for overwrite cursor at end of text.
+        if self.overwrite_mode && self.focused {
+            let (cursor_col, _) = self.index_to_col_row(self.cursor);
+            if cursor_col == cols {
+                cols += 1;
+            }
+        }
         let cell_h = if rows > 0 { th / rows as f64 } else { th };
         let cell_w = Painter::measure_text_width("X", cell_h);
 
@@ -1291,7 +1298,14 @@ impl TextField {
         let tw = (cw - 2.0 * d).max(0.0);
         let th = (ch - 2.0 * d).max(0.0);
 
-        let (cols, total_rows) = self.calc_total_cols_rows();
+        let (mut cols, total_rows) = self.calc_total_cols_rows();
+        // C++ emTextField.cpp:920-922: expand cols for overwrite cursor at end of text.
+        if self.overwrite_mode && self.focused {
+            let (cursor_col, _) = self.index_to_col_row(self.cursor);
+            if cursor_col == cols {
+                cols += 1;
+            }
+        }
         let cell_h = if total_rows > 0 {
             th / total_rows as f64
         } else {
