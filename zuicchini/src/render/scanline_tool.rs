@@ -33,6 +33,12 @@ impl InterpolationBuffer {
         self.len = n;
     }
 
+    /// Raw data slice for the first `len` pixels. Length = len * ch bytes.
+    #[inline]
+    pub(crate) fn raw_data(&self) -> &[u8] {
+        &self.data[..self.len * self.ch as usize]
+    }
+
     /// Expand pixel `i` to RGBA for blending. Missing channels filled per C++ convention.
     #[inline]
     pub(crate) fn pixel_rgba(&self, i: usize) -> [u8; 4] {
@@ -186,6 +192,19 @@ fn blend_scanline_source_over(
     coverages: Option<&[i32]>,
     painter_alpha: u8,
 ) {
+    // AVX2 fast path: full coverage, painter_alpha=255, 4-channel buffer.
+    #[cfg(target_arch = "x86_64")]
+    if coverages.is_none()
+        && painter_alpha == 255
+        && buf.ch == 4
+        && is_x86_feature_detected!("avx2")
+    {
+        unsafe {
+            super::scanline_avx2::blend_source_over_avx2(dest, buf.raw_data(), count);
+        }
+        return;
+    }
+
     for i in 0..count {
         let cov = coverages.map_or(0x1000, |c| c[i]);
         if cov <= 0 {
@@ -322,6 +341,19 @@ fn blend_scanline_premul_source_over(
     coverages: Option<&[i32]>,
     painter_alpha: u8,
 ) {
+    // AVX2 fast path: full coverage, painter_alpha=255, 4-channel buffer.
+    #[cfg(target_arch = "x86_64")]
+    if coverages.is_none()
+        && painter_alpha == 255
+        && buf.ch == 4
+        && is_x86_feature_detected!("avx2")
+    {
+        unsafe {
+            super::scanline_avx2::blend_premul_source_over_avx2(dest, buf.raw_data(), count);
+        }
+        return;
+    }
+
     for i in 0..count {
         let cov = coverages.map_or(0x1000, |c| c[i]);
         if cov <= 0 {
