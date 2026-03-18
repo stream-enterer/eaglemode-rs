@@ -30,20 +30,16 @@
 - Rust adds `button_pressed()` darkened color → double-darkening effect
 - **Confidence**: high | **Coverage**: uncovered (golden only captures unpressed state)
 
-### [LOW] Missing Enter key input (see CC-01 pattern)
-- Both RadioButton and RadioBox only handle Space, not Enter
-- **Confidence**: high | **Coverage**: uncovered
+### [LOW] Missing Enter key input (see CC-01 pattern) — **FIXED**
+- **Fix**: Added Enter alongside Space in RadioButton and RadioBox input handlers.
 
-### [LOW] Missing modifier key checks on mouse input
-- C++ gates on IsNoMod() || IsShiftMod(). Rust accepts any modifiers.
-- **Confidence**: medium | **Coverage**: uncovered
+### [LOW] Missing modifier key checks on mouse input — **FIXED**
+- **Fix**: Added ctrl/alt/meta rejection in RadioButton and RadioBox mouse press.
 
-### [LOW] RadioGroup::select() bypasses set_check_index guards
-- C++ has recursion guard, no-change early return
-- Rust fires callback even when re-selecting already-selected button
-- **Confidence**: medium | **Coverage**: partially covered
+### [LOW] RadioGroup::select() bypasses set_check_index guards — **FIXED**
+- **Fix**: Added no-change early return in select().
 
-### [INFO] RadioBox hit_test uses wrong geometry (see CC-06)
+### [INFO] RadioBox hit_test uses wrong geometry (see CC-06) — **FIXED**
 - Uses content_round_rect instead of content_rect + r=h*0.2
 
 ## Summary

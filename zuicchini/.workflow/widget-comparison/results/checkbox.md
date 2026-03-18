@@ -20,10 +20,8 @@ Category **(b): code duplication**. Rust CheckBox is 4x larger because it inline
 - Probably correct but needs verification that `paint_label` uses FgColor
 - **Confidence**: medium | **Coverage**: covered (pixel golden)
 
-### [SUSPECT] CheckBox outer hit test radius differs from C++
-- C++: `r = h * 0.2` on full content rect (emButton.cpp:276-281)
-- Rust: uses `content_round_rect` radius (check_box.rs:190-197)
-- Could differ at corners — C++ uses explicit `h*0.2`, Rust uses border-derived radius
+### [SUSPECT] CheckBox outer hit test radius differs from C++ — **FIXED**
+- **Fix**: Changed to content_rect with r=h*0.2 (CC-06 boxed path fix).
 - **Confidence**: medium | **Coverage**: covered (widget_checkbox_toggle)
 
 ### [NOTE] Box hit test equivalent but redundantly computed

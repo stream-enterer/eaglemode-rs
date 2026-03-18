@@ -22,8 +22,8 @@
 ### [LOW] Inline paint row height may differ from C++ RasterGroup layout (LB-08)
 ### [LOW] canvasColor for text computed locally vs chained (LB-09)
 ### [LOW] prev_input_index adjustment correct but fragile (LB-12)
-### [LOW] HowTo Multi mode missing keyboard section (LB-14)
-### [LOW] HowTo Toggle mode missing keyboard section (LB-15)
+### [LOW] HowTo Multi mode missing keyboard section (LB-14) — **FIXED**
+### [LOW] HowTo Toggle mode missing keyboard section (LB-15) — **FIXED**
 
 ### [INFO] Scroll model: traditional scrolling vs zoom-to-visit (LB-07)
 ### [INFO] set_items bulk replacement is Rust addition (LB-13)
