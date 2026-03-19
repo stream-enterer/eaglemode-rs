@@ -526,3 +526,57 @@ Systematic comparison of integer arithmetic operations between C++ emCore and Ru
 ### Integer Promotion Audit Complete
 
 **All 15 items DONE.** 4 actionable fixes applied. 1161 tests pass, clippy clean.
+
+---
+
+## 2026-03-19 — Alpha Channel Semantics Audit
+
+### Strategy
+
+Golden test comparison (tests/golden/common.rs line 119) compares RGB only, skipping channel 3. This means ALL alpha-related code paths are structurally untested. Systematic audit of 12 alpha-handling code paths comparing Rust against C++ reference.
+
+### Audit Results
+
+| # | Rust File | Focus | CORRECT | DIVERGENT | INTENTIONAL | Status |
+|---|-----------|-------|---------|-----------|-------------|--------|
+| AA-1 | scanline_tool.rs (source-over) | dst_alpha update formula | 8 | 1 | 1 | DONE |
+| AA-2 | scanline_tool.rs (premul) | premul alpha accumulation | 9 | 0 | 0 | DONE |
+| AA-3 | scanline_avx2.rs | SIMD alpha lane handling | 4 | 0 | 0 | DONE |
+| AA-4 | painter.rs (coverage) | coverage-to-alpha conversion | 5 | 0 | 1 | DONE |
+| AA-5 | color.rs (blend) | Color::blend alpha output | 5 | 0 | 0 | DONE |
+| AA-6 | color.rs (canvas_blend) | canvas_blend alpha handling | 4 | 0 | 1 | DONE |
+| AA-7 | color.rs (lerp) | lerp alpha interpolation | 5 | 0 | 0 | DONE |
+| AA-8 | border.rs (disabled) | disabled state alpha dimming | 6 | 0 | 0 | DONE |
+| AA-9 | compositor.rs | layer compositing alpha | 6 | 0 | 0 | DONE |
+| AA-10 | software_compositor.rs | blit alpha mode selection | 6 | 0 | 0 | DONE |
+| AA-11 | scanline_tool.rs (color) | solid color alpha blend | 3 | 2 | 0 | DONE |
+| AA-12 | interpolation.rs | image interpolation alpha | 6 | 0 | 0 | DONE |
+
+**Grand total**: 67 CORRECT, 3 DIVERGENT, 3 INTENTIONAL
+
+### DIVERGENT Findings (AA-1, AA-11)
+
+**Same root cause**: C++ integer scanline paths (`emPainter_ScTlPSInt.cpp`, `emPainter_ScTlPSCol.cpp`) apply blend factor `t = (255-a)*257` only to RGB channels via shift operations (`rsh`, `gsh`, `bsh`). Alpha channel in destination is never updated. Rust source-over path explicitly updates `dest[off+3]` with standard alpha formula: `dst_a' = div255(dst_a * (255-src_a)) + div255(255 * src_a)`.
+
+**Verified by**: Dedicated verification subagent confirmed C++ pixel write at lines 377-381 constructs output from `rsh/gsh/bsh` shift operations only — no alpha shift (`ash`) is used. The `pix` variable (hash table lookup) contains RGB only.
+
+**Impact assessment: INVISIBLE in practice.**
+- Framebuffer starts at alpha=255 (opaque black via `fill(Color::BLACK)`)
+- Source-over formula preserves alpha≈255 when dst starts at 255: `div255(255*(255-a)) + div255(255*a) ≈ 255`
+- Golden tests explicitly skip alpha comparison
+- C++ uses channel 3 for "remaining canvas visibility" (not standard alpha), Rust uses standard alpha
+- No downstream code reads framebuffer alpha for compositing decisions
+
+**Decision: No fix needed.** The Rust behavior (standard source-over alpha) is *more correct* than C++ (which silently drops alpha updates as an optimization). The divergence is structurally invisible because the framebuffer alpha stays ≈255 regardless.
+
+### INTENTIONAL Findings (AA-1, AA-4, AA-6)
+
+All three relate to canvas blend mode:
+- `Color::canvas_blend` computes alpha using the same formula as RGB channels
+- Callers (painter.rs) explicitly discard the alpha result, writing only RGB
+- C++ `HAVE_CVC` path also only modifies RGB
+- Net behavior matches: canvas blend never modifies destination alpha
+
+### Alpha Channel Audit Complete
+
+**All 12 items DONE.** 0 actionable fixes needed. 3 divergences confirmed invisible (Rust is more correct than C++). 3 intentional design choices verified correct.

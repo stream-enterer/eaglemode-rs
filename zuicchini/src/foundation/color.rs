@@ -603,6 +603,84 @@ mod tests {
     }
 
     #[test]
+    fn test_blend_interpolates_alpha() {
+        // blend(self, other, alpha) uses /256 math on all 4 channels including alpha.
+        // self=RGBA(100,100,100,200), other=RGBA(200,200,200,50), alpha=128
+        let a = Color::rgba(100, 100, 100, 200);
+        let b = Color::rgba(200, 200, 200, 50);
+        let result = a.blend(b, 128);
+
+        // Expected: out_ch = (self_ch * 128 + other_ch * (256-128)) >> 8
+        let expected_a = ((200u16 * 128 + 50u16 * 128) >> 8) as u8;
+        assert_eq!(
+            result.a(),
+            expected_a,
+            "blend alpha: got {} expected {}",
+            result.a(),
+            expected_a
+        );
+
+        // Verify RGB uses the same formula (sanity)
+        let expected_r = ((100u16 * 128 + 200u16 * 128) >> 8) as u8;
+        assert_eq!(result.r(), expected_r);
+    }
+
+    #[test]
+    fn test_lerp_interpolates_alpha() {
+        // lerp RGBA(0,0,0,0) -> RGBA(255,255,255,255) at t=0.5
+        let a = Color::rgba(0, 0, 0, 0);
+        let b = Color::rgba(255, 255, 255, 255);
+        let result = a.lerp(b, 0.5);
+
+        // C++ formula: w2 = (0.5 * 65536 + 0.5) as i32 = 32768
+        // mix(0, 255) = (0 * (65536-32768) + 255 * 32768 + 32768) >> 16
+        //             = (8355840 + 32768) >> 16 = 8388608 >> 16 = 128
+        assert_eq!(
+            result.a(),
+            128,
+            "lerp alpha at t=0.5: got {} expected 128",
+            result.a()
+        );
+        // RGB should match alpha since inputs are symmetric
+        assert_eq!(result.r(), result.a());
+        assert_eq!(result.g(), result.a());
+        assert_eq!(result.b(), result.a());
+
+        // Verify endpoints
+        let at_zero = a.lerp(b, 0.0);
+        assert_eq!(at_zero.a(), 0, "lerp alpha at t=0.0 should be 0");
+        let at_one = a.lerp(b, 1.0);
+        assert_eq!(at_one.a(), 255, "lerp alpha at t=1.0 should be 255");
+    }
+
+    #[test]
+    fn test_canvas_blend_computes_alpha() {
+        // canvas_blend applies the blend_ch formula to all 4 channels including alpha.
+        // target=RGBA(100,100,100,200), source=RGBA(200,200,200,180),
+        // canvas=RGBA(80,80,80,255), alpha=128
+        let target = Color::rgba(100, 100, 100, 200);
+        let source = Color::rgba(200, 200, 200, 180);
+        let canvas = Color::rgba(80, 80, 80, 255);
+        let result = target.canvas_blend(source, canvas, 128);
+
+        // blend_ch for alpha: target_a + round(src_a * alpha / 255) - round(cvs_a * alpha / 255)
+        let src_term = (180i32 * 128 + 127) / 255; // = 90
+        let cvs_term = (255i32 * 128 + 127) / 255; // = 128
+        let expected_a = (200i32 + src_term - cvs_term).clamp(0, 255) as u8; // 200 + 90 - 128 = 162
+
+        assert_eq!(
+            result.a(),
+            expected_a,
+            "canvas_blend alpha: got {} expected {}",
+            result.a(),
+            expected_a
+        );
+
+        // Verify it's different from input (the blend did modify alpha)
+        assert_ne!(result.a(), target.a(), "canvas_blend should modify alpha channel");
+    }
+
+    #[test]
     fn from_str_rejects_invalid() {
         assert!("not a color".parse::<Color>().is_err());
         assert!("#GG0000".parse::<Color>().is_err());

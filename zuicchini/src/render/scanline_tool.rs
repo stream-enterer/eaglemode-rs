@@ -752,6 +752,102 @@ mod tests {
     }
 
     #[test]
+    fn test_source_over_alpha_update() {
+        // Blend src RGBA(100,150,200,128) onto dst RGBA(50,75,100,200)
+        // with full coverage and painter_alpha=255.
+        // Expected alpha: div255(dst_a * (255 - src_a)) + div255(255 * src_a)
+        // where div255(x) = (x * 257 + 0x8073) >> 16  (Blinn formula)
+        let src = Color::rgba(100, 150, 200, 128);
+        let dst = Color::rgba(50, 75, 100, 200);
+
+        let mut buf = InterpolationBuffer::new(4);
+        buf.set_pixel(0, [src.r(), src.g(), src.b(), src.a()]);
+        buf.set_len(1);
+
+        let mut dest = make_dest(1, 1, dst);
+        let mode = BlendMode::SourceOver { painter_alpha: 255 };
+        blend_scanline(&mut dest, &buf, 1, None, &mode);
+
+        // Compute expected alpha via Blinn div255
+        let src_a = 128u32;
+        let dst_a = 200u32;
+        let t = (255 - src_a) * 257; // inv_alpha * 257
+        let expected_a =
+            (((dst_a * t + 0x8073) >> 16) + ((255u32 * src_a * 257 + 0x8073) >> 16)) as u8;
+
+        assert_eq!(
+            dest[3], expected_a,
+            "source-over alpha: got {} expected {}",
+            dest[3], expected_a
+        );
+        // Sanity: output alpha should be higher than both inputs blended
+        assert!(dest[3] > 128, "output alpha should exceed src alpha");
+    }
+
+    #[test]
+    fn test_premul_source_over_alpha_update() {
+        // Premul source: pm_r=50, pm_g=75, pm_b=100, pm_a=128
+        // Dst: RGBA(50,75,100,200)
+        // Expected: out_a = div255(dst_a * (255 - pm_a)) + pm_a
+        // where div255(x) = (x * 257 + 0x8073) >> 16
+        let pm = [50u8, 75, 100, 128];
+        let dst = Color::rgba(50, 75, 100, 200);
+
+        let mut buf = InterpolationBuffer::new(4);
+        buf.set_pixel(0, pm);
+        buf.set_len(1);
+
+        let mut dest = make_dest(1, 1, dst);
+        let mode = BlendMode::SourceOver { painter_alpha: 255 };
+        blend_scanline_premul(&mut dest, &buf, 1, None, &mode);
+
+        let pm_a = 128u32;
+        let dst_a = 200u32;
+        let t = (255 - pm_a) * 257;
+        let expected_a = (((dst_a * t + 0x8073) >> 16) + pm_a) as u8;
+
+        assert_eq!(
+            dest[3], expected_a,
+            "premul source-over alpha: got {} expected {}",
+            dest[3], expected_a
+        );
+    }
+
+    #[test]
+    fn test_canvas_blend_preserves_alpha() {
+        // Canvas blend should leave destination alpha unchanged.
+        let src = Color::rgba(200, 100, 50, 200);
+        let dst = Color::rgba(100, 100, 100, 177);
+        let canvas = Color::rgba(80, 80, 80, 255);
+
+        let mut buf = InterpolationBuffer::new(4);
+        buf.set_pixel(0, [src.r(), src.g(), src.b(), src.a()]);
+        buf.set_len(1);
+
+        let mut dest = make_dest(1, 1, dst);
+        let original_alpha = dest[3];
+        let mode = BlendMode::CanvasBlend {
+            canvas,
+            painter_alpha: 200,
+        };
+        blend_scanline(&mut dest, &buf, 1, None, &mode);
+
+        assert_eq!(
+            dest[3], original_alpha,
+            "canvas blend must not modify dest alpha: got {} expected {}",
+            dest[3], original_alpha
+        );
+
+        // Also verify RGB actually changed (so the blend did something)
+        let pristine = make_dest(1, 1, dst);
+        assert_ne!(
+            &dest[..3],
+            &pristine[..3],
+            "canvas blend should modify RGB channels"
+        );
+    }
+
+    #[test]
     fn blend_scanline_zero_coverage_noop() {
         let bg = Color::rgba(100, 100, 100, 200);
         let mut dest = make_dest(2, 1, bg);
