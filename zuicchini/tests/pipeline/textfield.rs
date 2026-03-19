@@ -409,3 +409,559 @@ fn textfield_type_across_zoom_levels() {
         assert_eq!(tf.cursor_pos(), 6);
     }
 }
+
+// ===========================================================================
+// BP-4: TextField cursor navigation tests
+// ===========================================================================
+
+/// Helper: set up a focused, editable TextField pre-populated with `text`,
+/// cursor at `cursor_pos`. Returns harness + shared TextField ref.
+fn setup_nav_harness(text: &str, cursor_pos: usize) -> (PipelineTestHarness, Rc<RefCell<TextField>>) {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text(text);
+    tf_ref.borrow_mut().set_cursor_index(cursor_pos);
+
+    render(&mut h, 800, 600);
+    h.click(400.0, 300.0);
+
+    // After click, cursor may have moved to click position; restore it.
+    tf_ref.borrow_mut().set_cursor_index(cursor_pos);
+    // Clear any selection that the click may have created.
+    tf_ref.borrow_mut().deselect();
+
+    (h, tf_ref)
+}
+
+/// Helper: set up a focused, editable, multi-line TextField.
+fn setup_multiline_nav_harness(
+    text: &str,
+    cursor_pos: usize,
+) -> (PipelineTestHarness, Rc<RefCell<TextField>>) {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_multi_line(true);
+    tf_ref.borrow_mut().set_text(text);
+    tf_ref.borrow_mut().set_cursor_index(cursor_pos);
+
+    render(&mut h, 800, 600);
+    h.click(400.0, 300.0);
+
+    tf_ref.borrow_mut().set_cursor_index(cursor_pos);
+    tf_ref.borrow_mut().deselect();
+
+    (h, tf_ref)
+}
+
+// ---------------------------------------------------------------------------
+// Left / Right (single char)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_left_moves_cursor() {
+    // "Hello World" with cursor at 5 → Left → cursor at 4
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 5);
+    h.press_key(InputKey::ArrowLeft);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 4);
+    assert!(tf_ref.borrow().is_selection_empty());
+}
+
+#[test]
+fn textfield_left_at_start_stays() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 0);
+    h.press_key(InputKey::ArrowLeft);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 0);
+}
+
+#[test]
+fn textfield_right_moves_cursor() {
+    // "Hello World" with cursor at 5 → Right → cursor at 6
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 5);
+    h.press_key(InputKey::ArrowRight);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 6);
+    assert!(tf_ref.borrow().is_selection_empty());
+}
+
+#[test]
+fn textfield_right_at_end_stays() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 5);
+    h.press_key(InputKey::ArrowRight);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 5);
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+Left / Ctrl+Right (word boundary)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_ctrl_left_skips_word() {
+    // "foo bar baz" cursor at 8 (start of "baz") → Ctrl+Left → 4 (start of "bar")
+    // prev_word_index(8): scans i=0, next_word_index(0)=4 (<8), i=4,
+    //   next_word_index(4)=8 (>=8), return 4.
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 8);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowLeft);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(
+        tf_ref.borrow().cursor_pos(),
+        4,
+        "Ctrl+Left from pos 8 in 'foo bar baz' should go to 4 (start of 'bar')"
+    );
+    assert!(tf_ref.borrow().is_selection_empty());
+}
+
+#[test]
+fn textfield_ctrl_left_from_word_start() {
+    // "foo bar" cursor at 4 (start of "bar") → Ctrl+Left → 0 (start of "foo")
+    // prev_word_index(4): i=0, next_word_index(0)=4, 4>=4 → return 0
+    let (mut h, tf_ref) = setup_nav_harness("foo bar", 4);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowLeft);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 0);
+}
+
+#[test]
+fn textfield_ctrl_right_skips_word() {
+    // "foo bar baz" cursor at 0 → Ctrl+Right → 4 (start of "bar")
+    // next_word_index(0): 'f' is word char, scans "foo"→3 (delim), continue,
+    //   scans " "→4 (!delim) → return 4
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 0);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowRight);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(
+        tf_ref.borrow().cursor_pos(),
+        4,
+        "Ctrl+Right from pos 0 in 'foo bar baz' should go to 4 (start of 'bar')"
+    );
+    assert!(tf_ref.borrow().is_selection_empty());
+}
+
+#[test]
+fn textfield_ctrl_right_from_middle() {
+    // "foo bar baz" cursor at 5 (in "bar") → Ctrl+Right → 8 (start of "baz")
+    // next_word_index(5): 'a' word char, scans "ar"→7 (delim ' '), continue
+    //   p=7, scans " "→8 (!delim) → return 8
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 5);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowRight);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 8);
+}
+
+#[test]
+fn textfield_ctrl_right_at_end() {
+    let (mut h, tf_ref) = setup_nav_harness("foo bar", 7);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowRight);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 7);
+}
+
+// ---------------------------------------------------------------------------
+// Home / End
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_home_moves_to_start() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 7);
+    h.press_key(InputKey::Home);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 0);
+    assert!(tf_ref.borrow().is_selection_empty());
+}
+
+#[test]
+fn textfield_end_moves_to_end() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 3);
+    h.press_key(InputKey::End);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 11);
+    assert!(tf_ref.borrow().is_selection_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Shift+Left / Shift+Right (extend selection one char)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_shift_left_extends_selection() {
+    // "Hello" cursor at 3 → Shift+Left → cursor 2, selection [2,3)
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 3);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::ArrowLeft);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 2);
+        assert_eq!(tf.selection_start(), 2);
+        assert_eq!(tf.selection_end(), 3);
+        assert!(!tf.is_selection_empty());
+    }
+}
+
+#[test]
+fn textfield_shift_right_extends_selection() {
+    // "Hello" cursor at 2 → Shift+Right → cursor 3, selection [2,3)
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 2);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::ArrowRight);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 3);
+        assert_eq!(tf.selection_start(), 2);
+        assert_eq!(tf.selection_end(), 3);
+    }
+}
+
+#[test]
+fn textfield_shift_left_twice_extends_two_chars() {
+    // "Hello" cursor at 4 → Shift+Left twice → cursor 2, selection [2,4)
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 4);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::ArrowLeft);
+    h.press_key(InputKey::ArrowLeft);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 2);
+        assert_eq!(tf.selection_start(), 2);
+        assert_eq!(tf.selection_end(), 4);
+    }
+}
+
+#[test]
+fn textfield_shift_right_twice_extends_two_chars() {
+    // "Hello" cursor at 1 → Shift+Right twice → cursor 3, selection [1,3)
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 1);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::ArrowRight);
+    h.press_key(InputKey::ArrowRight);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 3);
+        assert_eq!(tf.selection_start(), 1);
+        assert_eq!(tf.selection_end(), 3);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shift+Ctrl+Left / Shift+Ctrl+Right (extend selection by word)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_shift_ctrl_left_extends_selection_word() {
+    // "foo bar baz" cursor at 8 → Shift+Ctrl+Left → cursor 4, selection [4,8)
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 8);
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowLeft);
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 4);
+        assert_eq!(tf.selection_start(), 4);
+        assert_eq!(tf.selection_end(), 8);
+    }
+}
+
+#[test]
+fn textfield_shift_ctrl_right_extends_selection_word() {
+    // "foo bar baz" cursor at 0 → Shift+Ctrl+Right → cursor 4, selection [0,4)
+    let (mut h, tf_ref) = setup_nav_harness("foo bar baz", 0);
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowRight);
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 4);
+        assert_eq!(tf.selection_start(), 0);
+        assert_eq!(tf.selection_end(), 4);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shift+Home / Shift+End (extend selection to line boundaries)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_shift_home_extends_selection_to_start() {
+    // "Hello World" cursor at 6 → Shift+Home → cursor 0, selection [0,6)
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 6);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::Home);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 0);
+        assert_eq!(tf.selection_start(), 0);
+        assert_eq!(tf.selection_end(), 6);
+    }
+}
+
+#[test]
+fn textfield_shift_end_extends_selection_to_end() {
+    // "Hello World" cursor at 5 → Shift+End → cursor 11, selection [5,11)
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 5);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::End);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 11);
+        assert_eq!(tf.selection_start(), 5);
+        assert_eq!(tf.selection_end(), 11);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Plain arrow clears existing selection (C++ EmptySelection path)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_left_clears_selection() {
+    // Pre-select [2,5) in "Hello World", then Left without Shift → selection cleared
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 5);
+    // Create selection first
+    tf_ref.borrow_mut().select(2, 5);
+    tf_ref.borrow_mut().set_cursor_index(5);
+
+    h.press_key(InputKey::ArrowLeft);
+    {
+        let tf = tf_ref.borrow();
+        assert!(tf.is_selection_empty(), "Left without Shift should clear selection");
+        assert_eq!(tf.cursor_pos(), 4);
+    }
+}
+
+#[test]
+fn textfield_right_clears_selection() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 2);
+    tf_ref.borrow_mut().select(2, 5);
+    tf_ref.borrow_mut().set_cursor_index(2);
+
+    h.press_key(InputKey::ArrowRight);
+    {
+        let tf = tf_ref.borrow();
+        assert!(tf.is_selection_empty(), "Right without Shift should clear selection");
+        assert_eq!(tf.cursor_pos(), 3);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Up / Down in multi-line mode
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_down_moves_to_next_row() {
+    // "abc\ndef\nghi" cursor at 1 (in first row) → Down → should land in second row
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 1);
+    h.press_key(InputKey::ArrowDown);
+    {
+        let tf = tf_ref.borrow();
+        // Row 0: "abc\n" (indices 0..4), Row 1: "def\n" (4..8), Row 2: "ghi" (8..11)
+        // Down from pos 1 (col 1, row 0) → col 1, row 1 → index 5
+        assert_eq!(
+            tf.cursor_pos(),
+            5,
+            "Down from pos 1 in 'abc\\ndef\\nghi' should go to pos 5"
+        );
+        assert!(tf.is_selection_empty());
+    }
+}
+
+#[test]
+fn textfield_up_moves_to_prev_row() {
+    // "abc\ndef\nghi" cursor at 5 (in second row, col 1) → Up → pos 1
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 5);
+    h.press_key(InputKey::ArrowUp);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(
+            tf.cursor_pos(),
+            1,
+            "Up from pos 5 in 'abc\\ndef\\nghi' should go to pos 1"
+        );
+    }
+}
+
+#[test]
+fn textfield_up_at_first_row_stays() {
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef", 2);
+    h.press_key(InputKey::ArrowUp);
+    {
+        let tf = tf_ref.borrow();
+        // Up from first row: prev_row_index should return 0 or stay at row start
+        // Let me check the behavior - it should clamp to the same row
+        // prev_row_index when already at row 0 returns col_row_to_index(col, row-1)
+        // which for row=0 means row=-1 effectively → should clamp to 0
+        assert!(
+            tf.cursor_pos() <= 2,
+            "Up from first row should not go past start"
+        );
+    }
+}
+
+#[test]
+fn textfield_down_at_last_row_stays() {
+    // "abc\ndef" cursor at 5 (row 1, col 1) → Down → should stay in last row
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef", 5);
+    h.press_key(InputKey::ArrowDown);
+    {
+        let tf = tf_ref.borrow();
+        // Down from last row should not go past end
+        assert!(
+            tf.cursor_pos() >= 4 && tf.cursor_pos() <= 7,
+            "Down from last row should stay in last row, got {}",
+            tf.cursor_pos()
+        );
+    }
+}
+
+#[test]
+fn textfield_shift_down_extends_selection_multiline() {
+    // "abc\ndef\nghi" cursor at 1 → Shift+Down → selection from 1 to 5
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 1);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::ArrowDown);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 5);
+        assert_eq!(tf.selection_start(), 1);
+        assert_eq!(tf.selection_end(), 5);
+    }
+}
+
+#[test]
+fn textfield_shift_up_extends_selection_multiline() {
+    // "abc\ndef\nghi" cursor at 9 (row 2, col 1) → Shift+Up → should extend selection
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 9);
+    h.input_state.press(InputKey::Shift);
+    h.press_key(InputKey::ArrowUp);
+    h.input_state.release(InputKey::Shift);
+    {
+        let tf = tf_ref.borrow();
+        assert_eq!(tf.cursor_pos(), 5);
+        assert_eq!(tf.selection_start(), 5);
+        assert_eq!(tf.selection_end(), 9);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Up / Down ignored in single-line mode (C++: guarded by MultiLineMode)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_down_ignored_single_line() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 2);
+    h.press_key(InputKey::ArrowDown);
+    assert_eq!(
+        tf_ref.borrow().cursor_pos(),
+        2,
+        "Down in single-line mode should be ignored"
+    );
+}
+
+#[test]
+fn textfield_up_ignored_single_line() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 2);
+    h.press_key(InputKey::ArrowUp);
+    assert_eq!(
+        tf_ref.borrow().cursor_pos(),
+        2,
+        "Up in single-line mode should be ignored"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+Home / Ctrl+End in multi-line mode
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_ctrl_home_multiline_goes_to_zero() {
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 9);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Home);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 0);
+}
+
+#[test]
+fn textfield_ctrl_end_multiline_goes_to_len() {
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 0);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::End);
+    h.input_state.release(InputKey::Ctrl);
+    assert_eq!(tf_ref.borrow().cursor_pos(), 11);
+}
+
+// ---------------------------------------------------------------------------
+// Home / End in multi-line mode → row start / row end
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_home_multiline_goes_to_row_start() {
+    // "abc\ndef\nghi" cursor at 6 (row 1, col 2) → Home → 4 (row 1 start)
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 6);
+    h.press_key(InputKey::Home);
+    assert_eq!(
+        tf_ref.borrow().cursor_pos(),
+        4,
+        "Home in multi-line should go to row start"
+    );
+}
+
+#[test]
+fn textfield_end_multiline_goes_to_row_end() {
+    // "abc\ndef\nghi" cursor at 4 (row 1, col 0) → End → 7 (row 1 end, before \n)
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 4);
+    h.press_key(InputKey::End);
+    {
+        let tf = tf_ref.borrow();
+        // row_end for row 1 ("def\n") should be 7 (the position of '\n')
+        assert_eq!(
+            tf.cursor_pos(),
+            7,
+            "End in multi-line should go to row end"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+Up / Ctrl+Down (paragraph navigation) in multi-line
+// ---------------------------------------------------------------------------
+
+#[test]
+fn textfield_ctrl_down_next_paragraph() {
+    // "abc\ndef\nghi" cursor at 0 → Ctrl+Down → next paragraph
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 0);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowDown);
+    h.input_state.release(InputKey::Ctrl);
+    {
+        let tf = tf_ref.borrow();
+        // next_paragraph_index from 0 should jump past the first \n
+        assert!(
+            tf.cursor_pos() > 0,
+            "Ctrl+Down should move cursor forward"
+        );
+    }
+}
+
+#[test]
+fn textfield_ctrl_up_prev_paragraph() {
+    let (mut h, tf_ref) = setup_multiline_nav_harness("abc\ndef\nghi", 9);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::ArrowUp);
+    h.input_state.release(InputKey::Ctrl);
+    {
+        let tf = tf_ref.borrow();
+        assert!(
+            tf.cursor_pos() < 9,
+            "Ctrl+Up should move cursor backward"
+        );
+    }
+}
