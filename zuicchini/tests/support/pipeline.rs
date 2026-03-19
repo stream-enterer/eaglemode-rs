@@ -153,7 +153,7 @@ impl PipelineTestHarness {
     /// 3. Transform mouse coords from view space to panel-local space
     /// 4. Keyboard suppression for non-active-path panels
     /// 5. Deliver to behavior
-    fn dispatch(&mut self, event: &InputEvent) {
+    pub fn dispatch(&mut self, event: &InputEvent) {
         // Run VIF chain
         for vif in &mut self.vif_chain {
             if vif.filter(event, &self.input_state, &mut self.view) {
