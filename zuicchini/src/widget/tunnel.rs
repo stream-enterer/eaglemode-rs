@@ -141,7 +141,7 @@ impl Tunnel {
     pub fn paint_tunnel(&self, painter: &mut Painter, w: f64, h: f64) {
         // Paint the border chrome first.
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         let (rect, ar) = self.content_round_rect(w, h);
         let ax = rect.x;

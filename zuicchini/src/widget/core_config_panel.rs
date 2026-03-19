@@ -225,7 +225,7 @@ impl KBGroup {
 impl PanelBehavior for KBGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {
@@ -331,7 +331,7 @@ impl MouseMiscGroup {
 impl PanelBehavior for MouseMiscGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {
@@ -488,7 +488,7 @@ impl KineticGroup {
 impl PanelBehavior for KineticGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {
@@ -604,7 +604,7 @@ impl MaxMemGroup {
 impl PanelBehavior for MaxMemGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {
@@ -911,7 +911,7 @@ impl CpuGroup {
 impl PanelBehavior for CpuGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {
@@ -1059,7 +1059,7 @@ impl PerformanceGroup {
 impl PanelBehavior for PerformanceGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {
@@ -1226,7 +1226,7 @@ impl MouseGroup {
 impl PanelBehavior for MouseGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {
@@ -1486,7 +1486,7 @@ impl CoreConfigPanel {
 impl PanelBehavior for CoreConfigPanel {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {

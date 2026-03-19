@@ -972,7 +972,7 @@ impl ListBox {
         self.last_w = w;
         self.last_h = h;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         // When expanded with child panels, items are painted by their own
         // panel behaviors — skip inline painting (border only).

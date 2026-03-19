@@ -200,8 +200,9 @@ impl Default for PackGroup {
 
 impl PanelBehavior for PackGroup {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
+        let pixel_scale = state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100);
         self.border
-            .paint_border(painter, w, h, &self.look, state.is_focused(), state.enabled);
+            .paint_border(painter, w, h, &self.look, state.is_focused(), state.enabled, pixel_scale);
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {

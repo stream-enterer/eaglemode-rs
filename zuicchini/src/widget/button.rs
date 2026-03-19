@@ -169,7 +169,7 @@ impl Button {
         // C++ DoBorder paints the border first, then DoButton paints the face
         // inside the content round rect.
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         // C++ emButton::DoButton gets content round rect, then insets the face
         // by d = (1 - 250/264) * r = (14/264) * r.

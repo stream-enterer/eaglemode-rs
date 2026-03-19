@@ -116,7 +116,7 @@ struct BorderBehavior {
 impl PanelBehavior for BorderBehavior {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, _state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
     }
 }
 

@@ -28,7 +28,7 @@ impl PanelBehavior for BorderPanel {
         _state: &zuicchini::panel::PanelState,
     ) {
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
     }
 
     fn is_opaque(&self) -> bool {

@@ -49,7 +49,10 @@
 - Also missing: description width capping to caption width (C++ lines 1264-1267)
 - **Confidence**: medium | **Coverage**: uncovered
 
-### [LOW] HowTo pill size check uses panel coords vs view coords — **DEFERRED: The C++ code uses PanelToViewDeltaX/Y to convert pill dimensions to view-space pixels before the area > 100 check. The Rust paint_border() signature is (painter, w, h, look, focused, enabled) — it has no access to the panel-to-view transform. Adding it would require threading view transform information through all paint call sites (every widget that calls paint_border), which is an architectural change affecting ~20 call sites. The practical impact is that HowTo text may render at slightly different zoom levels than C++ — it will appear on panels that are too small (panel coords > 100 but view pixels < 100) or not appear on panels that are large enough (panel coords < 100 but view pixels > 100). This only affects informational help text visibility, not functionality.**
+### [LOW] HowTo pill size check uses panel coords vs view coords — **FIXED**
+- Added `pixel_scale: f64` parameter to `paint_border()`. Represents `(viewed_rect.w/w)*(viewed_rect.h/h)`.
+- HowTo check changed from `tw * th > 100.0` to `tw * th * pixel_scale > 100.0`.
+- All 33 call sites updated: 13 compute scale from PanelState::viewed_rect, 20 pass 1.0 (tests/examples/widgets without view info).
 
 ### [LOW] caption_alignment/description_alignment fallback to label_alignment — **CLOSED: Intentional Rust convenience. C++ has three independent fields (LabelAlignment, CaptionAlignment, DescriptionAlignment) all defaulting to EM_ALIGN_LEFT. Rust uses Option<TextAlignment> for caption/description that fall back to label_alignment when None. With all defaults, both produce Left alignment — identical behavior. The divergence only manifests if label_alignment is changed without explicitly setting caption/description alignment. No current consumer does this. The Rust fallback design is more convenient (change one field to affect all) and can always be overridden by setting caption_alignment/description_alignment to Some(value). Not a bug — a deliberate API simplification.**
 

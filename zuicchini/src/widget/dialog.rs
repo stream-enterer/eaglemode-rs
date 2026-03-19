@@ -81,7 +81,7 @@ impl Dialog {
 
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64) {
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
     }
 
     /// Layout content area and button row at the bottom.

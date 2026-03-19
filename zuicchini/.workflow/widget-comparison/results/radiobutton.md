@@ -19,7 +19,12 @@
 - **Note**: Does not re-index other buttons (architectural limitation of index-based design)
 - **Confidence**: high | **Coverage**: uncovered
 
-### [MEDIUM] RadioButton Drop doesn't re-index or adjust selection — **DEFERRED: The Rust RadioGroup uses index-based identification (each RadioButton stores its integer index). C++ uses pointer-based back-references in the Mechanism array, allowing RemoveByIndex to walk the array and decrement indices for all buttons after the removed one. Replicating this in Rust would require either: (1) storing Weak<RefCell<RadioButton>> back-references in RadioGroup and walking them on removal (~50 LOC + Rc cycle management), or (2) switching to a handle-based design with indirection (~100 LOC refactor). The current deregister() correctly clears selection when the selected button is dropped. The re-indexing gap only matters when buttons are removed from the middle of a group at runtime — current usage creates/destroys groups atomically. User-facing impact: none for current callers; would matter if dynamic button insertion/removal were needed.**
+### [MEDIUM] RadioButton Drop doesn't re-index or adjust selection — **FIXED**
+- Replaced `index: usize` with `Rc<Cell<usize>>` shared between RadioGroup and each button.
+- RadioGroup stores `Vec<Rc<Cell<usize>>>` for all registered buttons.
+- `deregister()` removes by pointer identity (Rc::ptr_eq), decrements all higher-index cells, adjusts checked_index — matching C++ RemoveByIndex exactly.
+- RadioButton/RadioBox index() reads live value from shared cell.
+- 2 new tests: `drop_middle_button_reindexes_remaining`, `drop_selected_button_clears_selection`.
 
 ### [LOW] RadioButton face color changes on press (C++ doesn't) — **FIXED**
 - **Fix**: Face color always ButtonBgColor. Pressed visual from overlay only.

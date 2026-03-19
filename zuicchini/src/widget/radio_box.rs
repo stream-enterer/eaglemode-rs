@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
@@ -23,7 +23,7 @@ pub struct RadioBox {
     border: Border,
     look: Rc<Look>,
     group: Rc<RefCell<RadioGroup>>,
-    index: usize,
+    index_cell: Rc<Cell<usize>>,
     pressed: bool,
     box_pressed: bool,
     /// Cached enabled state from the last paint call. Gates input handling.
@@ -33,8 +33,8 @@ pub struct RadioBox {
 }
 
 impl RadioBox {
-    pub fn new(label: &str, look: Rc<Look>, group: Rc<RefCell<RadioGroup>>, index: usize) -> Self {
-        group.borrow_mut().register();
+    pub fn new(label: &str, look: Rc<Look>, group: Rc<RefCell<RadioGroup>>, _index: usize) -> Self {
+        let index_cell = group.borrow_mut().register();
         Self {
             border: Border::new(OuterBorderType::Margin)
                 .with_caption(label)
@@ -43,7 +43,7 @@ impl RadioBox {
                 .with_how_to(true),
             look,
             group,
-            index,
+            index_cell,
             pressed: false,
             box_pressed: false,
             enabled: true,
@@ -53,20 +53,20 @@ impl RadioBox {
     }
 
     pub fn index(&self) -> usize {
-        self.index
+        self.index_cell.get()
     }
 
     pub fn set_index(&mut self, index: usize) {
-        self.index = index;
+        self.index_cell.set(index);
     }
 
     pub fn is_selected(&self) -> bool {
-        self.group.borrow().selected() == Some(self.index)
+        self.group.borrow().selected() == Some(self.index_cell.get())
     }
 
     pub fn set_checked(&mut self, checked: bool) {
         if checked {
-            self.group.borrow_mut().select(self.index);
+            self.group.borrow_mut().select(self.index_cell.get());
         } else if self.is_selected() {
             self.group.borrow_mut().set_check_index(None);
         }
@@ -108,7 +108,7 @@ impl RadioBox {
         self.last_h = h;
         self.enabled = enabled;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         let cr = self.border.content_rect(w, h, &self.look);
         let (bx0, by0, bw0, mut lx, mut ly, mut lw, mut lh) =
@@ -252,7 +252,12 @@ impl RadioBox {
         dx * dx + dy * dy <= fr * fr
     }
 
-    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(
+        &mut self,
+        event: &InputEvent,
+        state: &PanelState,
+        _input_state: &InputState,
+    ) -> bool {
         if !self.enabled {
             return false;
         }
@@ -304,7 +309,7 @@ impl RadioBox {
                     self.pressed = false;
                     self.box_pressed = false;
                     if hit {
-                        self.group.borrow_mut().select(self.index);
+                        self.group.borrow_mut().select(self.index_cell.get());
                     }
                     true
                 }
@@ -319,7 +324,7 @@ impl RadioBox {
                     && !event.ctrl
                     && state.viewed_rect.w.min(state.viewed_rect.h) >= 8.0 =>
             {
-                self.group.borrow_mut().select(self.index);
+                self.group.borrow_mut().select(self.index_cell.get());
                 true
             }
             _ => false,
@@ -339,7 +344,7 @@ impl RadioBox {
 
 impl Drop for RadioBox {
     fn drop(&mut self) {
-        self.group.borrow_mut().deregister(self.index);
+        self.group.borrow_mut().deregister(&self.index_cell);
     }
 }
 

@@ -282,7 +282,7 @@ impl TunnelStubPanel {
 impl PanelBehavior for TunnelStubPanel {
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
         self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled);
+            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
@@ -322,7 +322,7 @@ impl FileSelectionBoxStubPanel {
 impl PanelBehavior for FileSelectionBoxStubPanel {
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
         self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled);
+            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
 
     fn auto_expand(&self) -> bool {
@@ -988,7 +988,7 @@ impl PanelBehavior for TkTestGrpPanel {
 
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
         self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled);
+            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
@@ -1520,7 +1520,7 @@ impl PanelBehavior for TkTestPanel {
 
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
         self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled);
+            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {
@@ -1972,7 +1972,7 @@ impl PanelBehavior for PolyDrawPanel {
 
     fn paint(&mut self, p: &mut Painter, w: f64, h: f64, s: &PanelState) {
         self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled);
+            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
     }
 
     fn layout_children(&mut self, ctx: &mut PanelCtx) {

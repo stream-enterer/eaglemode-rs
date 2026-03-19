@@ -307,7 +307,7 @@ impl ScalarField {
             self.border.how_to_text = text;
         }
         self.border
-            .paint_border(painter, w, h, &self.look, false, enabled);
+            .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
         let canvas_color = painter.canvas_color();
 
         let (content, radius) = self.border.content_round_rect(w, h, &self.look);

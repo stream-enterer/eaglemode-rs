@@ -632,7 +632,7 @@ fn match_pattern_recursive(fname: &[u8], pattern: &[u8]) -> bool {
 impl PanelBehavior for FileSelectionBox {
     fn paint(&mut self, painter: &mut Painter, w: f64, h: f64, state: &PanelState) {
         self.border
-            .paint_border(painter, w, h, &self.look, state.enabled, true);
+            .paint_border(painter, w, h, &self.look, state.enabled, true, state.viewed_rect.w * state.viewed_rect.h / w.max(1e-100) / h.max(1e-100));
     }
 
     fn auto_expand(&self) -> bool {

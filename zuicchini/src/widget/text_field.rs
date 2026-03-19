@@ -1102,7 +1102,7 @@ impl TextField {
         self.enabled = enabled;
 
         self.border
-            .paint_border(painter, w, h, &self.look, false, enabled);
+            .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
         let (content, radius) = self.border.content_round_rect(w, h, &self.look);
         let Rect {
             x: cx,

@@ -1659,6 +1659,7 @@ How to move or set the focus:\n\
     }
 
     /// Paint the border chrome.
+    #[allow(clippy::too_many_arguments)]
     pub fn paint_border(
         &self,
         painter: &mut Painter,
@@ -1667,6 +1668,7 @@ How to move or set the focus:\n\
         look: &Look,
         _focused: bool,
         enabled: bool,
+        pixel_scale: f64,
     ) {
         // Dimming for disabled state: C++ "GetTransparented(75.0)" = alpha * 0.25 + 0.5, truncate.
         let dim_color = |c: crate::foundation::Color| -> crate::foundation::Color {
@@ -1960,7 +1962,7 @@ How to move or set the focus:\n\
             );
 
             // C++ emBorder.cpp:916-927: paint text inside the pill when large enough.
-            if tw * th > 100.0 && !self.how_to_text.is_empty() {
+            if tw * th * pixel_scale > 100.0 && !self.how_to_text.is_empty() {
                 let d = tw * 0.01;
                 // C++ GetTransparented(35) = alpha * 0.65 + 0.5
                 let text_alpha = (look.fg_color.a() as f64 * 0.65 + 0.5) as u8;

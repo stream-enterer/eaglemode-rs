@@ -101,7 +101,7 @@ impl CheckBox {
         self.enabled = enabled;
         // Paint outer border (Margin = transparent spacing only).
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         // C++ DoButton ShownBoxed: GetContentRect, then compute box + label geometry.
         let cr = self.border.content_rect(w, h, &self.look);

@@ -63,7 +63,7 @@ impl CheckButton {
         self.last_h = h;
         self.enabled = enabled;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         // C++ DoButton non-boxed path: GetContentRoundRect, clamp r.
         let (cr, r) = self.border.content_round_rect(w, h, &self.look);

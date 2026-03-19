@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use crate::foundation::{Color, Rect};
@@ -15,13 +15,13 @@ use super::toolkit_images::with_toolkit_images;
 /// Shared state for a group of radio buttons enforcing mutual exclusion.
 ///
 /// This is the Rust equivalent of C++ `emRadioButton::Mechanism`. It tracks
-/// button membership via indices and manages the checked state with
+/// button membership via shared index cells and manages the checked state with
 /// recursion-safe logic matching the C++ `SetCheckIndex` implementation.
 pub struct RadioGroup {
     /// Index of the currently checked button, or `None`.
     selected: Option<usize>,
-    /// Number of radio buttons currently registered in this group.
-    count: usize,
+    /// Live index cells for each registered button, enabling re-indexing on removal.
+    buttons: Vec<Rc<Cell<usize>>>,
     pub on_select: Option<Box<dyn FnMut(Option<usize>)>>,
 }
 
@@ -29,7 +29,7 @@ impl RadioGroup {
     pub fn new() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             selected: None,
-            count: 0,
+            buttons: Vec::new(),
             on_select: None,
         }))
     }
@@ -40,11 +40,11 @@ impl RadioGroup {
 
     /// Number of radio buttons currently in this group.
     pub fn count(&self) -> usize {
-        self.count
+        self.buttons.len()
     }
 
     pub fn is_valid_index(&self, index: usize) -> bool {
-        index < self.count
+        index < self.buttons.len()
     }
 
     /// Select the button at `index`, unchecking any previously selected button.
@@ -65,7 +65,7 @@ impl RadioGroup {
     /// (>= count), the selection is cleared.
     pub fn set_check_index(&mut self, index: Option<usize>) {
         let normalized = match index {
-            Some(i) if i < self.count => Some(i),
+            Some(i) if i < self.buttons.len() => Some(i),
             _ => None,
         };
         if self.selected == normalized {
@@ -86,10 +86,17 @@ impl RadioGroup {
     ///
     /// Matches C++ `Mechanism::RemoveByIndex`.
     pub fn remove_by_index(&mut self, index: usize) {
-        if index >= self.count {
+        if index >= self.buttons.len() {
             return;
         }
-        self.count -= 1;
+        self.buttons.remove(index);
+
+        // Decrement all cells with index > removed_index
+        for c in &self.buttons {
+            if c.get() > index {
+                c.set(c.get() - 1);
+            }
+        }
 
         let selection_changed = if let Some(check_idx) = self.selected {
             if check_idx == index {
@@ -114,21 +121,40 @@ impl RadioGroup {
         }
     }
 
-    /// Register a new button in the group (increments the member count).
-    pub fn register(&mut self) {
-        self.count += 1;
+    /// Register a new button in the group, returning a shared index cell.
+    pub fn register(&mut self) -> Rc<Cell<usize>> {
+        let idx = self.buttons.len();
+        let cell = Rc::new(Cell::new(idx));
+        self.buttons.push(cell.clone());
+        cell
     }
 
-    /// Deregister a button from the group.
+    /// Deregister a button from the group by its shared index cell.
     ///
-    /// Decrements the member count and clears the selection if the
-    /// deregistered button was the currently selected one.
-    pub fn deregister(&mut self, index: usize) {
-        if self.count > 0 {
-            self.count -= 1;
-            if self.selected == Some(index) {
-                self.selected = None;
+    /// Re-indexes remaining buttons and adjusts selection, matching
+    /// C++ `Mechanism::RemoveByIndex` behaviour.
+    pub fn deregister(&mut self, cell: &Rc<Cell<usize>>) {
+        let removed_index = cell.get();
+        // Remove the matching cell by pointer identity
+        self.buttons.retain(|c| !Rc::ptr_eq(c, cell));
+        // Decrement all cells with index > removed_index
+        for c in &self.buttons {
+            if c.get() > removed_index {
+                c.set(c.get() - 1);
             }
+        }
+        // Adjust selection
+        match self.selected {
+            Some(s) if s == removed_index => {
+                self.selected = None;
+                if let Some(cb) = &mut self.on_select {
+                    cb(None);
+                }
+            }
+            Some(s) if s > removed_index => {
+                self.selected = Some(s - 1);
+            }
+            _ => {}
         }
     }
 
@@ -140,7 +166,10 @@ impl RadioGroup {
     /// this method registers `n` additional button slots for buttons that
     /// were created outside the normal constructor flow.
     pub fn add_all(&mut self, n: usize) {
-        self.count += n;
+        let base = self.buttons.len();
+        for i in 0..n {
+            self.buttons.push(Rc::new(Cell::new(base + i)));
+        }
     }
 
     /// Get the button index at the given position in the group.
@@ -150,7 +179,7 @@ impl RadioGroup {
     /// In Rust, validates the index and returns it (since buttons are
     /// identified by their index in the group).
     pub fn get_button(&self, index: usize) -> Option<usize> {
-        if index < self.count {
+        if index < self.buttons.len() {
             Some(index)
         } else {
             None
@@ -164,7 +193,7 @@ impl RadioGroup {
     ///
     /// Port of C++ `emRadioButton::Mechanism::GetIndexOf`.
     pub fn get_index_of(&self, id: usize) -> Option<usize> {
-        if id < self.count {
+        if id < self.buttons.len() {
             Some(id)
         } else {
             None
@@ -178,7 +207,7 @@ impl RadioGroup {
     /// `Mechanism::RemoveAll`).
     pub fn remove_all(&mut self) {
         let had_selection = self.selected.is_some();
-        self.count = 0;
+        self.buttons.clear();
         if had_selection {
             self.selected = None;
             if let Some(cb) = &mut self.on_select {
@@ -193,7 +222,7 @@ pub struct RadioButton {
     border: Border,
     look: Rc<Look>,
     group: Rc<RefCell<RadioGroup>>,
-    index: usize,
+    index_cell: Rc<Cell<usize>>,
     pressed: bool,
     /// Cached enabled state from the last paint call. Gates input handling.
     enabled: bool,
@@ -206,9 +235,9 @@ impl RadioButton {
         caption: &str,
         look: Rc<Look>,
         group: Rc<RefCell<RadioGroup>>,
-        index: usize,
+        _index: usize,
     ) -> Self {
-        group.borrow_mut().register();
+        let index_cell = group.borrow_mut().register();
         Self {
             border: Border::new(OuterBorderType::InstrumentMoreRound)
                 .with_caption(caption)
@@ -216,7 +245,7 @@ impl RadioButton {
                 .with_how_to(true),
             look,
             group,
-            index,
+            index_cell,
             pressed: false,
             enabled: true,
             last_w: 0.0,
@@ -226,16 +255,16 @@ impl RadioButton {
 
     /// The index of this button within its group.
     pub fn index(&self) -> usize {
-        self.index
+        self.index_cell.get()
     }
 
     /// Update the index (used after `remove_by_index` re-indexes the group).
     pub fn set_index(&mut self, index: usize) {
-        self.index = index;
+        self.index_cell.set(index);
     }
 
     pub fn is_selected(&self) -> bool {
-        self.group.borrow().selected == Some(self.index)
+        self.group.borrow().selected == Some(self.index_cell.get())
     }
 
     /// Set the checked state of this radio button, synchronizing with the
@@ -248,7 +277,7 @@ impl RadioButton {
     ///   mechanism, clears the mechanism's selection.
     pub fn set_checked(&mut self, checked: bool) {
         if checked {
-            self.group.borrow_mut().select(self.index);
+            self.group.borrow_mut().select(self.index_cell.get());
         } else if self.is_selected() {
             self.group.borrow_mut().set_check_index(None);
         }
@@ -264,7 +293,7 @@ impl RadioButton {
         self.last_h = h;
         self.enabled = enabled;
         self.border
-            .paint_border(painter, w, h, &self.look, false, true);
+            .paint_border(painter, w, h, &self.look, false, true, 1.0);
 
         // C++ DoButton non-boxed path: GetContentRoundRect, clamp r.
         let (cr, r) = self.border.content_round_rect(w, h, &self.look);
@@ -293,7 +322,7 @@ impl RadioButton {
         let mut lh = fh - 2.0 * dy;
 
         let checked = self.is_selected();
-        // C++ line 377-382: Pressed → 0.98, ShownChecked → 0.983.
+        // C++ line 377-382: Pressed -> 0.98, ShownChecked -> 0.983.
         // Pressed takes priority.
         if self.pressed || checked {
             let s = if self.pressed { 0.98 } else { 0.983 };
@@ -317,7 +346,7 @@ impl RadioButton {
         );
 
         // Button overlay image (C++ lines 393-421).
-        // Priority: Pressed → ButtonPressed, ShownChecked → ButtonChecked, else → Button.
+        // Priority: Pressed -> ButtonPressed, ShownChecked -> ButtonChecked, else -> Button.
         with_toolkit_images(|img| {
             if self.pressed {
                 // Pressed: ButtonPressed overlay (C++ lines 393-401).
@@ -400,7 +429,12 @@ impl RadioButton {
         super::check_mouse_round_rect(mx, my, &face, fr)
     }
 
-    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(
+        &mut self,
+        event: &InputEvent,
+        state: &PanelState,
+        _input_state: &InputState,
+    ) -> bool {
         if !self.enabled {
             return false;
         }
@@ -448,7 +482,9 @@ impl RadioButton {
                     }
                     self.pressed = false;
                     if hit {
-                        self.group.borrow_mut().select(self.index);
+                        self.group
+                            .borrow_mut()
+                            .select(self.index_cell.get());
                     }
                     true
                 }
@@ -463,7 +499,7 @@ impl RadioButton {
                     && !event.ctrl
                     && state.viewed_rect.w.min(state.viewed_rect.h) >= 8.0 =>
             {
-                self.group.borrow_mut().select(self.index);
+                self.group.borrow_mut().select(self.index_cell.get());
                 true
             }
             _ => false,
@@ -570,7 +606,7 @@ impl RadioRasterGroup {
 
 impl Drop for RadioButton {
     fn drop(&mut self) {
-        self.group.borrow_mut().deregister(self.index);
+        self.group.borrow_mut().deregister(&self.index_cell);
     }
 }
 
@@ -633,7 +669,7 @@ mod tests {
 
     #[test]
     fn pressed_state_tracks_press_release() {
-        // Enter is instant — no visual press state. Verify pressed stays false.
+        // Enter is instant -- no visual press state. Verify pressed stays false.
         let look = Look::new();
         let group = RadioGroup::new();
         let mut r0 = RadioButton::new("A", look, group.clone(), 0);
@@ -690,9 +726,9 @@ mod tests {
         let look = Look::new();
         let group = RadioGroup::new();
         let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
-        let r1 = RadioButton::new("B", look, group.clone(), 5);
+        let r1 = RadioButton::new("B", look, group.clone(), 1);
         assert_eq!(r0.index(), 0);
-        assert_eq!(r1.index(), 5);
+        assert_eq!(r1.index(), 1);
     }
 
     // --- New tests for D-WIDGET-08 ---
@@ -744,7 +780,7 @@ mod tests {
         let group = RadioGroup::new();
         {
             let mut g = group.borrow_mut();
-            g.count = 3;
+            g.add_all(3);
             g.select(1); // button at index 1 is checked
         }
 
@@ -759,7 +795,7 @@ mod tests {
         let group = RadioGroup::new();
         {
             let mut g = group.borrow_mut();
-            g.count = 4;
+            g.add_all(4);
             g.select(3); // button at index 3 is checked
         }
 
@@ -775,7 +811,7 @@ mod tests {
         let group = RadioGroup::new();
         {
             let mut g = group.borrow_mut();
-            g.count = 4;
+            g.add_all(4);
             g.select(0); // button at index 0 is checked
         }
 
@@ -790,7 +826,7 @@ mod tests {
         let group = RadioGroup::new();
         {
             let mut g = group.borrow_mut();
-            g.count = 2;
+            g.add_all(2);
             g.select(0);
         }
         group.borrow_mut().remove_by_index(5);
@@ -805,14 +841,14 @@ mod tests {
         let sig_clone = signals.clone();
         {
             let mut g = group.borrow_mut();
-            g.count = 3;
+            g.add_all(3);
             g.select(1);
             g.on_select = Some(Box::new(move |idx| {
                 sig_clone.borrow_mut().push(idx);
             }));
         }
 
-        // Remove checked button — should fire callback with None
+        // Remove checked button -- should fire callback with None
         group.borrow_mut().remove_by_index(1);
         assert_eq!(*signals.borrow(), vec![None]);
     }
@@ -824,7 +860,7 @@ mod tests {
         let sig_clone = signals.clone();
         {
             let mut g = group.borrow_mut();
-            g.count = 3;
+            g.add_all(3);
             g.select(1);
             g.on_select = Some(Box::new(move |idx| {
                 sig_clone.borrow_mut().push(idx);
@@ -844,7 +880,7 @@ mod tests {
         let sig_clone = signals.clone();
         {
             let mut g = group.borrow_mut();
-            g.count = 3;
+            g.add_all(3);
             // No selection
             g.on_select = Some(Box::new(move |idx| {
                 sig_clone.borrow_mut().push(idx);
@@ -861,7 +897,7 @@ mod tests {
         let group = RadioGroup::new();
         {
             let mut g = group.borrow_mut();
-            g.count = 2;
+            g.add_all(2);
             g.select(0);
         }
 
@@ -877,7 +913,7 @@ mod tests {
         let sig_clone = signals.clone();
         {
             let mut g = group.borrow_mut();
-            g.count = 3;
+            g.add_all(3);
             g.select(1);
             g.on_select = Some(Box::new(move |idx| {
                 sig_clone.borrow_mut().push(idx);
@@ -887,5 +923,53 @@ mod tests {
         // Setting same index is a no-op
         group.borrow_mut().set_check_index(Some(1));
         assert!(signals.borrow().is_empty());
+    }
+
+    #[test]
+    fn drop_middle_button_reindexes_remaining() {
+        let look = Look::new();
+        let group = RadioGroup::new();
+
+        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
+        let r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
+        let r2 = RadioButton::new("C", look, group.clone(), 2);
+
+        // Select the last button
+        group.borrow_mut().select(2);
+        assert!(r2.is_selected());
+        assert_eq!(r2.index(), 2);
+
+        // Drop the middle button
+        drop(r1);
+
+        // r2's index should have been decremented
+        assert_eq!(r2.index(), 1);
+        assert_eq!(group.borrow().count(), 2);
+        // Selection should have shifted from 2 to 1
+        assert_eq!(group.borrow().selected(), Some(1));
+        assert!(r2.is_selected());
+        assert!(!r0.is_selected());
+    }
+
+    #[test]
+    fn drop_selected_button_clears_selection() {
+        let look = Look::new();
+        let group = RadioGroup::new();
+
+        let r0 = RadioButton::new("A", look.clone(), group.clone(), 0);
+        let r1 = RadioButton::new("B", look.clone(), group.clone(), 1);
+        let r2 = RadioButton::new("C", look, group.clone(), 2);
+
+        group.borrow_mut().select(1);
+        assert!(r1.is_selected());
+
+        drop(r1);
+
+        assert_eq!(group.borrow().count(), 2);
+        assert_eq!(group.borrow().selected(), None);
+        assert!(!r0.is_selected());
+        assert!(!r2.is_selected());
+        // r2's index should have been decremented
+        assert_eq!(r2.index(), 1);
     }
 }

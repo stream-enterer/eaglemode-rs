@@ -95,7 +95,7 @@ impl Label {
     /// description with configurable alignment.
     pub fn paint(&self, painter: &mut Painter, w: f64, h: f64, enabled: bool) {
         self.border
-            .paint_border(painter, w, h, &self.look, false, enabled);
+            .paint_border(painter, w, h, &self.look, false, enabled, 1.0);
 
         let cr = self.border.content_rect(w, h, &self.look);
         if cr.w <= 0.0 || cr.h <= 0.0 {
