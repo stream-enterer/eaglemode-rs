@@ -1414,3 +1414,463 @@ fn textfield_ctrl_delete_with_selection_deletes_selection() {
         assert!(tf.is_selection_empty());
     }
 }
+
+// ===========================================================================
+// BP-6: TextField mouse-based selection
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Single click positions cursor
+// C++ ref: emTextField.cpp:391-397 (repeat==0 single click branch)
+// ---------------------------------------------------------------------------
+
+/// A single (first) click positions cursor within text range and creates no
+/// selection. This is the very first click on the text field so there's no
+/// prior click to form a double-click with.
+/// C++ ref: emTextField.cpp:391-397 (repeat==0 single click)
+#[test]
+fn textfield_single_click_positions_cursor() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("Hello World");
+
+    render(&mut h, 800, 600);
+
+    // First click ever on this widget — guaranteed single click (no prior click_time).
+    h.click(400.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    // The cursor should be positioned somewhere within the text range.
+    assert!(
+        tf.cursor_pos() <= 11,
+        "Cursor pos {} should be within text length 11",
+        tf.cursor_pos()
+    );
+    assert!(
+        tf.is_selection_empty(),
+        "First single click should not create a selection"
+    );
+}
+
+/// Single click clears any existing selection (C++ EmptySelection path).
+/// Uses setup_nav_harness so the widget is already focused. The first click
+/// on this harness instance is guaranteed to be a single-click (no prior
+/// click_time).
+#[test]
+fn textfield_single_click_clears_selection() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("Hello World");
+
+    render(&mut h, 800, 600);
+
+    // Create a selection via API.
+    tf_ref.borrow_mut().select(0, 5);
+    assert!(!tf_ref.borrow().is_selection_empty());
+
+    // First click on this widget instance — guaranteed single click.
+    // Single click without Shift should clear existing selection.
+    h.click(400.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    assert!(
+        tf.is_selection_empty(),
+        "Single click should clear existing selection"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Double-click selects word
+// C++ ref: emTextField.cpp:398-413 (repeat==1, double-click word selection)
+// ---------------------------------------------------------------------------
+
+/// Double-click (two rapid clicks at same position) selects the word under cursor.
+#[test]
+fn textfield_double_click_selects_word() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("foo bar baz");
+
+    render(&mut h, 800, 600);
+
+    // Click at center — this should be roughly in "bar" given the text layout.
+    // Two rapid clicks at the same position trigger double-click via time-based
+    // detection (click_count increments from 1 to 2).
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    // Double-click selects a word boundary segment. The selected text should
+    // be a contiguous word or delimiter segment.
+    let sel_text = tf.selected_text();
+    assert!(
+        !tf.is_selection_empty(),
+        "Double-click should create a selection"
+    );
+    // The selected text should be either a word or a delimiter segment,
+    // not a mix. Verify it's non-empty and bounded by word boundaries.
+    assert!(
+        !sel_text.is_empty(),
+        "Double-click should select a non-empty segment"
+    );
+    // Verify the selection boundaries are word boundaries: all chars should be
+    // the same type (all word chars or all delimiters).
+    let all_word = sel_text.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    let all_delim = sel_text.chars().all(|c| !(c.is_ascii_alphanumeric() || c == '_'));
+    assert!(
+        all_word || all_delim,
+        "Double-click selection '{}' should be a single word or delimiter segment",
+        sel_text
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Triple-click selects entire line/row
+// C++ ref: emTextField.cpp:415-431 (repeat==2, triple-click row selection)
+// ---------------------------------------------------------------------------
+
+/// Triple-click selects the entire row. In single-line mode, this means the
+/// whole text (row_start=0, row_end=len for single-line).
+#[test]
+fn textfield_triple_click_selects_line() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("hello world");
+
+    render(&mut h, 800, 600);
+
+    // Three rapid clicks at the same position.
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    // In single-line mode, triple-click should select the entire text (full row).
+    assert_eq!(
+        tf.selection_start(),
+        0,
+        "Triple-click selection start should be 0"
+    );
+    assert_eq!(
+        tf.selection_end(),
+        11,
+        "Triple-click selection end should be text length (11)"
+    );
+    assert_eq!(tf.selected_text(), "hello world");
+}
+
+/// Triple-click in multi-line mode selects just the clicked row.
+#[test]
+fn textfield_triple_click_selects_row_multiline() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_multi_line(true);
+    tf_ref.borrow_mut().set_text("abc\ndef\nghi");
+
+    render(&mut h, 800, 600);
+
+    // Triple-click — the exact row depends on the y coordinate, but at center
+    // of the viewport, in multi-line with 3 rows, it should hit one of the rows.
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    // Selection should cover exactly one row (including the trailing \n for non-last rows).
+    let sel = tf.selected_text();
+    assert!(
+        !sel.is_empty(),
+        "Triple-click in multi-line should select a row"
+    );
+    // The selected text should be one of: "abc\n", "def\n", or "ghi"
+    let valid_rows = ["abc\n", "def\n", "ghi"];
+    assert!(
+        valid_rows.contains(&sel),
+        "Triple-click should select exactly one row, got '{:?}'",
+        sel
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Drag from position A to B selects text between A and B
+// C++ ref: emTextField.cpp:441-453 (DM_SELECT drag)
+// ---------------------------------------------------------------------------
+
+/// Drag from one position to another within the content area should select text.
+/// Uses coordinates near the viewport center to ensure hit_test passes.
+#[test]
+fn textfield_drag_selects_text() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("Hello World");
+
+    render(&mut h, 800, 600);
+
+    // Focus first with a click (at a different y to avoid double-click with drag).
+    h.click(400.0, 310.0);
+
+    // Drag within content area: start left of center, end right of center.
+    // Both points must be within the border's content round rect.
+    h.drag(300.0, 300.0, 500.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    assert!(
+        !tf.is_selection_empty(),
+        "Drag should create a selection"
+    );
+    let sel = tf.selected_text();
+    assert!(
+        !sel.is_empty(),
+        "Drag across the text should select characters (got '{}')",
+        sel
+    );
+    // The selection start should be before selection end.
+    assert!(
+        tf.selection_start() < tf.selection_end(),
+        "Selection start ({}) should be less than end ({})",
+        tf.selection_start(),
+        tf.selection_end()
+    );
+}
+
+/// Drag from right to left within content area should also create a valid selection.
+#[test]
+fn textfield_drag_right_to_left_selects_text() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("Hello World");
+
+    render(&mut h, 800, 600);
+
+    // Focus at offset y to avoid double-click detection.
+    h.click(400.0, 310.0);
+
+    // Drag right to left within content area.
+    h.drag(500.0, 300.0, 300.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    assert!(
+        !tf.is_selection_empty(),
+        "Right-to-left drag should create a selection"
+    );
+    assert!(
+        tf.selection_start() < tf.selection_end(),
+        "Selection start < end even for right-to-left drag"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+A selects all text
+// C++ ref: emTextField.cpp:639-645 (Ctrl+A → SelectAll)
+// ---------------------------------------------------------------------------
+
+/// Ctrl+A selects the entire text.
+#[test]
+fn textfield_ctrl_a_selects_all() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 5);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Key('a'));
+    h.input_state.release(InputKey::Ctrl);
+
+    let tf = tf_ref.borrow();
+    assert_eq!(tf.selection_start(), 0);
+    assert_eq!(tf.selection_end(), 11);
+    assert_eq!(tf.selected_text(), "Hello World");
+}
+
+/// Ctrl+A on empty text produces empty selection (start == end == 0).
+#[test]
+fn textfield_ctrl_a_empty_text() {
+    let (mut h, tf_ref) = setup_nav_harness("", 0);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Key('a'));
+    h.input_state.release(InputKey::Ctrl);
+
+    let tf = tf_ref.borrow();
+    assert!(
+        tf.is_selection_empty(),
+        "Ctrl+A on empty text should result in empty selection"
+    );
+}
+
+/// Ctrl+A works even on non-editable text fields (selection is not an edit).
+#[test]
+fn textfield_ctrl_a_non_editable() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 0);
+    tf_ref.borrow_mut().set_editable(false);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Key('a'));
+    h.input_state.release(InputKey::Ctrl);
+
+    let tf = tf_ref.borrow();
+    assert_eq!(tf.selection_start(), 0);
+    assert_eq!(tf.selection_end(), 5);
+    assert_eq!(tf.selected_text(), "Hello");
+}
+
+// ---------------------------------------------------------------------------
+// Shift+Ctrl+A deselects / clears selection
+// C++ ref: emTextField.cpp:646-651 (Ctrl+Shift+A → EmptySelection)
+// ---------------------------------------------------------------------------
+
+/// Shift+Ctrl+A clears the selection.
+#[test]
+fn textfield_shift_ctrl_a_deselects() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 5);
+
+    // First select all.
+    tf_ref.borrow_mut().select_all();
+    assert!(!tf_ref.borrow().is_selection_empty());
+
+    // Shift+Ctrl+A to deselect.
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Key('a'));
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+
+    let tf = tf_ref.borrow();
+    assert!(
+        tf.is_selection_empty(),
+        "Shift+Ctrl+A should deselect all"
+    );
+}
+
+/// Shift+Ctrl+A on already empty selection is a no-op.
+#[test]
+fn textfield_shift_ctrl_a_noop_when_no_selection() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello", 3);
+    assert!(tf_ref.borrow().is_selection_empty());
+
+    h.input_state.press(InputKey::Shift);
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Key('a'));
+    h.input_state.release(InputKey::Ctrl);
+    h.input_state.release(InputKey::Shift);
+
+    let tf = tf_ref.borrow();
+    assert!(tf.is_selection_empty());
+    assert_eq!(
+        tf.cursor_pos(),
+        3,
+        "Cursor should not move on Shift+Ctrl+A deselect"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Shift+click extends selection from cursor to click position
+// C++ ref: emTextField.cpp:393 (Shift pressed → ModifySelection)
+// ---------------------------------------------------------------------------
+
+/// Shift+click extends selection from current cursor to clicked position.
+/// Use setup_nav_harness to set a known cursor position, then Shift+click
+/// at a different location to extend.
+#[test]
+fn textfield_shift_click_extends_selection() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("Hello World");
+
+    render(&mut h, 800, 600);
+
+    // Click at center to focus.
+    h.click(400.0, 300.0);
+    let initial_pos = tf_ref.borrow().cursor_pos();
+
+    // Shift+click at a distinctly different x within content area.
+    // Use offset y to avoid double-click detection.
+    h.input_state.press(InputKey::Shift);
+    h.click(550.0, 300.0);
+    h.input_state.release(InputKey::Shift);
+
+    let tf = tf_ref.borrow();
+    // If shift+click lands at a different position than initial cursor, we get
+    // a selection. If same position, selection is empty (degenerate case).
+    let shift_pos = tf.cursor_pos();
+    if shift_pos != initial_pos {
+        assert!(
+            !tf.is_selection_empty(),
+            "Shift+click at different pos should create a selection (initial={}, shift={})",
+            initial_pos,
+            shift_pos
+        );
+        assert!(
+            tf.selection_start() < tf.selection_end(),
+            "Selection start ({}) < end ({})",
+            tf.selection_start(),
+            tf.selection_end()
+        );
+    }
+    // If same position (unlikely but possible): selection is empty, which is correct.
+}
+
+/// Shift+click via keyboard nav: position cursor at 2, then Shift+click extends.
+/// This uses keyboard to set a known anchor and verifies shift+click extends from it.
+#[test]
+fn textfield_shift_click_from_known_cursor() {
+    let (mut h, tf_ref) = setup_nav_harness("Hello World", 2);
+
+    // Now Shift+click at center of viewport.
+    h.input_state.press(InputKey::Shift);
+    h.click(500.0, 300.0);
+    h.input_state.release(InputKey::Shift);
+
+    let tf = tf_ref.borrow();
+    // The click should extend selection from cursor pos 2 to wherever the click lands.
+    let click_pos = tf.cursor_pos();
+    if click_pos != 2 {
+        assert!(
+            !tf.is_selection_empty(),
+            "Shift+click should create a selection (cursor was at 2, now at {})",
+            click_pos
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Quad-click (4x) selects all text
+// C++ ref: emTextField.cpp:432-435 (repeat>=3 → SelectAll)
+// ---------------------------------------------------------------------------
+
+/// Four rapid clicks selects all text (quad-click).
+#[test]
+fn textfield_quad_click_selects_all() {
+    let (mut h, tf_ref) = setup_textfield_harness();
+    tf_ref.borrow_mut().set_text("foo bar baz");
+
+    render(&mut h, 800, 600);
+
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+    h.click(400.0, 300.0);
+
+    let tf = tf_ref.borrow();
+    assert_eq!(tf.selection_start(), 0);
+    assert_eq!(tf.selection_end(), 11);
+    assert_eq!(tf.selected_text(), "foo bar baz");
+}
+
+// ---------------------------------------------------------------------------
+// Ctrl+A then typing replaces all text (integration)
+// C++ ref: emTextField.cpp:639 (SelectAll) + typing replaces selection
+// ---------------------------------------------------------------------------
+
+/// Ctrl+A followed by typing replaces all text.
+#[test]
+fn textfield_ctrl_a_then_type_replaces_all() {
+    let (mut h, tf_ref) = setup_nav_harness("old text", 8);
+
+    h.input_state.press(InputKey::Ctrl);
+    h.press_key(InputKey::Key('a'));
+    h.input_state.release(InputKey::Ctrl);
+
+    assert_eq!(tf_ref.borrow().selected_text(), "old text");
+
+    h.press_char('X');
+
+    let tf = tf_ref.borrow();
+    assert_eq!(
+        tf.text(),
+        "X",
+        "Typing after Ctrl+A should replace all text, got '{}'",
+        tf.text()
+    );
+    assert_eq!(tf.cursor_pos(), 1);
+    assert!(tf.is_selection_empty());
+}
