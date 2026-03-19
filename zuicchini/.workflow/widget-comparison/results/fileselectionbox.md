@@ -17,13 +17,22 @@
 
 ## What's Missing (20 GAPs, 51% of functionality)
 
-### [HIGH] Entire reactive/event layer missing — **DEFERRED: Requires implementing Cycle() engine infrastructure — the C++ Cycle() virtual method is called every frame by the engine scheduler to poll signals, update filesystem watchers, sync child selections, and process deferred state changes. The Rust port has no equivalent frame-tick callback system. Implementing this would require: (1) a Cycle-equivalent callback registration in the scheduler (~100 LOC), (2) signal routing for ListBox selection changes (~50 LOC), (3) filesystem watch integration (~100 LOC), (4) Enter key input handling in the name field (~30 LOC), and (5) signal emission for SelectionSignal/FileTriggerSignal (~50 LOC). Total: ~330 LOC of new infrastructure beyond a bugfix session. User-facing impact: the file selection box displays correctly but cannot respond to user interaction — it is a visual scaffold only.**
+### [HIGH] Entire reactive/event layer missing — **FIXED**
+- Implemented panel-cycle infrastructure: PanelBehavior::cycle() runs each frame for registered panels.
+- Added Rc<RefCell<FsbEvents>> shared state between callbacks and cycle().
+- Wired on_selection, on_trigger, on_text, on_check callbacks on all child panels.
+- FSB::cycle() follows C++ Cycle() algorithm: directory field polling, hidden toggle, listing reload, selection sync, trigger handling, name field path resolution, filter changes.
+- Consumer callbacks: on_selection, on_trigger exposed for parent/dialog wiring.
 
 ### [HIGH] FileItemPanel missing entirely (~280 LOC in C++) — **DEFERRED: FileItemPanel is a custom panel that renders each file entry with icon, filename text, selection highlight, "not readable" indicator, and optional file content preview via emFpPlugin. The Rust port uses generic ListBox items instead. Implementing this would require: the panel class (~150 LOC), icon loading from file type (~50 LOC), selection highlight rendering (~30 LOC), and plugin-based file preview (~50+ LOC). This is a feature implementation, not a bugfix. User-facing impact: file entries show as plain text items rather than rich panels with icons and previews.**
 
-### [MEDIUM] No interactive directory navigation — **DEFERRED: Double-click/trigger on a directory should call EnterSubDir() which reloads the listing, updates ParentDirField, and resets selection. This requires the Cycle() event layer (see HIGH finding above) to receive ListBox trigger signals. The ParentDirField text entry also needs input handling to navigate on Enter. Cannot be fixed without the reactive infrastructure. User-facing impact: users cannot browse the filesystem.**
+### [MEDIUM] No interactive directory navigation — **FIXED**
+- ListBox on_trigger callback wired to FsbEvents. cycle() handles triggered_index: if directory or "..", calls enter_sub_dir() then syncs dir field. If file, sets triggered_file_name and fires on_trigger callback.
+- Directory TextField on_text callback wired: typing a path updates parent_dir and invalidates listing.
 
-### [MEDIUM] No name field sync — **DEFERRED: Selected filename should appear in the name TextField, and editing the name should update selection. This requires bidirectional signal wiring between ListBox selection changes and TextField content, which depends on the Cycle() infrastructure. User-facing impact: the name field stays empty regardless of selection.**
+### [MEDIUM] No name field sync — **FIXED**
+- Bidirectional sync implemented: selection_from_list_box() copies indices→names, sync_name_field() pushes first selected name to TextField.
+- Name field on_text callback detects path separators (/ or \) → resolves via set_selected_path(), syncs both fields. Plain names → set_selected_name().
 
 ### [LOW] Locale-aware sort missing (strcoll → str::cmp) — **DEFERRED: C++ uses strcoll() for locale-aware filename ordering. Rust's str::cmp uses byte ordering which differs for non-ASCII filenames (accented characters, CJK). Fixing this would require pulling in a Unicode collation library (e.g. icu_collator) which adds a dependency for a minor sort-order difference. User-facing impact: filenames with accented characters may appear in different order than C++. Acceptable for current use case.**
 

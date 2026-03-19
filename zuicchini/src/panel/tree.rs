@@ -246,6 +246,8 @@ pub struct PanelTree {
     /// Fast check: true when any panel has non-empty pending_notices.
     /// Set when notices are queued, cleared after deliver_notices drains them.
     has_pending_notices: bool,
+    /// Panels that have opted into per-frame cycling via `request_cycle`.
+    cycle_list: Vec<PanelId>,
 }
 
 impl PanelTree {
@@ -255,6 +257,7 @@ impl PanelTree {
             root: None,
             name_index: HashMap::new(),
             has_pending_notices: false,
+            cycle_list: Vec::new(),
         }
     }
 
@@ -355,6 +358,10 @@ impl PanelTree {
         if self.root == Some(id) {
             self.root = None;
         }
+
+        // Remove all descendants and the panel itself from the cycle list
+        self.cycle_list
+            .retain(|&x| x != id && !descendants.contains(&x));
 
         // Remove from arena and name index
         for desc_id in descendants {
@@ -983,6 +990,61 @@ impl PanelTree {
     pub fn put_behavior(&mut self, id: PanelId, behavior: Box<dyn PanelBehavior>) {
         if let Some(panel) = self.panels.get_mut(id) {
             panel.behavior = Some(behavior);
+        }
+    }
+
+    /// Extract a child behavior, downcast to concrete type, call a closure,
+    /// then put the behavior back. Returns None if panel doesn't exist or
+    /// behavior is the wrong type.
+    pub fn with_behavior_as<T: PanelBehavior, R>(
+        &mut self,
+        id: PanelId,
+        f: impl FnOnce(&mut T) -> R,
+    ) -> Option<R> {
+        let mut behavior = self.take_behavior(id)?;
+        let result = behavior.as_any_mut().downcast_mut::<T>().map(f);
+        if self.panels.contains_key(id) {
+            self.put_behavior(id, behavior);
+        }
+        result
+    }
+
+    /// Register `id` for per-frame cycling. Idempotent.
+    ///
+    /// Corresponds to the C++ `emEngine::WakeUp` call from within a panel's
+    /// constructor or `Cycle` implementation.
+    pub fn request_cycle(&mut self, id: PanelId) {
+        if !self.cycle_list.contains(&id) {
+            self.cycle_list.push(id);
+        }
+    }
+
+    /// Unregister `id` from per-frame cycling.
+    pub fn cancel_cycle(&mut self, id: PanelId) {
+        self.cycle_list.retain(|&x| x != id);
+    }
+
+    /// Drive one cycle pass: call `behavior.cycle()` for every registered panel.
+    ///
+    /// If `cycle()` returns `false` the panel is removed from the list
+    /// (it has gone to sleep). If the panel was removed from the tree during
+    /// the cycle it is also removed from the list.
+    pub fn run_panel_cycles(&mut self) {
+        let ids: Vec<PanelId> = self.cycle_list.clone();
+        for id in ids {
+            if let Some(mut behavior) = self.take_behavior(id) {
+                let mut ctx = PanelCtx::new(self, id);
+                let stay_awake = behavior.cycle(&mut ctx);
+                if self.panels.contains_key(id) {
+                    self.put_behavior(id, behavior);
+                }
+                if !stay_awake {
+                    self.cycle_list.retain(|&x| x != id);
+                }
+            } else {
+                // Panel was removed or has no behavior
+                self.cycle_list.retain(|&x| x != id);
+            }
         }
     }
 

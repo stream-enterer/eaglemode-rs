@@ -246,6 +246,9 @@ impl ApplicationHandler for App {
         // Run one scheduler time slice
         self.scheduler.do_time_slice();
 
+        // Run per-frame panel cycles
+        self.tree.run_panel_cycles();
+
         // Deliver notices (includes layout dispatch)
         let window_focused = self.windows.values().any(|w| w.view().window_focused());
         let pixel_tallness = self

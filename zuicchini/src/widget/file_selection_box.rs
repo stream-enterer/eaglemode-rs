@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -6,7 +7,7 @@ use crate::render::Painter;
 
 use super::border::{Border, InnerBorderType, OuterBorderType};
 use super::check_box::CheckBox;
-use super::field_panel::{CheckBoxPanel, ListBoxPanel};
+use super::field_panel::{CheckBoxPanel, ListBoxPanel, TextFieldPanel};
 use super::list_box::{ListBox, SelectionMode};
 use super::look::Look;
 use super::text_field::TextField;
@@ -17,6 +18,21 @@ pub struct FileItemData {
     pub is_directory: bool,
     pub is_readable: bool,
     pub is_hidden: bool,
+}
+
+type SelectionChangedCb = Box<dyn FnMut()>;
+type FileTriggerCb = Box<dyn FnMut(&str)>;
+
+/// Shared event state collected by child-panel callbacks and drained in `cycle()`.
+#[derive(Default)]
+struct FsbEvents {
+    selection_changed: bool,
+    selection_indices: Vec<usize>,
+    triggered_index: Option<usize>,
+    name_text_changed: Option<String>,
+    dir_text_changed: Option<String>,
+    hidden_toggled: Option<bool>,
+    filter_index_changed: Option<usize>,
 }
 
 /// A file selection box widget for browsing and selecting files.
@@ -51,6 +67,12 @@ pub struct FileSelectionBox {
     filter_lb_id: Option<PanelId>,
     /// True when children must be torn down and rebuilt on next layout pass.
     children_dirty: bool,
+    /// Shared event state collected by child-panel callbacks.
+    events: Rc<RefCell<FsbEvents>>,
+    /// Consumer callback: selection changed.
+    pub on_selection: Option<SelectionChangedCb>,
+    /// Consumer callback: file triggered (double-click / Enter on a file).
+    pub on_trigger: Option<FileTriggerCb>,
 }
 
 impl FileSelectionBox {
@@ -80,6 +102,9 @@ impl FileSelectionBox {
             name_field_id: None,
             filter_lb_id: None,
             children_dirty: false,
+            events: Rc::new(RefCell::new(FsbEvents::default())),
+            on_selection: None,
+            on_trigger: None,
         }
     }
 
@@ -390,9 +415,14 @@ impl FileSelectionBox {
             tf.set_caption("Directory");
             tf.set_editable(true);
             tf.set_text(&self.parent_dir.to_string_lossy());
+            let events = self.events.clone();
+            tf.on_text = Some(Box::new(move |text: &str| {
+                let mut e = events.borrow_mut();
+                e.dir_text_changed = Some(text.to_string());
+            }));
             let id = ctx.create_child_with(
                 "directory",
-                Box::new(super::field_panel::TextFieldPanel { text_field: tf }),
+                Box::new(TextFieldPanel { text_field: tf }),
             );
             self.dir_field_id = Some(id);
         }
@@ -401,6 +431,11 @@ impl FileSelectionBox {
         if !self.hidden_check_box_hidden {
             let mut cb = CheckBox::new("Show\nHidden\nFiles", self.look.clone());
             cb.set_checked(self.hidden_files_shown);
+            let events = self.events.clone();
+            cb.on_check = Some(Box::new(move |checked: bool| {
+                let mut e = events.borrow_mut();
+                e.hidden_toggled = Some(checked);
+            }));
             let id =
                 ctx.create_child_with("showHiddenFiles", Box::new(CheckBoxPanel { check_box: cb }));
             self.hidden_cb_id = Some(id);
@@ -418,6 +453,17 @@ impl FileSelectionBox {
             if h2 > 1e-100 {
                 lb.border_mut().set_border_scaling(hs / h2);
             }
+            let events = self.events.clone();
+            lb.on_selection = Some(Box::new(move |indices: &[usize]| {
+                let mut e = events.borrow_mut();
+                e.selection_changed = true;
+                e.selection_indices = indices.to_vec();
+            }));
+            let events = self.events.clone();
+            lb.on_trigger = Some(Box::new(move |index: usize| {
+                let mut e = events.borrow_mut();
+                e.triggered_index = Some(index);
+            }));
             let id = ctx.create_child_with("files", Box::new(ListBoxPanel { list_box: lb }));
             self.files_lb_id = Some(id);
         }
@@ -430,9 +476,14 @@ impl FileSelectionBox {
             if let Some(name) = self.selected_names.first() {
                 tf.set_text(name);
             }
+            let events = self.events.clone();
+            tf.on_text = Some(Box::new(move |text: &str| {
+                let mut e = events.borrow_mut();
+                e.name_text_changed = Some(text.to_string());
+            }));
             let id = ctx.create_child_with(
                 "name",
-                Box::new(super::field_panel::TextFieldPanel { text_field: tf }),
+                Box::new(TextFieldPanel { text_field: tf }),
             );
             self.name_field_id = Some(id);
         }
@@ -447,8 +498,79 @@ impl FileSelectionBox {
             if self.selected_filter_index >= 0 {
                 lb.set_selected_index(self.selected_filter_index as usize);
             }
+            let events = self.events.clone();
+            lb.on_selection = Some(Box::new(move |indices: &[usize]| {
+                let mut e = events.borrow_mut();
+                e.filter_index_changed = indices.first().copied();
+            }));
             let id = ctx.create_child_with("filter", Box::new(ListBoxPanel { list_box: lb }));
             self.filter_lb_id = Some(id);
+        }
+
+        // Register for per-frame cycling so we can process events.
+        ctx.tree.request_cycle(ctx.id);
+    }
+
+    /// Sync FSB internal selection state FROM ListBox selection indices.
+    fn selection_from_list_box(&mut self, indices: &[usize]) {
+        let names: Vec<String> = indices
+            .iter()
+            .filter_map(|&i| self.listing.get(i).map(|(name, _)| name.clone()))
+            .collect();
+        self.selected_names = names;
+    }
+
+    /// Sync FSB selection state TO the ListBox widget after a listing reload.
+    fn selection_to_list_box(&self, ctx: &mut PanelCtx) {
+        if let Some(lb_id) = self.files_lb_id {
+            // Build item data outside the tree borrow.
+            let items: Vec<(String, String)> = self
+                .listing
+                .iter()
+                .enumerate()
+                .map(|(i, (name, _))| (format!("{}", i), name.clone()))
+                .collect();
+            let selected_indices: Vec<usize> = self
+                .listing
+                .iter()
+                .enumerate()
+                .filter(|(_, (name, _))| self.selected_names.contains(name))
+                .map(|(i, _)| i)
+                .collect();
+
+            ctx.tree.with_behavior_as::<ListBoxPanel, _>(lb_id, |lbp| {
+                lbp.list_box.clear_items();
+                for (key, text) in &items {
+                    lbp.list_box.add_item(key.clone(), text.clone());
+                }
+                lbp.list_box.set_selected_indices(&selected_indices);
+            });
+        }
+    }
+
+    /// Update name field text to match current selection.
+    fn sync_name_field(&self, ctx: &mut PanelCtx) {
+        if let Some(nf_id) = self.name_field_id {
+            let text = self
+                .selected_names
+                .first()
+                .cloned()
+                .unwrap_or_default();
+            ctx.tree
+                .with_behavior_as::<TextFieldPanel, _>(nf_id, |tfp| {
+                    tfp.text_field.set_text(&text);
+                });
+        }
+    }
+
+    /// Update directory field text to match current parent_dir.
+    fn sync_dir_field(&self, ctx: &mut PanelCtx) {
+        if let Some(df_id) = self.dir_field_id {
+            let text = self.parent_dir.to_string_lossy().into_owned();
+            ctx.tree
+                .with_behavior_as::<TextFieldPanel, _>(df_id, |tfp| {
+                    tfp.text_field.set_text(&text);
+                });
         }
     }
 }
@@ -584,6 +706,105 @@ impl PanelBehavior for FileSelectionBox {
         } else if let Some(nf_id) = self.name_field_id {
             ctx.layout_child_canvas(nf_id, x, y + h1 + h2, cw, h3, cc);
         }
+    }
+
+    fn cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        // Take all pending events.
+        let events = {
+            let mut e = self.events.borrow_mut();
+            std::mem::take(&mut *e)
+        };
+
+        // Step 2 (C++): Directory field changed.
+        if let Some(dir_text) = events.dir_text_changed {
+            let new_dir = PathBuf::from(&dir_text);
+            if self.parent_dir != new_dir {
+                self.parent_dir = new_dir;
+                self.triggered_file_name.clear();
+                self.invalidate_listing();
+                if let Some(ref mut cb) = self.on_selection {
+                    cb();
+                }
+            }
+        }
+
+        // Step 4 (C++): Hidden files checkbox toggled.
+        if let Some(shown) = events.hidden_toggled {
+            self.set_hidden_files_shown(shown);
+        }
+
+        // Step 5 (C++): Reload listing if invalid.
+        if self.listing_invalid && self.files_lb_id.is_some() {
+            self.reload_listing();
+            // Sync selection TO ListBox after reload.
+            self.selection_to_list_box(ctx);
+        }
+
+        // Step 6 (C++): ListBox selection changed -> update FSB state.
+        if events.selection_changed && !self.listing_invalid {
+            self.selection_from_list_box(&events.selection_indices);
+            // Update name field.
+            self.sync_name_field(ctx);
+            if let Some(ref mut cb) = self.on_selection {
+                cb();
+            }
+        }
+
+        // Step 7 (C++): ListBox trigger (double-click).
+        if let Some(index) = events.triggered_index {
+            if !self.listing_invalid {
+                // First sync selection.
+                self.selection_from_list_box(&events.selection_indices);
+
+                if let Some((name, data)) = self.listing.get(index) {
+                    let name = name.clone();
+                    let is_dir = data.is_directory;
+                    if name == ".." || is_dir {
+                        self.enter_sub_dir(&name);
+                        // After entering subdir, update dir field.
+                        self.sync_dir_field(ctx);
+                    } else {
+                        self.triggered_file_name = name.clone();
+                        if let Some(ref mut cb) = self.on_trigger {
+                            cb(&name);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Step 8 (C++): Name field text changed.
+        if let Some(name_text) = events.name_text_changed {
+            if name_text.is_empty() {
+                if self.selected_names.len() == 1 {
+                    self.set_selected_name("");
+                }
+            } else if name_text.contains('/') || name_text.contains('\\') {
+                // User typed a path -- resolve it.
+                let abs = if Path::new(&name_text).is_absolute() {
+                    PathBuf::from(&name_text)
+                } else {
+                    self.parent_dir.join(&name_text)
+                };
+                self.set_selected_path(&abs);
+                // Sync name field back to just the filename.
+                self.sync_name_field(ctx);
+                self.sync_dir_field(ctx);
+                if let Some(ref mut cb) = self.on_selection {
+                    cb();
+                }
+            } else {
+                self.set_selected_name(&name_text);
+            }
+        }
+
+        // Step 9 (C++): Filter selection changed.
+        if let Some(filter_idx) = events.filter_index_changed {
+            self.set_selected_filter_index(filter_idx as i32);
+        }
+
+        // Stay awake as long as we have children (panel is expanded).
+        self.files_lb_id.is_some()
     }
 }
 

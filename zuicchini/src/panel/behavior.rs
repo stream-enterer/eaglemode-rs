@@ -1,3 +1,5 @@
+use std::any::Any;
+
 use bitflags::bitflags;
 
 use crate::foundation::{Color, Rect};
@@ -6,6 +8,22 @@ use crate::render::Painter;
 
 use super::ctx::PanelCtx;
 use super::tree::{PanelId, PlaybackState};
+
+/// Provides downcasting for trait objects. Automatically implemented
+/// for all `'static` types via blanket impl — no per-widget boilerplate.
+pub trait AsAny: 'static {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T: 'static> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+}
 
 /// Read-only snapshot of panel state, passed to behavior callbacks.
 ///
@@ -110,7 +128,7 @@ bitflags! {
 ///
 /// All methods have default no-op implementations. Implementors override
 /// only the methods they need.
-pub trait PanelBehavior {
+pub trait PanelBehavior: AsAny {
     /// Paint the panel's content.
     fn paint(&mut self, _painter: &mut Painter, _w: f64, _h: f64, _state: &PanelState) {}
 
@@ -225,7 +243,7 @@ pub trait PanelBehavior {
     /// Corresponds to the C++ `emPanel::Cycle` protected virtual (inherited
     /// from `emEngine`). The default implementation does nothing and returns
     /// `false`.
-    fn cycle(&mut self) -> bool {
+    fn cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
         false
     }
 }
