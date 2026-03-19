@@ -1,5 +1,85 @@
 # Widget Comparison Run Log
 
+## 2026-03-19 — Session 6: Behavioral Interaction Testing
+
+### Phase 1: Infrastructure (DONE)
+
+| # | Task | Status | Notes |
+|---|------|--------|-------|
+| BI-1 | PipelineTestHarness | DONE | `tests/support/pipeline.rs` — dispatches through VIF + hit-test + view_to_panel_x/y transform |
+| BI-2 | expand_to() method | DONE | Sets zoom + 10 ticks for auto-expansion lifecycle |
+
+### Phase 2: Calibration Tests
+
+| # | Bug | Test Result | Status |
+|---|-----|-------------|--------|
+| BI-3 | ListBox selects first item | FAILS correctly (Some(0) != Some(2)) | DONE |
+| BI-4 | ScalarField drag no effect | FAILS correctly (value stays 50.0) | DONE |
+| BI-5 | Button dead after zoom | PASSES incorrectly — reworking | IN PROGRESS |
+| BI-6 | ColorField missing sliders | FAILS correctly (0 children) | DONE |
+
+Root causes identified:
+- BI-3: content_rect in pixel space vs mouse coords in panel-local [0,1] space
+- BI-4: check_mouse passes height=0.0 to content_round_rect
+- BI-6: create_expansion_children() never called during auto-expansion
+
+### Phase 3: Bug Fixes (DONE)
+
+| # | Fix | Status | Root Cause |
+|---|-----|--------|------------|
+| BI-7 | ListBox click-to-index | DONE | content_rect in pixel space + missing pixel_tallness |
+| BI-8 | ScalarField drag | DONE | height=0.0 in check_mouse + coord space mismatch + Option return type |
+| BI-9 | Button zoom | DONE | check_mouse in pixel space, not normalized like hit_test |
+| BI-10 | ColorField expansion | DONE | create_expansion_children() never called in layout_children() |
+
+Full suite: 1202/1202 pass. Zero regressions.
+
+### Phase 4: Systematic Tests (DONE)
+
+| # | Widget | Tests | Status | Notes |
+|---|--------|-------|--------|-------|
+| BI-11 | Button | 1 | DONE | click at 1x+2x, on_click counter |
+| BI-12 | CheckButton | 1 | DONE | toggle at 1x+2x |
+| BI-13 | CheckBox | 1 | DONE | toggle at 1x+2x |
+| BI-14 | RadioButton | 1 | DONE | 3-button group, select at 1x+2x |
+| BI-15 | TextField | 8 | DONE | type, backspace, arrows, insert, delete, non-editable, prepopulated, cross-zoom |
+| BI-16 | ScalarField | 1 | DONE | click+drag at 1x+2x |
+| BI-17 | ListBox | 1 | DONE | click items 0,2,4 at 1x+2x (border-aware coords) |
+| BI-18 | Splitter | 4 | DONE | drag 1x+2x, position stability, limits. NEW BUG found: calc_grip_rect pixel-space mismatch |
+| BI-19 | ColorField | 5 | DONE | expansion structure, channel values, various colors, name field |
+| BI-20 | RadioBox | 5 | DONE | select 1x+2x, reclick noop, cycle, initial state, zoom persistence |
+
+### Final Results
+
+- **Total tests**: 1230 (was 1202, +28 new behavioral interaction tests)
+- **Pass rate**: 1230/1230 (100%)
+- **Clippy**: 0 warnings
+- **Bugs fixed**: 4 (ListBox, ScalarField, Button, ColorField)
+- **New bugs found**: 1 (Splitter calc_grip_rect pixel-space mismatch — same class as the fixed bugs)
+
+### Files created/modified
+
+**Test infrastructure:**
+- `tests/support/pipeline.rs` — PipelineTestHarness (full dispatch pipeline with coordinate transforms)
+
+**Calibration tests + fixes:**
+- `tests/behavioral_interaction.rs` — 4 calibration tests (ListBox, ScalarField, Button, ColorField)
+- `src/widget/list_box.rs` — fixed click-to-index coordinate space mismatch
+- `src/widget/scalar_field.rs` — fixed check_mouse height=0.0 + coordinate normalization
+- `src/widget/button.rs` — fixed check_mouse pixel-space to normalized delegation
+- `src/widget/color_field.rs` — fixed create_expansion_children not called during layout
+
+**Systematic tests:**
+- `tests/behavioral_systematic_button.rs`
+- `tests/behavioral_systematic_check.rs` (CheckButton + CheckBox)
+- `tests/behavioral_systematic_radio.rs`
+- `tests/behavioral_systematic_textfield.rs`
+- `tests/behavioral_systematic_scalarfield.rs`
+- `tests/behavioral_systematic_listbox.rs`
+- `tests/behavioral_systematic_splitter.rs`
+- `tests/behavioral_systematic_colorfield.rs`
+- `tests/behavioral_systematic_radiobox.rs`
+
 ## 2026-03-18 — Session 1: Initial Dispatch
 
 ### Strategy

@@ -1,5 +1,7 @@
 #![allow(dead_code, clippy::type_complexity)]
 
+pub mod pipeline;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 

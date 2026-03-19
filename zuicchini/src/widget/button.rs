@@ -117,26 +117,19 @@ impl Button {
     /// Round-rect hit test for the button face area.
     ///
     /// Returns true if (`mx`, `my`) is inside the button's rounded-rect face.
-    /// Matches C++ `emButton::CheckMouse` for the non-boxed path: tests
-    /// against the face inset (fx, fy, fw, fh) with corner radius `fr`.
+    /// Matches C++ `emButton::CheckMouse` for the non-boxed path: coordinates
+    /// and face geometry are both computed in normalized `(1.0, tallness)`
+    /// panel-local space, making the result zoom-invariant.
     pub fn check_mouse(&self, mx: f64, my: f64) -> bool {
-        let w = self.last_w;
-        let h = self.last_h;
-        if w <= 0.0 || h <= 0.0 {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
-        let (cr, r) = self.border.content_round_rect(w, h, &self.look);
-        let r = r.max(cr.w.min(cr.h) * self.border.border_scaling * 0.223);
-        let d = (14.0 / 264.0) * r;
-        let fx = cr.x + d;
-        let fy = cr.y + d;
-        let fw = cr.w - 2.0 * d;
-        let fh = cr.h - 2.0 * d;
-        let fr = (r - d).max(0.0);
-        // C++ round-rect hit test: distance to inset rect expanded by radius
-        let dx = ((fx - mx).max(mx - fx - fw) + fr).max(0.0);
-        let dy = ((fy - my).max(my - fy - fh) + fr).max(0.0);
-        dx * dx + dy * dy <= fr * fr
+        // Normalize pixel coords to (1.0, tallness) panel-local space,
+        // matching C++ where both mouse coords and GetContentRoundRect
+        // output are in the same normalized coordinate system.
+        let nmx = mx / self.last_w;
+        let nmy = my / self.last_w;
+        self.hit_test(nmx, nmy)
     }
 
     /// Whether this button provides how-to help text.

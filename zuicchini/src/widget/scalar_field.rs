@@ -514,33 +514,27 @@ impl ScalarField {
         }
 
         // C++ emScalarField.cpp:239: compute mouse value on every event.
-        // CheckMouse converts mouse position to value via absolute positioning.
-        let mouse_value = self.check_mouse(event.mouse_x, event.mouse_y);
+        // CheckMouse returns (hit, value) — value is always computed even
+        // when the mouse is outside the content round-rect.
+        let (in_area, mv) = self.check_mouse(event.mouse_x, event.mouse_y);
 
         // C++ absolute drag model: pressed state continuously sets value
         // to wherever the mouse points on the scale.
-        if self.dragging {
-            if let Some(mv) = mouse_value {
-                if (mv - self.value).abs() > f64::EPSILON {
-                    self.set_value(mv);
-                }
-            }
+        if self.dragging && (mv - self.value).abs() > f64::EPSILON {
+            self.set_value(mv);
         }
 
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {
                     // C++ emScalarField.cpp:250-258: inArea && LeftButton → Pressed.
-                    let in_area = mouse_value.is_some();
                     if !in_area {
                         return false;
                     }
                     self.dragging = true;
                     // Immediately position needle at click location.
-                    if let Some(mv) = mouse_value {
-                        if (mv - self.value).abs() > f64::EPSILON {
-                            self.set_value(mv);
-                        }
+                    if (mv - self.value).abs() > f64::EPSILON {
+                        self.set_value(mv);
                     }
                     true
                 }
@@ -598,32 +592,31 @@ impl ScalarField {
     /// Check whether (`mx`, `my`) is within the scale area and compute
     /// the corresponding value.
     ///
-    /// Returns `Some(value)` if the point is inside the scale area, `None`
-    /// otherwise. Matches C++ `emScalarField::CheckMouse`.
-    pub fn check_mouse(&self, mx: f64, my: f64) -> Option<f64> {
-        let w = self.last_w;
-        if w <= 0.0 {
-            return None;
+    /// Returns `(hit, value)` where `hit` is true when the point is inside the
+    /// content round-rect and `value` is the clamped scale value corresponding
+    /// to `mx` (always computed, even when outside). Matches the two-output
+    /// semantics of C++ `emScalarField::CheckMouse`.
+    pub fn check_mouse(&self, mx: f64, my: f64) -> (bool, f64) {
+        if self.last_w <= 0.0 || self.last_h <= 0.0 {
+            return (false, self.min);
         }
-        // Replicate the layout math from paint to find (ax, aw).
-        let (content, radius) = self.border.content_round_rect(w, 0.0, &self.look);
+        // Mouse coordinates are in panel-local space (0..1 for x, 0..tallness
+        // for y). Compute layout in the same coordinate system.
+        let tallness = self.last_h / self.last_w;
+        let (content, radius) = self.border.content_round_rect(1.0, tallness, &self.look);
         let Rect { x, y, w: cw, h: ch } = content;
         let r = radius;
         let v_range = self.max - self.min;
 
         let rx = x + r * 0.5;
-        let ry = y + r * 0.5;
         let rw = cw - r;
         let rh = ch - r;
 
         let s = rh.min(rw);
         let d_base = s * 0.04;
         let mut ax = rx + d_base;
-        let ay = ry + d_base;
         let mut aw = rw - 2.0 * d_base;
         let ah = rh - 2.0 * d_base;
-
-        let mut e = s * 0.3 * 0.5;
 
         let ivals = &self.scale_mark_intervals;
         let ival_cnt = ivals.len();
@@ -635,7 +628,7 @@ impl ScalarField {
         let mtw = mtw0 * norm;
         let mw = mtw * 1.5;
 
-        let mut d = e - d_base;
+        let mut d = s * 0.3 * 0.5 - d_base;
         if d < 0.0 {
             d = 0.0;
         }
@@ -659,21 +652,20 @@ impl ScalarField {
         ax += d;
         aw -= 2.0 * d;
 
-        // Check bounds: the active area is the arrow zone.
-        if e > ay + ah - ry {
-            e = ay + ah - ry;
-        }
-        if mx < ax - e || mx > ax + aw + e || my < ry || my > ay + ah {
-            return None;
-        }
+        // C++ hit test: round-rect distance check (emScalarField.cpp:386-388).
+        // dx = emMax(emMax(x-mx, mx-x-w) + r, 0.0)
+        let dx = ((x - mx).max(mx - x - cw) + r).max(0.0);
+        let dy = ((y - my).max(my - y - ch) + r).max(0.0);
+        let hit = dx * dx + dy * dy <= r * r;
 
-        // Convert x position to value.
-        if v_range <= 0.0 || aw <= 0.0 {
-            return Some(self.min);
-        }
-        let frac = ((mx - ax) / aw).clamp(0.0, 1.0);
-        let val = self.min + frac * v_range;
-        Some(val.clamp(self.min, self.max))
+        // Convert x position to value (always, matching C++).
+        let val = if v_range <= 0.0 || aw <= 0.0 {
+            self.min
+        } else {
+            let frac = ((mx - ax) / aw).clamp(0.0, 1.0);
+            (self.min + frac * v_range).clamp(self.min, self.max)
+        };
+        (hit, val)
     }
 
     pub fn preferred_size(&self) -> (f64, f64) {

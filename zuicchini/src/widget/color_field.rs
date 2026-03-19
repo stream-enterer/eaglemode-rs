@@ -595,7 +595,15 @@ impl ColorField {
     ///
     /// Positions the RasterLayout child in the right half of the content rect,
     /// inset by `d = min(w,h) * 0.05`.
-    pub fn layout_children(&self, ctx: &mut PanelCtx, w: f64, h: f64) {
+    ///
+    /// When the panel is auto-expanded but has no children yet, this method
+    /// creates them via `create_expansion_children`, matching the pattern
+    /// used by other widgets (e.g. `CoreConfigPanel`).
+    pub fn layout_children(&mut self, ctx: &mut PanelCtx, w: f64, h: f64) {
+        if ctx.tree.is_auto_expanded(ctx.id) && ctx.child_count() == 0 {
+            self.create_expansion_children(ctx);
+        }
+
         let children = ctx.children();
         if children.is_empty() || !self.expanded {
             for &child in &children {

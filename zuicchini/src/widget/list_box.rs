@@ -1117,16 +1117,16 @@ impl ListBox {
 
     // ── Input ───────────────────────────────────────────────────────
 
-    fn hit_test(&self, mx: f64, my: f64) -> bool {
+    fn hit_test(&self, mx: f64, my: f64, pixel_tallness: f64) -> bool {
         if self.last_w <= 0.0 || self.last_h <= 0.0 {
             return false;
         }
-        let tallness = self.last_h / self.last_w;
+        let tallness = self.last_h / self.last_w * pixel_tallness;
         let (rect, r) = self.border.content_round_rect(1.0, tallness, &self.look);
         super::check_mouse_round_rect(mx, my, &rect, r)
     }
 
-    pub fn input(&mut self, event: &InputEvent, _state: &PanelState, _input_state: &InputState) -> bool {
+    pub fn input(&mut self, event: &InputEvent, state: &PanelState, _input_state: &InputState) -> bool {
         if !self.enabled {
             return false;
         }
@@ -1154,14 +1154,30 @@ impl ListBox {
                 true
             }
             InputKey::MouseLeft if event.variant == InputVariant::Press => {
-                if !self.hit_test(event.mouse_x, event.mouse_y) {
+                if !self.hit_test(event.mouse_x, event.mouse_y, state.pixel_tallness) {
                     return false;
                 }
-                let Rect { y: cy, .. } =
-                    self.border
-                        .content_rect(self.last_w, self.last_h, &self.look);
-                let rel_y = event.mouse_y - cy + self.scroll_y;
-                let clicked_idx = (rel_y / self.row_height()) as usize;
+                // Mouse coordinates are in normalized panel-local space
+                // (x in [0,1], y in [0,tallness]). The paint dimensions
+                // (last_w, last_h) use the layout aspect ratio, but the
+                // input coordinate Y-axis is additionally scaled by
+                // pixel_tallness, so the effective tallness for input is
+                // (last_h / last_w) * pixel_tallness.
+                let tallness = if self.last_w > 0.0 {
+                    self.last_h / self.last_w * state.pixel_tallness
+                } else {
+                    1.0
+                };
+                let cr = self
+                    .border
+                    .content_rect_unobscured(1.0, tallness, &self.look);
+                let row_h = if self.items.is_empty() {
+                    cr.h
+                } else {
+                    cr.h / self.items.len() as f64
+                };
+                let rel_y = event.mouse_y - cr.y + self.scroll_y;
+                let clicked_idx = (rel_y / row_h) as usize;
                 if clicked_idx < self.items.len() && !event.alt && !event.meta {
                     self.focus_index = clicked_idx;
                     let trigger = event.is_repeat(); // double-click
