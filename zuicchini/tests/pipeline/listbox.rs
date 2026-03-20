@@ -1145,26 +1145,38 @@ fn listbox_keywalk_readonly_no_selection_change() {
 }
 
 #[test]
-#[ignore] // needs injectable clock. C++ ref: emListBox.cpp:867-868 (GetInputClockMS timeout)
 fn listbox_keywalk_timeout_clears_accumulator() {
     // C++ behavior: if GetInputClockMS() - KeyWalkClock > 1000, clear KeyWalkChars.
-    // The Rust implementation uses Instant::now() (list_box.rs:1394) with no way
-    // to inject a fake clock. Testing would require std::thread::sleep(1001ms)
-    // which is fragile and slow. This test is left as #[ignore] until an
-    // injectable clock mechanism is added.
-    //
-    // Expected behavior: after waiting >1000ms between keystrokes, the
-    // accumulator resets and the next character starts a fresh prefix search.
+    // Uses an injectable clock to simulate >1000ms elapsed between keystrokes.
+    use std::cell::Cell;
+    use std::time::{Duration, Instant};
+
+    // Shared mutable offset that the fake clock reads.
+    thread_local! {
+        static FAKE_OFFSET: Cell<u64> = const { Cell::new(0) };
+    }
+
+    fn fake_clock() -> Instant {
+        // Anchor + offset. The anchor is fixed per thread.
+        thread_local! {
+            static ANCHOR: Instant = Instant::now();
+        }
+        ANCHOR.with(|a| *a + Duration::from_millis(FAKE_OFFSET.with(|c| c.get())))
+    }
+
     let (mut h, lb, _pid, _cx, _fy) =
         setup_keywalk_harness(&["Apple", "Apricot", "Banana"]);
 
+    lb.borrow_mut().set_keywalk_clock(fake_clock);
     lb.borrow_mut().clear_selection();
 
+    // Time 0ms: type 'a' -> matches "Apple".
+    FAKE_OFFSET.with(|c| c.set(0));
     h.press_char('a');
     assert_eq!(lb.borrow().selected_index(), Some(0));
 
-    // Would need: advance_time(1001ms)
-    // Then typing 'b' should start fresh and match "Banana", not accumulate "ab".
+    // Advance past the 1000ms timeout, then type 'b'.
+    FAKE_OFFSET.with(|c| c.set(1500));
     h.press_char('b');
     assert_eq!(
         lb.borrow().selected_index(),
@@ -1392,7 +1404,6 @@ fn listbox_arrow_then_space_selects_focused_multi() {
 }
 
 #[test]
-#[ignore] // BLOCKED: needs Home/End key handling in ListBox::input(). C++ ref: emListBox.cpp:Input (no Home/End in C++)
 fn listbox_home_jumps_to_first() {
     // Home key should move focus to the first item.
     // Not implemented in Rust ListBox::input() — the C++ emListBox also does
@@ -1407,7 +1418,6 @@ fn listbox_home_jumps_to_first() {
 }
 
 #[test]
-#[ignore] // BLOCKED: needs Home/End key handling in ListBox::input(). C++ ref: emListBox.cpp:Input (no Home/End in C++)
 fn listbox_end_jumps_to_last() {
     // End key should move focus to the last item.
     // Not implemented in Rust ListBox::input() — the C++ emListBox also does

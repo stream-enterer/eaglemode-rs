@@ -6,8 +6,8 @@
 //! BP-17: Activation on click — tests that clicking a panel sets `is_active`
 //! and `in_active_path` correctly, matching C++ `SetActivePanel`.
 //!
-//! BP-19: Arrow key navigation — `#[ignore]` because no arrow key handler
-//! intercepts bare arrow keys to call `visit_left/right/up/down`.
+//! BP-19: Arrow key navigation — arrow key handlers call
+//! `visit_left/right/up/down` for sibling navigation.
 
 use zuicchini::input::InputKey;
 use zuicchini::panel::{PanelId, PanelTree};

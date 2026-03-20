@@ -261,6 +261,9 @@ pub struct ListBox {
     keywalk_chars: String,
     /// Timestamp of last keywalk input.
     keywalk_time: Option<std::time::Instant>,
+    /// Injectable clock for keywalk timeout (testing support).
+    /// When `None`, uses `std::time::Instant::now()`.
+    keywalk_clock: Option<fn() -> std::time::Instant>,
 
     pub on_selection: Option<SelectionCb>,
     pub on_trigger: Option<TriggerCb>,
@@ -302,6 +305,7 @@ impl ListBox {
             triggered_index: None,
             keywalk_chars: String::new(),
             keywalk_time: None,
+            keywalk_clock: None,
             on_selection: None,
             on_trigger: None,
             item_panel_factory: None,
@@ -1153,6 +1157,20 @@ impl ListBox {
                 }
                 true
             }
+            InputKey::Home if event.variant == InputVariant::Press => {
+                self.focus_index = 0;
+                if self.selection_mode == SelectionMode::Single {
+                    self.select(self.focus_index, true);
+                }
+                true
+            }
+            InputKey::End if event.variant == InputVariant::Press => {
+                self.focus_index = self.items.len() - 1;
+                if self.selection_mode == SelectionMode::Single {
+                    self.select(self.focus_index, true);
+                }
+                true
+            }
             InputKey::MouseLeft if event.variant == InputVariant::Press => {
                 if !self.hit_test(event.mouse_x, event.mouse_y, state.pixel_tallness) {
                     return false;
@@ -1391,7 +1409,7 @@ impl ListBox {
             }
         }
 
-        let now = std::time::Instant::now();
+        let now = self.keywalk_clock.map_or_else(std::time::Instant::now, |f| f());
 
         // Check timeout.
         if let Some(prev_time) = self.keywalk_time {
@@ -1518,6 +1536,11 @@ impl ListBox {
         } else if self.visible_height > 0.0 && item_bottom > self.scroll_y + self.visible_height {
             self.scroll_y = item_bottom - self.visible_height;
         }
+    }
+
+    /// Set a custom clock function for keywalk timeout testing.
+    pub fn set_keywalk_clock(&mut self, clock: fn() -> std::time::Instant) {
+        self.keywalk_clock = Some(clock);
     }
 }
 

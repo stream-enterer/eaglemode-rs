@@ -59,6 +59,11 @@ impl PanelBehavior for ColorFieldBehavior {
         let rect = ctx.layout_rect();
         self.color_field.layout_children(ctx, rect.w, rect.h);
     }
+
+    fn cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        self.color_field.sync_from_children(ctx);
+        self.color_field.cycle()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -409,14 +414,11 @@ fn colorfield_expanded_name_field_initialized() {
 // - If Color changed: fire ColorSignal (Rust: on_color callback).
 //
 // The Rust port stores the sub-widget values in Expansion (sf_red, red_out,
-// etc.) and cycle() detects divergence. However, the ScalarFieldPanel and
-// TextFieldPanel sub-widgets do NOT currently wire their on_value/on_text
-// callbacks back to the Expansion data, and ColorFieldBehavior does not
-// implement PanelBehavior::cycle(). So end-to-end pipeline dispatch
-// (click slider → color changes) is blocked.
+// etc.) and cycle() detects divergence. ColorFieldBehavior::cycle() calls
+// sync_from_children() to read current sub-widget values, then the existing
+// cycle() change-detection logic propagates updates.
 //
-// The tests below verify what CAN be tested through the harness today and
-// mark truly blocked paths with #[ignore].
+// The tests below verify end-to-end pipeline dispatch through the harness.
 
 // ---------------------------------------------------------------------------
 // Test: cycle() propagation — red slider value → color update
@@ -895,7 +897,6 @@ fn colorfield_cycle_invalid_hex_preserves_color() {
 /// BLOCKED: needs ScalarFieldPanel.on_value wired to Expansion.sf_red, and
 /// ColorFieldBehavior::cycle() implemented. C++ ref: emColorField.cpp:116-122.
 #[test]
-#[ignore]
 fn colorfield_click_red_slider_updates_color_e2e() {
     // BLOCKED: needs sub-widget on_value callback wiring to Expansion.sf_red,
     // and ColorFieldBehavior::cycle() to propagate changes.
@@ -916,7 +917,6 @@ fn colorfield_click_red_slider_updates_color_e2e() {
 /// BLOCKED: needs TextFieldPanel.on_text wired to Expansion.tf_name, and
 /// ColorFieldBehavior::cycle() implemented. C++ ref: emColorField.cpp:187-200.
 #[test]
-#[ignore]
 fn colorfield_type_hex_in_text_field_updates_color_e2e() {
     // BLOCKED: needs sub-widget on_text callback wiring to Expansion.tf_name,
     // and ColorFieldBehavior::cycle() to propagate changes.
@@ -937,7 +937,6 @@ fn colorfield_type_hex_in_text_field_updates_color_e2e() {
 /// BLOCKED: needs ScalarFieldPanel.on_value wired to Expansion.sf_hue, and
 /// ColorFieldBehavior::cycle() implemented. C++ ref: emColorField.cpp:148-159.
 #[test]
-#[ignore]
 fn colorfield_drag_hue_slider_updates_rgb_e2e() {
     // BLOCKED: needs sub-widget on_value callback wiring to Expansion.sf_hue,
     // and ColorFieldBehavior::cycle() to propagate changes.

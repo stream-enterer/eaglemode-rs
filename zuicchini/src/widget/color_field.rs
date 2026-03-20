@@ -287,6 +287,54 @@ impl ColorField {
         true
     }
 
+    /// Read current values from child ScalarField/TextField panels in the tree
+    /// and update the Expansion's `sf_*` / `tf_name` fields.
+    ///
+    /// This mirrors the C++ `emColorField::Cycle()` pattern where each child
+    /// widget's current value is polled via `GetValue()` / `GetText()`. Call
+    /// this before `cycle()` so that changes made by user interaction on the
+    /// child panels are visible to the change-detection logic.
+    pub fn sync_from_children(&mut self, ctx: &mut PanelCtx) {
+        if self.expansion.is_none() {
+            return;
+        }
+
+        // The tree structure is: self -> RasterLayout -> {r, g, b, a, h, s, v, n}.
+        let children: Vec<_> = ctx.tree.children(ctx.id).collect();
+        if children.is_empty() {
+            return;
+        }
+        let layout_id = children[0];
+        let grandchildren: Vec<_> = ctx.tree.children(layout_id).collect();
+
+        // Map child names to their ScalarField values or TextField text.
+        for &child_id in &grandchildren {
+            let name = ctx.tree.name(child_id).unwrap_or("").to_string();
+            if let Some(behavior) = ctx.tree.take_behavior(child_id) {
+                if let Some(sfp) = behavior.as_any().downcast_ref::<ScalarFieldPanel>() {
+                    let val = sfp.scalar_field.value() as i64;
+                    let exp = self.expansion.as_mut().unwrap();
+                    match name.as_str() {
+                        "r" => exp.sf_red = val,
+                        "g" => exp.sf_green = val,
+                        "b" => exp.sf_blue = val,
+                        "a" => exp.sf_alpha = val,
+                        "h" => exp.sf_hue = val,
+                        "s" => exp.sf_sat = val,
+                        "v" => exp.sf_val = val,
+                        _ => {}
+                    }
+                } else if let Some(tfp) = behavior.as_any().downcast_ref::<TextFieldPanel>() {
+                    let exp = self.expansion.as_mut().unwrap();
+                    if name == "n" {
+                        exp.tf_name = tfp.text_field.text().to_string();
+                    }
+                }
+                ctx.tree.put_behavior(child_id, behavior);
+            }
+        }
+    }
+
     /// Sync RGBA scalar fields from current color.
     /// Port of C++ `emColorField::UpdateRGBAOutput()`.
     pub fn update_rgba_output(&mut self) {
