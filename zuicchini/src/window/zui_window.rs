@@ -753,7 +753,7 @@ impl ZuiWindow {
                     self.view.dump_tree(tree);
                 }
                 CheatAction::Screenshot => {
-                    // Handled by pf7-screenshot feature
+                    take_screenshot();
                 }
             }
         }
@@ -1330,4 +1330,105 @@ fn parse_x11_geometry(s: &str) -> (Option<i32>, Option<i32>, Option<i32>, Option
     }
 
     (width, height, x, y)
+}
+
+/// Find the next unused screenshot filename and shell out to `xwd -root`.
+///
+/// Port of C++ emCheatVIF screenshot handling: numbered files 000-999 in
+/// temp_dir, using `xwd -root` to capture the X11 root window.
+fn take_screenshot() {
+    let path = match find_next_screenshot_path() {
+        Some(p) => p,
+        None => {
+            eprintln!("[Screenshot] all 1000 screenshot slots (000-999) are taken");
+            return;
+        }
+    };
+
+    let result = std::process::Command::new("xwd")
+        .arg("-root")
+        .stdout(std::fs::File::create(&path).unwrap_or_else(|e| {
+            eprintln!("[Screenshot] cannot create {}: {e}", path.display());
+            // Return /dev/null as a fallback to avoid panic
+            std::fs::File::create("/dev/null").expect("/dev/null")
+        }))
+        .status();
+
+    match result {
+        Ok(status) if status.success() => {
+            eprintln!("[Screenshot] saved to {}", path.display());
+        }
+        Ok(status) => {
+            eprintln!("[Screenshot] xwd exited with {status}");
+            let _ = std::fs::remove_file(&path);
+        }
+        Err(e) => {
+            eprintln!("[Screenshot] xwd not found or failed: {e}");
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+/// Find the next unused `zuicchini_screenshot_NNN.xwd` path in temp_dir.
+pub(crate) fn find_next_screenshot_path() -> Option<std::path::PathBuf> {
+    find_next_screenshot_path_in(&std::env::temp_dir())
+}
+
+/// Find the next unused screenshot path within a given directory.
+pub(crate) fn find_next_screenshot_path_in(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    for n in 0..1000u32 {
+        let name = format!("zuicchini_screenshot_{:03}.xwd", n);
+        let path = dir.join(&name);
+        if !path.exists() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn screenshot_numbering_skips_existing() {
+        // Create a temp dir with 000 and 001 present, assert targets 002
+        let dir = std::env::temp_dir().join("zuicchini_screenshot_test");
+        let _ = std::fs::create_dir_all(&dir);
+
+        // Create files 000 and 001
+        std::fs::write(dir.join("zuicchini_screenshot_000.xwd"), b"").unwrap();
+        std::fs::write(dir.join("zuicchini_screenshot_001.xwd"), b"").unwrap();
+
+        let path = find_next_screenshot_path_in(&dir).expect("should find a path");
+        assert!(
+            path.ends_with("zuicchini_screenshot_002.xwd"),
+            "expected 002, got {:?}",
+            path
+        );
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn screenshot_numbering_starts_at_000() {
+        let dir = std::env::temp_dir().join("zuicchini_screenshot_test_empty");
+        let _ = std::fs::create_dir_all(&dir);
+        // Remove any existing files
+        for n in 0..10u32 {
+            let _ = std::fs::remove_file(
+                dir.join(format!("zuicchini_screenshot_{:03}.xwd", n)),
+            );
+        }
+
+        let path = find_next_screenshot_path_in(&dir).expect("should find a path");
+        assert!(
+            path.ends_with("zuicchini_screenshot_000.xwd"),
+            "expected 000, got {:?}",
+            path
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

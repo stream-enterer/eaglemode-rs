@@ -2743,6 +2743,16 @@ mod tests {
         assert_eq!(actions, vec![CheatAction::TreeDump]);
     }
 
+    #[test]
+    fn cheat_vif_ss_triggers_screenshot() {
+        let (_tree, mut view) = setup();
+        let mut vif = CheatVIF::new();
+
+        type_cheat(&mut vif, &mut view, "chEat:ss!");
+        let actions = vif.drain_actions();
+        assert_eq!(actions, vec![CheatAction::Screenshot]);
+    }
+
     fn input_state_at(x: f64, y: f64) -> InputState {
         let mut s = InputState::new();
         s.mouse_x = x;
