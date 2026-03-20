@@ -117,6 +117,35 @@ impl KineticViewAnimator {
             > 0.01;
     }
 
+    /// Activate this animator, inheriting velocity from any outgoing
+    /// KineticViewAnimator. Matches C++ emKineticViewAnimator::Activate().
+    ///
+    /// `outgoing`: the currently active animator, if any. If it's a
+    /// KineticViewAnimator, its kinetic state is extracted and injected
+    /// into self. If not (or None), all velocity fields are zeroed.
+    pub fn activate_with_handoff(
+        &mut self,
+        outgoing: Option<&KineticViewAnimator>,
+        view: &View,
+    ) {
+        if let Some(prev) = outgoing {
+            let state = prev.extract_kinetic_state();
+            self.inject_kinetic_state(state);
+            // C++ zoom fix point logic: if self is centered, recenter;
+            // else set to the injected fix point.
+            if self.zoom_fix_point_centered {
+                self.center_zoom_fix_point(view);
+            } else {
+                self.set_zoom_fix_point(self.zoom_fix_x, self.zoom_fix_y, view);
+            }
+        } else {
+            self.velocity_x = 0.0;
+            self.velocity_y = 0.0;
+            self.velocity_z = 0.0;
+            self.active = false;
+        }
+    }
+
     /// Switch zoom fix point to centered mode, compensating XY velocity.
     pub fn center_zoom_fix_point(&mut self, view: &View) {
         if self.zoom_fix_point_centered {
@@ -2751,5 +2780,44 @@ mod tests {
         assert!((vy - 5.0).abs() < 1e-12);
         assert!((vz - 6.0).abs() < 1e-12);
         assert!(kva.is_active());
+    }
+
+    #[test]
+    fn activate_handoff_inherits_velocity() {
+        let (_tree, view) = setup();
+
+        let old_anim = KineticViewAnimator::new(100.0, 50.0, 10.0, 1000.0);
+        let mut new_anim = KineticViewAnimator::new(0.0, 0.0, 0.0, 1000.0);
+
+        new_anim.activate_with_handoff(Some(&old_anim), &view);
+        let (vx, vy, vz) = new_anim.velocity();
+        assert!(
+            (vx - 100.0).abs() < 1e-6,
+            "should inherit vx from old animator"
+        );
+        assert!(
+            (vy - 50.0).abs() < 1e-6,
+            "should inherit vy from old animator"
+        );
+        assert!(
+            (vz - 10.0).abs() < 1e-6,
+            "should inherit vz from old animator"
+        );
+        assert!(new_anim.is_active());
+    }
+
+    #[test]
+    fn activate_handoff_no_prior_zeros_velocity() {
+        let (_tree, view) = setup();
+
+        let mut anim = KineticViewAnimator::new(100.0, 50.0, 10.0, 1000.0);
+        assert!(anim.is_active());
+
+        anim.activate_with_handoff(None, &view);
+        let (vx, vy, vz) = anim.velocity();
+        assert!(vx.abs() < 1e-12, "vx should be zero");
+        assert!(vy.abs() < 1e-12, "vy should be zero");
+        assert!(vz.abs() < 1e-12, "vz should be zero");
+        assert!(!anim.is_active());
     }
 }
