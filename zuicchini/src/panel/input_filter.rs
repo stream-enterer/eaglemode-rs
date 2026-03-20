@@ -4,6 +4,7 @@ use std::time::Instant;
 use crate::dlog;
 use crate::input::{InputEvent, InputKey, InputState, InputVariant};
 
+use super::tree::PanelTree;
 use super::view::{View, ViewFlags};
 
 /// Trait for view input filters that intercept input before it reaches panels.
@@ -1370,11 +1371,35 @@ impl Default for Touch {
 /// Maximum number of tracked touches (C++ MAX_TOUCH_COUNT).
 pub const MAX_TOUCH_COUNT: usize = 16;
 
+/// Gesture state machine — all 17 states matching C++ emDefaultTouchVIF::DoGesture.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GestureState {
+    Ready,
+    FirstDown,
+    Scroll,
+    ZoomIn,
+    ZoomOut,
+    FirstDownUp,
+    DoubleDown,
+    DoubleDownUp,
+    TripleDown,
+    TripleDownUp,
+    SecondDown,
+    EmuMouse1,
+    EmuMouse2,
+    EmuMouse3,
+    EmuMouse4,
+    ThirdDown,
+    FourthDown,
+    Finish,
+}
+
 /// Touch tracking infrastructure for the full C++ gesture state machine.
 pub struct TouchTracker {
     pub touches: [Touch; MAX_TOUCH_COUNT],
     pub touch_count: usize,
     pub touches_time: u64,
+    pub gesture_state: GestureState,
 }
 
 impl Default for TouchTracker {
@@ -1389,6 +1414,7 @@ impl TouchTracker {
             touches: [Touch::default(); MAX_TOUCH_COUNT],
             touch_count: 0,
             touches_time: 0,
+            gesture_state: GestureState::Ready,
         }
     }
 
@@ -1457,6 +1483,94 @@ impl TouchTracker {
             return 0.0;
         }
         self.touches[index].y - self.touches[index].down_y
+    }
+
+    /// Run one step of the gesture state machine. Returns true if state changed
+    /// (caller should loop until stable). `view` is used for scroll/zoom actions.
+    pub fn do_gesture(&mut self, view: &mut View, tree: &mut PanelTree) -> bool {
+        let old_state = self.gesture_state;
+
+        match self.gesture_state {
+            GestureState::Ready => {
+                // Stay in Ready until a touch arrives (handled by input wiring)
+            }
+
+            GestureState::FirstDown => {
+                if self.touch_count > 1 {
+                    self.gesture_state = GestureState::SecondDown;
+                } else if self.touch_count > 0 && !self.touches[0].down {
+                    self.gesture_state = GestureState::FirstDownUp;
+                } else if self.touch_count > 0 {
+                    let total_move = (self.get_total_touch_move_x(0).powi(2)
+                        + self.get_total_touch_move_y(0).powi(2))
+                    .sqrt();
+                    if total_move > 20.0 {
+                        self.gesture_state = GestureState::Scroll;
+                    } else if self.touches[0].ms_total > 250 {
+                        self.gesture_state = GestureState::ZoomIn;
+                    }
+                }
+            }
+
+            GestureState::Scroll => {
+                if self.touch_count == 0 || !self.touches[0].down {
+                    self.gesture_state = GestureState::Finish;
+                } else {
+                    let mx = -self.get_touch_move_x(0);
+                    let my = -self.get_touch_move_y(0);
+                    view.scroll(mx, my);
+                }
+            }
+
+            GestureState::ZoomIn => {
+                if self.touch_count == 0 || !self.touches[0].down {
+                    self.gesture_state = GestureState::Finish;
+                } else {
+                    let ms = self.touches[0].ms_since_prev as f64;
+                    let factor = (0.002 * ms).exp();
+                    let x = self.touches[0].x;
+                    let y = self.touches[0].y;
+                    view.zoom(factor, x, y);
+                    view.update_viewing(tree);
+                }
+            }
+
+            GestureState::ZoomOut => {
+                if self.touch_count == 0 || !self.touches[0].down {
+                    self.gesture_state = GestureState::Finish;
+                } else {
+                    let ms = self.touches[0].ms_since_prev as f64;
+                    let factor = (-0.002 * ms).exp();
+                    let x = self.touches[0].x;
+                    let y = self.touches[0].y;
+                    view.zoom(factor, x, y);
+                    view.update_viewing(tree);
+                }
+            }
+
+            GestureState::Finish => {
+                if !self.is_any_touch_down() {
+                    self.reset_touches();
+                    self.gesture_state = GestureState::Ready;
+                }
+            }
+
+            // States implemented in later features
+            GestureState::FirstDownUp
+            | GestureState::DoubleDown
+            | GestureState::DoubleDownUp
+            | GestureState::TripleDown
+            | GestureState::TripleDownUp
+            | GestureState::SecondDown
+            | GestureState::EmuMouse1
+            | GestureState::EmuMouse2
+            | GestureState::EmuMouse3
+            | GestureState::EmuMouse4
+            | GestureState::ThirdDown
+            | GestureState::FourthDown => {}
+        }
+
+        self.gesture_state != old_state
     }
 }
 
@@ -2913,6 +3027,68 @@ mod tests {
         assert!((tracker.get_touch_move_y(0) - 30.0).abs() < 1e-12);
         assert!((tracker.get_total_touch_move_x(0) - 20.0).abs() < 1e-12);
         assert!((tracker.get_total_touch_move_y(0) - 30.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn gesture_scroll_on_drag_over_20px() {
+        let (mut tree, mut view) = setup();
+        view.update_viewing(&mut tree);
+        let mut tracker = TouchTracker::new();
+
+        // Simulate touch down
+        tracker.touches[0] = Touch {
+            id: 1,
+            down: true,
+            x: 100.0,
+            y: 100.0,
+            down_x: 100.0,
+            down_y: 100.0,
+            ..Touch::default()
+        };
+        tracker.touch_count = 1;
+        tracker.gesture_state = GestureState::FirstDown;
+
+        // Drag > 20px
+        tracker.next_touches(16);
+        tracker.touches[0].x = 130.0; // 30px total move
+
+        // Run gesture until stable
+        while tracker.do_gesture(&mut view, &mut tree) {}
+
+        assert_eq!(
+            tracker.gesture_state,
+            GestureState::Scroll,
+            "should enter Scroll state on drag > 20px"
+        );
+    }
+
+    #[test]
+    fn gesture_zoom_in_on_hold_over_250ms() {
+        let (mut tree, mut view) = setup();
+        view.update_viewing(&mut tree);
+        let mut tracker = TouchTracker::new();
+
+        // Simulate touch down held for > 250ms
+        tracker.touches[0] = Touch {
+            id: 1,
+            down: true,
+            x: 100.0,
+            y: 100.0,
+            ms_total: 260,
+            down_x: 100.0,
+            down_y: 100.0,
+            ..Touch::default()
+        };
+        tracker.touch_count = 1;
+        tracker.gesture_state = GestureState::FirstDown;
+
+        while tracker.do_gesture(&mut view, &mut tree) {}
+
+        assert_eq!(
+            tracker.gesture_state,
+            GestureState::ZoomIn,
+            "should enter ZoomIn state on hold > 250ms"
+        );
     }
 
     #[test]
