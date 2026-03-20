@@ -723,25 +723,37 @@ impl ZuiWindow {
         // Run cheat VIF (never consumes events, but may produce actions)
         self.cheat_vif.filter(event, state, &mut self.view);
         for action in self.cheat_vif.drain_actions() {
-            // Apply cheat actions to the MouseZoomScrollVIF (index 0 by construction)
-            if let Some(mouse_vif) = self
-                .vif_chain
-                .first_mut()
-                .and_then(|v| v.as_any_mut().downcast_mut::<MouseZoomScrollVIF>())
-            {
-                match action {
-                    CheatAction::PanFunction => {
-                        let current = mouse_vif.pan_function();
-                        mouse_vif.set_pan_function(!current);
+            match action {
+                CheatAction::PanFunction
+                | CheatAction::EmulateMiddleButton
+                | CheatAction::StickMouseWhenNavigating => {
+                    if let Some(mouse_vif) = self
+                        .vif_chain
+                        .first_mut()
+                        .and_then(|v| v.as_any_mut().downcast_mut::<MouseZoomScrollVIF>())
+                    {
+                        match action {
+                            CheatAction::PanFunction => {
+                                let current = mouse_vif.pan_function();
+                                mouse_vif.set_pan_function(!current);
+                            }
+                            CheatAction::EmulateMiddleButton => {
+                                let current = mouse_vif.emulate_middle_button();
+                                mouse_vif.set_emulate_middle_button(!current);
+                            }
+                            CheatAction::StickMouseWhenNavigating => {
+                                let current = mouse_vif.stick_mouse();
+                                mouse_vif.set_stick_mouse(!current);
+                            }
+                            _ => unreachable!(),
+                        }
                     }
-                    CheatAction::EmulateMiddleButton => {
-                        let current = mouse_vif.emulate_middle_button();
-                        mouse_vif.set_emulate_middle_button(!current);
-                    }
-                    CheatAction::StickMouseWhenNavigating => {
-                        let current = mouse_vif.stick_mouse();
-                        mouse_vif.set_stick_mouse(!current);
-                    }
+                }
+                CheatAction::TreeDump => {
+                    self.view.dump_tree(tree);
+                }
+                CheatAction::Screenshot => {
+                    // Handled by pf7-screenshot feature
                 }
             }
         }

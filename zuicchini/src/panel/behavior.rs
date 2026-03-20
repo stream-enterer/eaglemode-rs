@@ -282,4 +282,10 @@ pub trait PanelBehavior: AsAny {
     fn drain_parent_invalidation(&mut self) -> Option<ParentInvalidation> {
         None
     }
+
+    /// Return the type name for this behavior (used by tree dump).
+    /// Defaults to `std::any::type_name::<Self>()`.
+    fn type_name(&self) -> &str {
+        "(unknown)"
+    }
 }

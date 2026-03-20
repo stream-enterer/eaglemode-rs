@@ -1671,6 +1671,10 @@ pub(crate) enum CheatAction {
     EmulateMiddleButton,
     /// Toggle StickMouseWhenNavigating config.
     StickMouseWhenNavigating,
+    /// Dump the panel tree to disk.
+    TreeDump,
+    /// Take a screenshot.
+    Screenshot,
 }
 
 /// Cheat code input filter.
@@ -1750,8 +1754,7 @@ impl CheatVIF {
 
             // Tree dump: chEat:td!
             "td" => {
-                // TODO: needs tree dump infrastructure (C++ loads emTreeDump library)
-                eprintln!("[CheatVIF] tree dump requested (not implemented)");
+                self.pending_actions.push(CheatAction::TreeDump);
             }
 
             // Debug log on/off: chEat:dlog!
@@ -1763,8 +1766,7 @@ impl CheatVIF {
 
             // Screenshot: chEat:ss!
             "ss" => {
-                // TODO: needs screenshot infrastructure (C++ uses xwd)
-                eprintln!("[CheatVIF] screenshot requested (not implemented)");
+                self.pending_actions.push(CheatAction::Screenshot);
             }
 
             // Crash by segfault: chEat:segfault!
@@ -2729,6 +2731,16 @@ mod tests {
         type_cheat(&mut vif, &mut view, "chEat:smwn!");
         let actions = vif.drain_actions();
         assert_eq!(actions, vec![CheatAction::StickMouseWhenNavigating]);
+    }
+
+    #[test]
+    fn cheat_vif_td_triggers_dump() {
+        let (_tree, mut view) = setup();
+        let mut vif = CheatVIF::new();
+
+        type_cheat(&mut vif, &mut view, "chEat:td!");
+        let actions = vif.drain_actions();
+        assert_eq!(actions, vec![CheatAction::TreeDump]);
     }
 
     fn input_state_at(x: f64, y: f64) -> InputState {

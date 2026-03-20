@@ -5,7 +5,7 @@ use crate::dlog;
 
 use super::ctx::PanelCtx;
 use super::tree::{PanelId, PanelTree};
-use crate::foundation::{ClipRects, Color, Rect};
+use crate::foundation::{write_rec_with_format, ClipRects, Color, Rect, RecStruct, RecValue};
 use crate::input::Cursor;
 use crate::render::{Painter, TextAlignment, VAlign};
 
@@ -2471,6 +2471,81 @@ impl View {
 
         painter.pop_state();
     }
+
+    // --- Tree dump ---
+
+    /// Dump the panel tree to `temp_dir()/zuicchini_tree_dump.emTreeDump` in
+    /// emRec format. Returns the path written.
+    pub fn dump_tree(&self, tree: &mut PanelTree) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join("zuicchini_tree_dump.emTreeDump");
+
+        // View-level data
+        let mut view_rec = RecStruct::new();
+        view_rec.set_str("title", &self.title);
+        view_rec.set_str("flags", &format!("{:?}", self.flags));
+        view_rec.set_bool("focused", self.window_focused);
+        view_rec.set_double("viewport_width", self.viewport_width);
+        view_rec.set_double("viewport_height", self.viewport_height);
+
+        // Panel tree
+        let panels_rec = self.dump_panel_recursive(tree, self.root);
+
+        let mut root_rec = RecStruct::new();
+        root_rec.set_value("view", RecValue::Struct(view_rec));
+        root_rec.set_value("panels", panels_rec);
+
+        let text = write_rec_with_format(&root_rec, "emTreeDump");
+        if let Err(e) = std::fs::write(&path, &text) {
+            eprintln!("[TreeDump] write failed: {e}");
+        } else {
+            eprintln!("[TreeDump] wrote {}", path.display());
+        }
+        path
+    }
+
+    fn dump_panel_recursive(&self, tree: &mut PanelTree, id: PanelId) -> RecValue {
+        let mut rec = RecStruct::new();
+
+        // Type name from behavior
+        let type_name = if let Some(behavior) = tree.take_behavior(id) {
+            let name = behavior.type_name().to_string();
+            tree.put_behavior(id, behavior);
+            name
+        } else {
+            "(no behavior)".to_string()
+        };
+        rec.set_str("title", &type_name);
+
+        // Panel fields
+        let height = tree.get_height(id);
+        if let Some(p) = tree.get(id) {
+            let mut text = String::new();
+            text.push_str(&format!("name = {}\n", p.name));
+            text.push_str(&format!(
+                "layout_rect = ({:.3}, {:.3}, {:.3}, {:.3})\n",
+                p.layout_rect.x, p.layout_rect.y, p.layout_rect.w, p.layout_rect.h
+            ));
+            text.push_str(&format!("height = {:.6}\n", height));
+            text.push_str(&format!("viewed = {}\n", p.viewed));
+            text.push_str(&format!("enabled = {}\n", p.enabled));
+            text.push_str(&format!("focusable = {}\n", p.focusable));
+            text.push_str(&format!("is_active = {}\n", p.is_active));
+            text.push_str(&format!("in_active_path = {}\n", p.in_active_path));
+            rec.set_str("text", &text);
+        }
+
+        // Children (recursive)
+        let children: Vec<PanelId> = tree.children(id).collect();
+        if !children.is_empty() {
+            let child_recs: Vec<RecValue> = children
+                .into_iter()
+                .map(|child| self.dump_panel_recursive(tree, child))
+                .collect();
+            rec.set_value("children", RecValue::Array(child_recs));
+        }
+
+        RecValue::Struct(rec)
+    }
 }
 
 // ── Highlight arrow helpers (C++ emView.cpp:2300-2479) ──
@@ -3281,5 +3356,43 @@ mod tests {
         let off = (5 * 800 + 5) * 4;
         let has_overlay = px[off] > 0 || px[off + 1] > 0 || px[off + 2] > 0;
         assert!(has_overlay, "stress test overlay should paint in top-left corner");
+    }
+
+    #[test]
+    fn tree_dump_produces_valid_emrec() {
+        use crate::foundation::parse_rec_with_format;
+
+        let (mut tree, root, child1, child2) = setup_tree();
+        let view = View::new(root, 800.0, 600.0);
+
+        let path = view.dump_tree(&mut tree);
+
+        // File should exist
+        assert!(path.exists(), "dump file should exist at {:?}", path);
+
+        // Read and parse as emRec
+        let content = std::fs::read_to_string(&path).expect("read dump file");
+        let rec = parse_rec_with_format(&content, "emTreeDump")
+            .expect("dump should be valid emRec format");
+
+        // Should contain view-level data
+        assert!(rec.get_str("view.title").is_some() || rec.get_struct("view").is_some());
+
+        // Should contain panel names from the test tree
+        assert!(
+            content.contains("root"),
+            "dump should contain root panel name"
+        );
+        assert!(
+            content.contains("child1"),
+            "dump should contain child1 panel name"
+        );
+        assert!(
+            content.contains("child2"),
+            "dump should contain child2 panel name"
+        );
+
+        // Clean up
+        let _ = std::fs::remove_file(&path);
     }
 }
