@@ -193,6 +193,7 @@ impl ViewAnimator for KineticViewAnimator {
             dist[1],
             dist[2],
         );
+        view.set_active_panel_best_possible(tree);
 
         // Blocked-motion feedback: zero velocity for blocked dimensions
         for i in 0..3 {
@@ -2432,6 +2433,70 @@ mod tests {
         let (vx, vy) = anim.velocity();
         assert_eq!(vx, 0.0);
         assert_eq!(vy, 0.0);
+    }
+
+    #[test]
+    #[ignore]
+    fn magnetic_panel_tree_traversal_magnetism() {
+        // BLOCKED: needs panel-tree-traversal magnetism matching C++ emMagneticViewAnimator.
+        // C++ ref: emViewAnimator.cpp:emMagneticViewAnimator::CalculateDistance (line 809)
+        // and emMagneticViewAnimator::CycleAnimation (line 716).
+        //
+        // The C++ implementation:
+        // 1. CalculateDistance() traverses the panel tree depth-first from
+        //    GetView().GetSupremeViewedPanel(), visiting every viewed+focusable
+        //    panel. For each, it gets the essence rect, converts to view coords
+        //    via PanelToViewX/Y/DeltaX/DeltaY, computes the scroll+zoom distance
+        //    to center-and-maximize that panel in the viewport, and keeps the
+        //    nearest one.
+        // 2. CycleAnimation() uses a hill-rolling physics model (not spring-damper):
+        //    - Config-driven radius (CoreConfig.MagnetismRadius) controls the
+        //      engagement distance: maxDist = (vw+vh)*0.09*radiusFactor
+        //    - Config-driven speed (CoreConfig.MagnetismSpeed) controls
+        //      acceleration and damping
+        //    - Sub-stepping simulation (0.01s steps) with slope-based acceleration
+        //      and velocity-proportional damping
+        //    - 3D: scroll X, scroll Y, AND zoom Z (not just 2D like current Rust)
+        //    - Inherits from emKineticViewAnimator for velocity/friction/scroll-zoom
+        //
+        // The current Rust MagneticViewAnimator instead uses:
+        // - Externally-set snap_target_x/y (no auto-discovery of nearest panel)
+        // - 2D only (no zoom magnetism)
+        // - Simple spring-damper (F = k*disp, not hill-rolling)
+        // - No CoreConfig radius/speed integration
+        //
+        // Infrastructure already present in Rust:
+        // - PanelTree::viewed_panels_dfs() — DFS traversal of viewed panels
+        // - PanelTree::focusable(id) — focusability check
+        // - PanelTree::get_essence_rect(id) — essence rect
+        // - PanelTree::panel_to_view_x/y/delta_x/delta_y() — coord transforms
+        // - View::supreme_panel() — supreme viewed panel
+        // - View::get_zoom_factor_log_per_pixel() — zflpp
+        // - CoreConfig::magnetism_radius/magnetism_speed — config values
+        //
+        // What needs to change:
+        // 1. Rewrite MagneticViewAnimator to inherit/compose KineticViewAnimator
+        //    (for 3D velocity, friction, scroll-zoom delegation)
+        // 2. Implement CalculateDistance: iterate viewed+focusable panels from
+        //    supreme_panel downward, compute 3D (dx, dy, dz) to each, keep min
+        // 3. Replace spring-damper with hill-rolling physics (slope-based accel
+        //    + velocity damping, sub-stepped at 0.01s)
+        // 4. Wire CoreConfig magnetism_radius and magnetism_speed
+        // 5. Implement Activate() friction inheritance from active KVA
+        //
+        // Expected behavior: when the view is near-idle, the magnetic animator
+        // automatically discovers the nearest focusable panel and smoothly
+        // scrolls+zooms to center it in the viewport.
+        let (mut tree, mut view) = setup();
+        view.update_viewing(&mut tree);
+
+        let _anim = MagneticViewAnimator::new(50.0);
+        // Currently there is no auto-discovery — the snap target must be set
+        // externally. The C++ version discovers it by traversing the panel tree.
+        assert!(
+            false,
+            "MagneticViewAnimator should auto-discover nearest focusable panel"
+        );
     }
 
     #[test]
