@@ -715,15 +715,15 @@ impl ZuiWindow {
                 .and_then(|v| v.as_any_mut().downcast_mut::<MouseZoomScrollVIF>())
             {
                 match action {
-                    CheatAction::TogglePanFunction => {
+                    CheatAction::PanFunction => {
                         let current = mouse_vif.pan_function();
                         mouse_vif.set_pan_function(!current);
                     }
-                    CheatAction::ToggleEmulateMiddleButton => {
+                    CheatAction::EmulateMiddleButton => {
                         let current = mouse_vif.emulate_middle_button();
                         mouse_vif.set_emulate_middle_button(!current);
                     }
-                    CheatAction::ToggleStickMouseWhenNavigating => {
+                    CheatAction::StickMouseWhenNavigating => {
                         // TODO: needs StickMouseWhenNavigating wiring to screen/cursor
                         eprintln!(
                             "[CheatVIF] StickMouseWhenNavigating toggled (not fully wired)"

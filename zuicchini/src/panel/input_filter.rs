@@ -1630,11 +1630,11 @@ impl ViewInputFilter for DefaultTouchVIF {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum CheatAction {
     /// Toggle PanFunction on the MouseZoomScrollVIF.
-    TogglePanFunction,
+    PanFunction,
     /// Toggle EmulateMiddleButton on the MouseZoomScrollVIF.
-    ToggleEmulateMiddleButton,
+    EmulateMiddleButton,
     /// Toggle StickMouseWhenNavigating config.
-    ToggleStickMouseWhenNavigating,
+    StickMouseWhenNavigating,
 }
 
 /// Cheat code input filter.
@@ -1692,28 +1692,27 @@ impl CheatVIF {
 
             // Ego mode on/off: chEat:egomode!
             "egomode" => {
-                let flags = view.flags ^ ViewFlags::EGO_MODE;
-                // TODO: needs ego mode navigation infrastructure
-                view.flags = flags;
-                eprintln!("[CheatVIF] ego mode toggled");
+                view.flags ^= ViewFlags::EGO_MODE;
+                // Cursor override changes with EGO_MODE, so invalidate.
+                view.mark_cursor_invalid();
             }
 
             // StickMouseWhenNavigating on/off: chEat:smwn!
             "smwn" => {
                 self.pending_actions
-                    .push(CheatAction::ToggleStickMouseWhenNavigating);
+                    .push(CheatAction::StickMouseWhenNavigating);
             }
 
             // EmulateMiddleButton on/off: chEat:emb!
             "emb" => {
                 self.pending_actions
-                    .push(CheatAction::ToggleEmulateMiddleButton);
+                    .push(CheatAction::EmulateMiddleButton);
             }
 
             // PanFunction on/off: chEat:pan!
             "pan" => {
                 self.pending_actions
-                    .push(CheatAction::TogglePanFunction);
+                    .push(CheatAction::PanFunction);
             }
 
             // Tree dump: chEat:td!
@@ -2531,12 +2530,12 @@ mod tests {
         type_cheat(&mut vif, &mut view, "chEat:pan!");
 
         let actions = vif.drain_actions();
-        assert_eq!(actions, vec![CheatAction::TogglePanFunction]);
+        assert_eq!(actions, vec![CheatAction::PanFunction]);
 
         // Typing it again should produce another action
         type_cheat(&mut vif, &mut view, "chEat:pan!");
         let actions = vif.drain_actions();
-        assert_eq!(actions, vec![CheatAction::TogglePanFunction]);
+        assert_eq!(actions, vec![CheatAction::PanFunction]);
     }
 
     #[test]
@@ -2555,7 +2554,7 @@ mod tests {
         // Now ":pan!" should work without "chEat" prefix
         type_cheat(&mut vif, &mut view, ":pan!");
         let actions = vif.drain_actions();
-        assert_eq!(actions, vec![CheatAction::TogglePanFunction]);
+        assert_eq!(actions, vec![CheatAction::PanFunction]);
     }
 
     #[test]
@@ -2574,7 +2573,7 @@ mod tests {
         // Continue typing — the buffer still has the previous chars
         type_cheat(&mut vif, &mut view, "n!");
         let actions = vif.drain_actions();
-        assert_eq!(actions, vec![CheatAction::TogglePanFunction]);
+        assert_eq!(actions, vec![CheatAction::PanFunction]);
     }
 
     #[test]
@@ -2639,7 +2638,7 @@ mod tests {
 
         type_cheat(&mut vif, &mut view, "chEat:emb!");
         let actions = vif.drain_actions();
-        assert_eq!(actions, vec![CheatAction::ToggleEmulateMiddleButton]);
+        assert_eq!(actions, vec![CheatAction::EmulateMiddleButton]);
     }
 
     #[test]

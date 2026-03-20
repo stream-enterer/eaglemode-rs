@@ -495,13 +495,17 @@ impl View {
         let pvh = self.visited_vh;
 
         if let Some(state) = self.visit_stack.last_mut() {
-            // Fix-point zoom correction: (fixX - vw/2)*(1-reFac) / pvw
-            let fix_corr_x = (fix_x - vw * 0.5) * (1.0 - re_fac) / pvw;
-            let fix_corr_y = (fix_y - vh * 0.5) * (1.0 - re_fac) / pvh;
+            // C++ emView.cpp ~1604: when EGO_MODE active, collapse scroll
+            // boundaries to viewport center — only zoom works, scroll is locked.
+            if !self.flags.contains(ViewFlags::EGO_MODE) {
+                // Fix-point zoom correction: (fixX - vw/2)*(1-reFac) / pvw
+                let fix_corr_x = (fix_x - vw * 0.5) * (1.0 - re_fac) / pvw;
+                let fix_corr_y = (fix_y - vh * 0.5) * (1.0 - re_fac) / pvh;
 
-            // Scroll: dx / pvw (same as C++ deltaX / pvw)
-            state.rel_x += fix_corr_x + dx / pvw;
-            state.rel_y += fix_corr_y + dy / pvh;
+                // Scroll: dx / pvw (same as C++ deltaX / pvw)
+                state.rel_x += fix_corr_x + dx / pvw;
+                state.rel_y += fix_corr_y + dy / pvh;
+            }
 
             // Zoom: rel_a = 1/ra, ra_new = ra * reFac^2
             // => rel_a_new = rel_a / reFac^2
@@ -1661,6 +1665,11 @@ impl View {
         self.cursor_invalid
     }
 
+    /// Mark the cursor as needing a refresh (without requiring tree/panel).
+    pub fn mark_cursor_invalid(&mut self) {
+        self.cursor_invalid = true;
+    }
+
     /// Clear the cursor-invalid flag.
     pub fn clear_cursor_invalid(&mut self) {
         self.cursor_invalid = false;
@@ -1951,6 +1960,11 @@ impl View {
     /// Get the current mouse cursor for this view. In C++, GetCursor() is
     /// virtual and defaults to the cursor of the panel under the mouse.
     pub fn cursor(&self) -> Cursor {
+        // C++ emView.cpp ~1358: when EGO_MODE active and cursor is Normal,
+        // override to Crosshair.
+        if self.flags.contains(ViewFlags::EGO_MODE) && self.cursor == Cursor::Normal {
+            return Cursor::Crosshair;
+        }
         self.cursor
     }
 
@@ -2957,5 +2971,91 @@ mod tests {
         assert_eq!(compute_arrow_count(440.0, 55.0), 8);
         // Too short — no arrows
         assert_eq!(compute_arrow_count(20.0, 55.0), 0);
+    }
+
+    #[test]
+    fn ego_mode_cursor_override() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        // Default cursor is Normal
+        view.set_cursor(Cursor::Normal);
+        assert_eq!(view.cursor(), Cursor::Normal);
+
+        // With EGO_MODE, Normal cursor becomes Crosshair
+        view.flags |= ViewFlags::EGO_MODE;
+        assert_eq!(view.cursor(), Cursor::Crosshair);
+
+        // Non-Normal cursors are NOT overridden
+        view.set_cursor(Cursor::Text);
+        assert_eq!(view.cursor(), Cursor::Text);
+
+        // Turning off EGO_MODE restores Normal
+        view.set_cursor(Cursor::Normal);
+        view.flags -= ViewFlags::EGO_MODE;
+        assert_eq!(view.cursor(), Cursor::Normal);
+    }
+
+    #[test]
+    fn ego_mode_scroll_locked() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        // Record initial center position
+        let visit_before = view.current_visit().clone();
+
+        // Enable EGO_MODE and attempt to scroll
+        view.flags |= ViewFlags::EGO_MODE;
+        let done = view.raw_scroll_and_zoom(&mut tree, 400.0, 300.0, 50.0, 50.0, 0.0);
+
+        // Scroll delta should be zero — viewport center locked
+        let visit_after = view.current_visit().clone();
+        assert!(
+            (visit_after.rel_x - visit_before.rel_x).abs() < 1e-12,
+            "rel_x should not change under EGO_MODE, delta={}",
+            visit_after.rel_x - visit_before.rel_x
+        );
+        assert!(
+            (visit_after.rel_y - visit_before.rel_y).abs() < 1e-12,
+            "rel_y should not change under EGO_MODE, delta={}",
+            visit_after.rel_y - visit_before.rel_y
+        );
+        assert!(
+            done[0].abs() < 1e-12 && done[1].abs() < 1e-12,
+            "done_x and done_y should be zero"
+        );
+    }
+
+    #[test]
+    fn ego_mode_zoom_still_works() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        let rel_a_before = view.current_visit().rel_a;
+
+        // Enable EGO_MODE and zoom
+        view.flags |= ViewFlags::EGO_MODE;
+        view.raw_scroll_and_zoom(&mut tree, 400.0, 300.0, 0.0, 0.0, 50.0);
+
+        let rel_a_after = view.current_visit().rel_a;
+        assert!(
+            (rel_a_after - rel_a_before).abs() > 1e-6,
+            "zoom should still work under EGO_MODE"
+        );
+    }
+
+    #[test]
+    fn ego_mode_toggle_invalidates_cursor() {
+        let (mut tree, root, _, _) = setup_tree();
+        let mut view = View::new(root, 800.0, 600.0);
+        view.update_viewing(&mut tree);
+
+        assert!(!view.is_cursor_invalid());
+        view.flags ^= ViewFlags::EGO_MODE;
+        view.mark_cursor_invalid();
+        assert!(view.is_cursor_invalid());
     }
 }

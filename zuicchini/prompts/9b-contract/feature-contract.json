@@ -1,0 +1,337 @@
+{
+  "contract_version": "1.0",
+  "description": "PF-7, PF-1, PF-2, PF-6: Blocked subsystem implementations for zuicchini port",
+  "rules": {
+    "immutability": "Agent MAY set passes to true. Agent MAY NOT delete features, modify steps, or mark features as not applicable.",
+    "gate_protocol": "A feature's passes field may only be set to true after: (1) implementation compiles with zero clippy warnings, (2) the feature's verification steps all succeed, (3) all previously-passing features still pass.",
+    "commit_protocol": "Commit after each feature passes its gate. Message format: feat: <feature_id> <short description>",
+    "execution_order": "Features must be implemented in the order listed. Dependencies are explicit."
+  },
+  "phases": [
+    {
+      "id": "phase-1",
+      "name": "PF-7 CheatVIF",
+      "dependency": null,
+      "features": [
+        {
+          "id": "pf7-egomode",
+          "description": "EgoMode: cursor override to crosshair + scroll clamping to viewport center",
+          "steps": [
+            "Read C++ emView.cpp VF_EGO_MODE handling (cursor override at line ~1358, scroll clamp at line ~1604)",
+            "Add if-check in View cursor method: when EGO_MODE active and cursor is Normal, return Crosshair",
+            "Add if-check in raw_scroll_and_zoom: when EGO_MODE active, collapse clamp boundaries to viewport center",
+            "Toggle flag invalidates cursor",
+            "Write pipeline test: :egomode! toggles ViewFlags::EGO_MODE",
+            "Write integration test: with EGO_MODE active, scroll attempt does not change viewport center position",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": true
+        },
+        {
+          "id": "pf7-stresstest",
+          "description": "Stress test: frame rate ring buffer + overlay paint + forced repaint every frame",
+          "steps": [
+            "Read C++ emView.cpp StressTestClass (emEngine subclass with ring buffer, PaintInfo overlay)",
+            "Implement StressTest struct with 128-entry Instant ring buffer, position counter, valid count",
+            "Store as Option<StressTest> on View, created when STRESS_TEST flag set, dropped when cleared",
+            "In View::paint(), after all panel painting, call stress_test.paint_info() to render 'Stress Test XX.X Hz' overlay",
+            "In app loop, when STRESS_TEST active, bypass dirty-rect check (force full repaint every frame)",
+            "Frame rate computed as count * 1000.0 / elapsed_ms over entries within last 1 second, updated every 100ms",
+            "Write pipeline test: :st! toggles ViewFlags::STRESS_TEST",
+            "Write integration test: with stress test active, StressTest struct exists on View and ring buffer accumulates entries",
+            "Write golden test: render a view with STRESS_TEST active after a few ticks, verify the overlay text 'Stress Test' appears in the output pixels (use compare_images with the rendered buffer)",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf7-dlog",
+          "description": "Debug log: AtomicBool global toggle + dlog! macro + call sites",
+          "steps": [
+            "Read C++ emDLog implementation (emEnableDLog, emIsDLogEnabled, EM_DLOG macro)",
+            "Create src/foundation/dlog.rs with AtomicBool, is_dlog_enabled(), set_dlog_enabled(bool), dlog! macro",
+            "dlog! macro checks is_dlog_enabled(), outputs to stderr as eprintln!('[{module}] {message}')",
+            "Re-export from src/foundation/mod.rs",
+            "Place dlog! calls at existing Rust call sites matching C++ EM_DLOG locations: view.rs (~3), animator.rs (~2), input_filter.rs (~1), tree.rs (~1), thread_pool.rs (~1), file_selection_box.rs (~2)",
+            "Write pipeline test: :dlog! toggles the AtomicBool",
+            "Write integration test: with dlog enabled, trigger a known call site and capture stderr output",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf7-smwn",
+          "description": "Stick mouse when navigating: warp cursor back during drag",
+          "steps": [
+            "Read C++ emMouseZoomScrollVIF::Input stick-mouse handling (lines ~142, ~156)",
+            "Add pending_warp: (f64, f64) fields to MouseZoomScrollVIF",
+            "During scroll drag with stick_mouse active: accumulate (-dmx, -dmy) into pending_warp",
+            "During zoom drag with stick_mouse active: accumulate (-dmx, -dmy) into pending_warp",
+            "Add pub fn drain_pending_warp(&mut self) -> (f64, f64) method that returns and zeros the warp",
+            "In window dispatch (after filter() returns): read pending_warp, call move_mouse_pointer(), adjust InputState mouse position",
+            "Write pipeline test: :smwn! toggles the stick_mouse config flag",
+            "Write integration test: during a simulated drag with stick_mouse active, pending_warp accumulates nonzero values",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf7-treedump",
+          "description": "Tree dump: recursive panel tree serializer in emRec (.emTreeDump) format",
+          "steps": [
+            "Read C++ emTreeDump (dynamically loaded lib, emTreeDumpFileFromRootContext, emTreeDumpRec format)",
+            "Read existing foundation/em_rec.rs to understand the REC format writer API",
+            "Add PanelBehavior::type_name() default method returning std::any::type_name::<Self>()",
+            "Implement recursive panel serializer producing emTreeDumpRec records: Title=type_name, Text=panel fields (name, layout_rect, viewed, enabled, focused, active, etc.), Children=recursive",
+            "Include View-level data before panel tree: flags, title, focused, home_rect",
+            "Write to temp_dir()/debug.emTreeDump, print path to stderr",
+            "Write pipeline test: :td! triggers the dump action",
+            "Write integration test: after dump, file exists at expected path and contains valid emRec data with expected panel names from a test panel tree",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf7-screenshot",
+          "description": "Screenshot: shell out to xwd -root matching C++ exactly",
+          "steps": [
+            "Read C++ emCheatVIF screenshot handling (xwd -root > path, numbered files 000-999)",
+            "Find next unused filename: temp_dir()/zuicchini_screenshot_NNN.xwd where N increments from 000",
+            "Shell out via std::process::Command: xwd -root, redirect stdout to file",
+            "On failure (xwd not found, write error, non-X11 platform): eprintln! warning, do not panic",
+            "Write pipeline test: :ss! triggers the screenshot action",
+            "Write integration test: verify file numbering logic (create temp dir with 000 and 001 present, assert command targets 002)",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": "phase-2",
+      "name": "PF-1 Animator Velocity Handoff",
+      "dependency": "phase-1",
+      "features": [
+        {
+          "id": "pf1-kinetic-state",
+          "description": "KineticState struct + extraction method on KineticViewAnimator",
+          "steps": [
+            "Read C++ emKineticViewAnimator (emViewAnimator.cpp:168-399) — note Velocity[3], ZoomFixPointCentered, ZoomFixX, ZoomFixY fields",
+            "Create KineticState struct: { vx: f64, vy: f64, vz: f64, zoom_fix_centered: bool, zoom_fix_x: f64, zoom_fix_y: f64 }",
+            "Add pub fn extract_kinetic_state(&self) -> KineticState to KineticViewAnimator",
+            "Add pub fn inject_kinetic_state(&mut self, state: KineticState) that sets velocity and zoom fix point fields",
+            "Write unit test: create KineticViewAnimator with velocity (1.0, 2.0, 3.0), extract state, verify fields match",
+            "Write unit test: inject state with velocity (4.0, 5.0, 6.0), verify animator fields updated",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf1-activate-handoff",
+          "description": "Velocity handoff during Activate() — walk active chain, find outgoing KVA, copy velocity",
+          "steps": [
+            "Read C++ emKineticViewAnimator::Activate() (emViewAnimator.cpp:188-226) — walks GetActiveAnimator chain with dynamic_cast to find outgoing KVA",
+            "In Rust KineticViewAnimator::activate() (or equivalent), before calling base activate: walk View.active_animator chain to find any active KineticViewAnimator",
+            "If found: call extract_kinetic_state() on the outgoing animator, inject into self",
+            "If not found: zero all velocity fields",
+            "Match C++ zoom fix point logic: if self.zoom_fix_centered, call center_zoom_fix_point() after injection; else call set_zoom_fix_point(fix_x, fix_y)",
+            "Write pipeline test: create two KineticViewAnimators, activate first with velocity, then activate second — verify second inherits velocity",
+            "Write pipeline test: activate KineticViewAnimator when no prior animator exists — verify velocity is zero",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf1-deactivate-chain",
+          "description": "Master/slave deactivation chain + UpperActivePtr wiring",
+          "steps": [
+            "Read C++ emViewAnimator::SetMaster() (emViewAnimator.cpp:49-65) — master/slave chain, UpperActivePtr",
+            "Read C++ emViewAnimator::Activate() (emViewAnimator.cpp:68-84) — deactivates current *UpperActivePtr before activating self",
+            "Read C++ emViewAnimator::Deactivate() (emViewAnimator.cpp:87-97) — deactivates ActiveSlave first, then clears *UpperActivePtr",
+            "Implement equivalent in Rust: when activating, if there's an existing active animator at this level, deactivate it first (capturing its LastTSC/LastClk for time continuity)",
+            "When deactivating, deactivate any active slave first (recursive)",
+            "Write pipeline test: activate A, then activate B at same level — verify A is deactivated, B is active",
+            "Write pipeline test: activate A, activate slave B under A, deactivate A — verify both A and B are deactivated",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": "phase-3",
+      "name": "PF-2 Magnetic Animator Physics",
+      "dependency": "phase-2",
+      "features": [
+        {
+          "id": "pf2-get-view-rect",
+          "description": "GetViewRect — popup zoom rect handling for magnetic animator",
+          "steps": [
+            "Read C++ emMagneticViewAnimator::GetViewRect (emViewAnimator.cpp:910-923)",
+            "Implement: if VF_POPUP_ZOOM flag set, return View.get_max_popup_view_rect(); else return View home rect (home_x, home_y, home_width, home_height)",
+            "Write unit test: verify GetViewRect returns home rect when not popped up",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf2-calculate-distance",
+          "description": "CalculateDistance — panel tree DFS to find nearest focusable panel with 3D distance",
+          "steps": [
+            "Read C++ emMagneticViewAnimator::CalculateDistance (emViewAnimator.cpp:809-907)",
+            "Early return if VF_POPUP_ZOOM (magnetism not functioning with popup zoom, per C++ comment)",
+            "Get supreme viewed panel from View",
+            "DFS walk from supreme viewed panel: for each viewed + focusable panel, compute essence rect in view coords via panel_to_view_x/y/delta_x/delta_y",
+            "For each candidate: tx = panel_center_x - view_center_x, ty = panel_center_y - view_center_y, tz = log(view_dim / panel_dim) / zflpp where zflpp = View.get_zoom_factor_logarithm_per_pixel()",
+            "Track minimum td = tx*tx + ty*ty + tz*tz across all candidates",
+            "Return (dx, dy, dz, sqrt(td))",
+            "Write unit test: panel tree with 3 focusable panels at different positions, verify nearest is found correctly",
+            "Write unit test: verify distance metric uses log-zoom for z-axis",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf2-magnetism-activation",
+          "description": "CycleAnimation magnetism enter/exit logic based on distance vs radius threshold",
+          "steps": [
+            "Read C++ emMagneticViewAnimator::CycleAnimation (emViewAnimator.cpp:716-806) — magnetism activation section (lines 716-755)",
+            "Read CoreConfig magnetism_radius and magnetism_speed fields",
+            "Compute maxDist = (view_w + view_h) * 0.09 * radius_factor. If radius_factor <= min_value * 1.0001, maxDist = 0.0 (magnetism disabled)",
+            "If abs_dist <= maxDist and abs_dist > 1e-3: if not yet magnetism_active and abs_velocity < 10.0, center zoom fix point, set magnetism_active = true. Set busy = true",
+            "If abs_dist > maxDist or abs_dist <= 1e-3: if magnetism_active, zero all velocities, set magnetism_active = false. If abs_velocity >= 0.01, set busy = true (friction deceleration)",
+            "Write unit test: panel within magnetism radius activates magnetism",
+            "Write unit test: panel outside radius does not activate magnetism",
+            "Write unit test: high velocity (>10.0) prevents magnetism activation even within radius",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf2-hill-rolling-physics",
+          "description": "CycleAnimation sub-stepped hill-rolling physics integration",
+          "steps": [
+            "Read C++ emMagneticViewAnimator::CycleAnimation physics section (emViewAnimator.cpp:757-797)",
+            "When magnetism_active: if speed_factor >= max * 0.9999 or abs_dist < 1.0, use instant velocity v = abs_dist / dt",
+            "Otherwise: sub-stepped Euler integration loop. fdt = min(dt - t, 0.01). Slope k = (abs_dist - d) / max_dist * 4.0, clamped to [-1,1] via k = 1.0/k if |k|>1.0. Acceleration a = k * max_dist * 25.0 * speed_factor^2. Damping: a -= |v| * 15.0 * speed_factor. v += a * fdt, d += v * fdt. Break if d >= abs_dist.",
+            "Final velocity: v = d / dt. Set velocity components proportional to distance direction: v * dx/abs_dist, v * dy/abs_dist, v * dz/abs_dist",
+            "Disable friction during base KineticViewAnimator::CycleAnimation when magnetism is active",
+            "Write unit test: with magnetism active and panel at distance 100, verify velocity converges toward target over multiple frames",
+            "Write unit test: with max speed factor, verify instant snap (v = abs_dist / dt)",
+            "Write unit test: verify sub-stepping produces numerically stable results (test with large dt = 0.1)",
+            "Write golden trajectory test in tests/golden/animator.rs: create a panel tree with a focusable target panel, activate magnetic animator, run 60 frames, record (x, y, zoom) trajectory, compare against C++ golden trajectory data (add generator function to tests/golden/gen/gen_golden.cpp)",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        }
+      ]
+    },
+    {
+      "id": "phase-4",
+      "name": "PF-6 Touch Gesture State Machine",
+      "dependency": null,
+      "features": [
+        {
+          "id": "pf6-touch-tracking",
+          "description": "Touch struct + tracking infrastructure (ResetTouches, NextTouches, RemoveTouch, move getters)",
+          "steps": [
+            "Read C++ emDefaultTouchVIF Touch struct (emViewInputFilter.h:286-298) and helper methods (emViewInputFilter.cpp:1214-1303)",
+            "Implement Touch struct: id (u64), ms_total (i32), ms_since_prev (i32), down (bool), x/y (f64), prev_down (bool), prev_x/prev_y (f64), down_x/down_y (f64)",
+            "Implement touches: [Touch; MAX_TOUCH_COUNT=16], touch_count: usize, touches_time: u64",
+            "Implement reset_touches(): zero touch_count, clear touches_time",
+            "Implement next_touches(): for each active touch, copy current to prev, update ms_since_prev from delta time",
+            "Implement remove_touch(index): shift remaining touches down",
+            "Implement is_any_touch_down(): any touch with down == true",
+            "Implement get_touch_move_x/y(index), get_total_touch_move_x/y(index) matching C++ (current - prev, current - down)",
+            "Write unit test: add touches, verify move calculations",
+            "Write unit test: remove_touch shifts correctly",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf6-single-finger",
+          "description": "Single-finger gestures: scroll (drag > 20px), zoom-in (hold > 250ms), zoom-out",
+          "steps": [
+            "Read C++ DoGesture states: STATE_FIRST_DOWN, STATE_SCROLL, STATE_ZOOM_IN, STATE_ZOOM_OUT (emViewInputFilter.cpp:971-1018)",
+            "Define GestureState enum with all 17 states matching C++ (Ready, FirstDown, Scroll, ZoomIn, ZoomOut, FirstDownUp, DoubleDown, DoubleDownUp, TripleDown, TripleDownUp, SecondDown, EmuMouse1-4, ThirdDown, FourthDown, Finish)",
+            "Implement STATE_FIRST_DOWN: if touch_count > 1 → SecondDown. If !down → FirstDownUp. If total_move > 20.0 → Scroll (call View.scroll). If ms_total > 250 → ZoomIn.",
+            "Implement STATE_SCROLL: if !down → Finish. Otherwise call View.scroll(-move_x, -move_y) each frame.",
+            "Implement STATE_ZOOM_IN: if !down → Finish. Call View.scroll + View.zoom(x, y, exp(0.002 * ms_since_prev)).",
+            "Implement STATE_ZOOM_OUT: same but exp(-0.002 * ms_since_prev).",
+            "Write pipeline test: single touch drag > 20px enters scroll state, view position changes",
+            "Write pipeline test: single touch hold > 250ms enters zoom-in state",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf6-tap-chain",
+          "description": "Tap chain: single-tap timeout, double-tap visit-fullsized, triple-tap visit-utilizing",
+          "steps": [
+            "Read C++ DoGesture states: STATE_FIRST_DOWN_UP, STATE_DOUBLE_DOWN, STATE_DOUBLE_DOWN_UP, STATE_TRIPLE_DOWN, STATE_TRIPLE_DOWN_UP (emViewInputFilter.cpp:1019-1077)",
+            "STATE_FIRST_DOWN_UP: if new touch arrives (touch_count > 1), remove old touch, transition to DoubleDown. If ms_total > 250, transition to Finish (single-tap timeout).",
+            "STATE_DOUBLE_DOWN: if !down → DoubleDownUp. If ms_total > 250 → ZoomOut.",
+            "STATE_DOUBLE_DOWN_UP: if new touch → TripleDown. If ms_total > 250 → find focusable panel at touch position, call View.visit_fullsized(panel, true, false), transition to Finish.",
+            "STATE_TRIPLE_DOWN: if !down → TripleDownUp. If ms_total > 250 → ZoomIn.",
+            "STATE_TRIPLE_DOWN_UP: if new touch → DoubleDown (cycle restarts). If ms_total > 250 → visit_fullsized(panel, true, true), Finish.",
+            "Write pipeline test: double-tap (down, up within 250ms, down, up within 250ms, wait 250ms) triggers visit_fullsized",
+            "Write pipeline test: single-tap timeout (down, up, wait 250ms) produces no action",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf6-two-finger-emulation",
+          "description": "Two-finger directional mouse emulation (4 EMU_MOUSE states)",
+          "steps": [
+            "Read C++ DoGesture states: STATE_SECOND_DOWN, STATE_EMU_MOUSE_1-4 (emViewInputFilter.cpp:1078-1177)",
+            "STATE_SECOND_DOWN: if touch_count > 2 → ThirdDown. If ms_total > 250 or !any_touch_down: compute dx/dy between two touch points. If |dx| >= |dy|: dx > 0 → left-click emulation (EMU_MOUSE_1), dx < 0 → right-click (EMU_MOUSE_2). If |dy| > |dx|: dy > 0 → shift+left-click (EMU_MOUSE_3), dy < 0 → ctrl+left-click (EMU_MOUSE_4).",
+            "For each EMU_MOUSE state: set InputState mouse position to Touches[0] position. Maintain modifier+button state while touch held. On touch release: clear modifiers/buttons, forward release event, transition to Finish.",
+            "Use ForwardInput to inject synthetic mouse events into the VIF chain.",
+            "Write pipeline test: two fingers placed horizontally right → generates left-click at first finger position",
+            "Write pipeline test: two fingers placed horizontally left → generates right-click",
+            "Write pipeline test: two fingers placed vertically down → generates shift+left-click",
+            "Write pipeline test: two fingers placed vertically up → generates ctrl+left-click",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        },
+        {
+          "id": "pf6-multi-finger-shortcuts",
+          "description": "Three-finger menu key + four-finger soft keyboard toggle + finish/ready cycle",
+          "steps": [
+            "Read C++ DoGesture states: STATE_THIRD_DOWN, STATE_FOURTH_DOWN, STATE_FINISH (emViewInputFilter.cpp:1178-1211)",
+            "STATE_THIRD_DOWN: if touch_count > 3 → FourthDown. If !any_touch_down → inject Menu key press+release via ForwardInput, transition to Finish.",
+            "STATE_FOURTH_DOWN: if touch_count > 4 → Finish. If !any_touch_down → call View.show_soft_keyboard(!View.is_soft_keyboard_shown()), transition to Finish.",
+            "STATE_FINISH: if !any_touch_down → reset_touches(), transition to Ready.",
+            "Wire DoGesture into Input() and Cycle() methods: Input() updates touch state from events, then loops DoGesture until state stabilizes. Cycle() also loops DoGesture for time-based transitions.",
+            "Write pipeline test: three-finger touch-and-release generates Menu key event",
+            "Write pipeline test: four-finger touch-and-release toggles soft keyboard",
+            "Write pipeline test: after gesture completes and all fingers lift, state returns to Ready",
+            "cargo clippy --workspace -- -D warnings: zero warnings",
+            "cargo nextest run --workspace: zero failures"
+          ],
+          "passes": false
+        }
+      ]
+    }
+  ]
+}
