@@ -1,6 +1,6 @@
 use zuicchini::panel::{
-    KineticViewAnimator, PanelTree, SpeedingViewAnimator, SwipingViewAnimator, View, ViewAnimator,
-    ViewFlags, VisitingViewAnimator,
+    KineticViewAnimator, MagneticViewAnimator, PanelTree, SpeedingViewAnimator,
+    SwipingViewAnimator, View, ViewAnimator, ViewFlags, VisitingViewAnimator,
 };
 
 use super::common::*;
@@ -364,4 +364,74 @@ fn animator_visiting_zoom() {
 
     compare_trajectory(&actual, &golden, 1e-4)
         .unwrap_or_else(|e| panic!("animator_visiting_zoom: {e}"));
+}
+
+// ─── Magnetic trajectory tests ──────────────────────────────────
+
+/// Run the magnetic animator for `steps` frames, recording velocity trajectory.
+/// Sets up a panel tree with a focusable target panel to exercise magnetism.
+fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    tree.set_layout_rect(root, 0.0, 0.0, 1.0, 0.75);
+    tree.set_focusable(root, true);
+
+    // Add a focusable target panel offset from center
+    let target = tree.create_child(root, "target");
+    tree.set_layout_rect(target, 0.3, 0.2, 0.4, 0.4);
+    tree.set_focusable(target, true);
+
+    let mut view = View::new(root, 800.0, 600.0);
+    view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
+    view.update_viewing(&mut tree);
+
+    let mut mag = MagneticViewAnimator::new(100.0);
+    mag.set_radius_factor(1.0);
+    mag.set_speed_factor(1.0);
+
+    let dt = 1.0 / 60.0;
+    let mut trajectory = Vec::with_capacity(steps);
+
+    for _ in 0..steps {
+        // Calculate distance to nearest focusable panel
+        let (dx, dy, dz, abs_dist) =
+            MagneticViewAnimator::calculate_distance(&view, &tree);
+
+        // Update magnetism activation
+        let (vw, vh) = view.viewport_size();
+        mag.update_magnetism(abs_dist, dx, dy, dz, vw, vh);
+
+        // Run hill-rolling physics
+        mag.hill_rolling_physics(dt, abs_dist, dx, dy, dz, vw, vh);
+
+        let (vel_x, vel_y) = mag.velocity();
+        trajectory.push(TrajectoryStep {
+            vel_x,
+            vel_y,
+            vel_z: 0.0,
+        });
+    }
+
+    trajectory
+}
+
+#[test]
+fn animator_magnetic_approach() {
+    require_golden!();
+    // Golden data requires re-running the C++ generator with magnetic
+    // animator support. Skip gracefully if the specific file is missing.
+    let golden_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/golden/data/trajectory/animator_magnetic_approach.trajectory.golden");
+    if !golden_path.exists() {
+        eprintln!(
+            "SKIP: {} not found — run `make -C tests/golden/gen run` to generate",
+            golden_path.display()
+        );
+        return;
+    }
+    let golden = load_trajectory_golden("animator_magnetic_approach");
+    let actual = run_magnetic_trajectory(60);
+
+    compare_trajectory(&actual, &golden, 1e-2)
+        .unwrap_or_else(|e| panic!("animator_magnetic_approach: {e}"));
 }

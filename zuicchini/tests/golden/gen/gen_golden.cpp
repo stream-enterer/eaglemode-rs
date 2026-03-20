@@ -3539,6 +3539,12 @@ public:
     bool DoCycleAnimation(double dt) { return CycleAnimation(dt); }
 };
 
+class TestableMagneticAnimator : public emMagneticViewAnimator {
+public:
+    TestableMagneticAnimator(emView& view) : emMagneticViewAnimator(view) {}
+    bool DoCycleAnimation(double dt) { return CycleAnimation(dt); }
+};
+
 // Helper: set up a view zoomed in deeply, ready for animator testing.
 // Returns the initial view state (rx, ry, ra) after zoom.
 struct AnimViewSetup {
@@ -3837,6 +3843,32 @@ static void gen_animator_visiting_zoom() {
     }
     anim.Deactivate();
     dump_trajectory("animator_visiting_zoom", data.data(), 60);
+}
+
+// ─── Magnetic trajectory tests ──────────────────────────────────
+
+static void gen_animator_magnetic_approach() {
+    AnimViewSetup s;
+    TestableMagneticAnimator anim(*s.view);
+    anim.Activate();
+
+    // Set magnetism config: moderate radius and speed
+    // C++ uses CoreConfig.MagnetismRadius (default 1.0) and
+    // CoreConfig.MagnetismSpeed (default 1.0)
+
+    const double dt = 1.0 / 60.0;
+    std::vector<double> data;
+    data.reserve(60 * 3);
+
+    for (int i = 0; i < 60; i++) {
+        anim.DoCycleAnimation(dt);
+        data.push_back(anim.GetVelocity(0));
+        data.push_back(anim.GetVelocity(1));
+        data.push_back(anim.GetVelocity(2));
+    }
+
+    anim.Deactivate();
+    dump_trajectory("animator_magnetic_approach", data.data(), 60);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -4813,6 +4845,7 @@ int main() {
     gen_animator_swiping_release();
     gen_animator_visiting_short();
     gen_animator_visiting_zoom();
+    gen_animator_magnetic_approach();
 
     printf("Generating input filter trajectory golden files...\n");
     gen_filter_wheel_zoom_in();

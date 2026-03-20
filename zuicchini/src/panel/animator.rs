@@ -2409,8 +2409,75 @@ impl MagneticViewAnimator {
             }
         }
 
-        let _ = (dx, dy, dz); // used by hill-rolling physics in next feature
+        let _ = (dx, dy, dz); // direction used by hill_rolling_physics
         busy
+    }
+
+    /// Hill-rolling physics integration for magnetism.
+    #[allow(clippy::too_many_arguments)]
+    ///
+    /// C++ emMagneticViewAnimator::CycleAnimation lines 757-797.
+    /// When magnetism is active, compute velocity toward nearest panel using
+    /// sub-stepped Euler integration with slope-based acceleration and damping.
+    pub fn hill_rolling_physics(
+        &mut self,
+        dt: f64,
+        abs_dist: f64,
+        dx: f64,
+        dy: f64,
+        dz: f64,
+        view_w: f64,
+        view_h: f64,
+    ) {
+        if !self.magnetism_active || abs_dist < 1e-15 {
+            return;
+        }
+
+        let max_dist = (view_w + view_h) * 0.09 * self.radius_factor;
+        if max_dist < 1e-15 {
+            return;
+        }
+
+        let max_speed = 100.0; // arbitrary max for speed_factor comparison
+
+        let v = if self.speed_factor >= max_speed * 0.9999 || abs_dist < 1.0 {
+            // Instant snap
+            abs_dist / dt
+        } else {
+            // Sub-stepped Euler integration
+            let mut t = 0.0;
+            let mut d = 0.0;
+            let mut vel: f64 = 0.0;
+
+            while t < dt {
+                let fdt = (dt - t).min(0.01);
+
+                let mut k = (abs_dist - d) / max_dist * 4.0;
+                if k.abs() > 1.0 {
+                    k = 1.0 / k;
+                }
+
+                let mut a = k * max_dist * 25.0 * self.speed_factor * self.speed_factor;
+                a -= vel.abs() * 15.0 * self.speed_factor;
+
+                vel += a * fdt;
+                d += vel * fdt;
+                t += fdt;
+
+                if d >= abs_dist {
+                    break;
+                }
+            }
+
+            d / dt
+        };
+
+        // Set velocity proportional to distance direction
+        if abs_dist > 1e-15 {
+            self.velocity_x = v * dx / abs_dist;
+            self.velocity_y = v * dy / abs_dist;
+            self.velocity_z = v * dz / abs_dist;
+        }
     }
 
     /// Calculate 3D distance to the nearest focusable panel.
@@ -3068,6 +3135,75 @@ mod tests {
         assert!(vy.abs() < 1e-12, "vy should be zero");
         assert!(vz.abs() < 1e-12, "vz should be zero");
         assert!(!anim.is_active());
+    }
+
+    #[test]
+    fn hill_rolling_converges_toward_target() {
+        let mut mag = MagneticViewAnimator::new(100.0);
+        mag.set_radius_factor(1.0);
+        mag.set_speed_factor(1.0);
+        mag.magnetism_active = true;
+
+        // Panel at distance 100 along x-axis
+        let abs_dist = 100.0;
+        let dx = 100.0;
+        let dy = 0.0;
+        let dz = 0.0;
+
+        // Run several frames
+        for _ in 0..10 {
+            mag.hill_rolling_physics(0.016, abs_dist, dx, dy, dz, 800.0, 600.0);
+        }
+
+        // Velocity should be positive (moving toward target)
+        assert!(
+            mag.velocity_x > 0.0,
+            "velocity should converge toward target, vx={}",
+            mag.velocity_x
+        );
+    }
+
+    #[test]
+    fn hill_rolling_instant_snap_at_max_speed() {
+        let mut mag = MagneticViewAnimator::new(100.0);
+        mag.set_radius_factor(1.0);
+        mag.set_speed_factor(100.0); // >= max * 0.9999
+        mag.magnetism_active = true;
+
+        let dt = 0.016;
+        let abs_dist = 50.0;
+        mag.hill_rolling_physics(dt, abs_dist, 50.0, 0.0, 0.0, 800.0, 600.0);
+
+        // v = abs_dist / dt → vx = v * dx/abs_dist = abs_dist/dt
+        let expected_vx = abs_dist / dt;
+        assert!(
+            (mag.velocity_x - expected_vx).abs() < 1.0,
+            "instant snap: expected vx≈{}, got {}",
+            expected_vx,
+            mag.velocity_x
+        );
+    }
+
+    #[test]
+    fn hill_rolling_stable_with_large_dt() {
+        let mut mag = MagneticViewAnimator::new(100.0);
+        mag.set_radius_factor(1.0);
+        mag.set_speed_factor(1.0);
+        mag.magnetism_active = true;
+
+        // Large dt = 0.1 (sub-stepping should handle it)
+        mag.hill_rolling_physics(0.1, 100.0, 100.0, 0.0, 0.0, 800.0, 600.0);
+
+        assert!(
+            mag.velocity_x.is_finite(),
+            "velocity should be finite with large dt, got {}",
+            mag.velocity_x
+        );
+        assert!(
+            mag.velocity_x >= 0.0,
+            "velocity should be non-negative, got {}",
+            mag.velocity_x
+        );
     }
 
     #[test]
