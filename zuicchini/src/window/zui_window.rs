@@ -747,6 +747,7 @@ impl ZuiWindow {
         }
         let wf = self.view.window_focused();
         let viewed = tree.viewed_panels_dfs();
+        let mut consumed = false;
         for panel_id in viewed {
             let mut panel_ev = ev.clone();
             panel_ev.mouse_x = tree.view_to_panel_x(panel_id, ev.mouse_x);
@@ -761,7 +762,7 @@ impl ZuiWindow {
                     tree.put_behavior(panel_id, behavior);
                     continue;
                 }
-                let consumed = behavior.input(&panel_ev, &panel_state, state);
+                consumed = behavior.input(&panel_ev, &panel_state, state);
                 if trace && is_press_release {
                     let name = tree.get(panel_id).map(|p| p.name.as_str()).unwrap_or("?");
                     eprintln!(
@@ -782,6 +783,21 @@ impl ZuiWindow {
                     self.view.invalidate_painting(tree, panel_id);
                     break;
                 }
+            }
+        }
+
+        // Arrow key sibling navigation (C++ emPanel.cpp Input, state.IsNoMod() guard).
+        // Only fires if no behavior consumed the event.
+        if !consumed
+            && event.variant == InputVariant::Press
+            && state.is_no_mod()
+        {
+            match event.key {
+                InputKey::ArrowLeft => self.view.visit_left(tree),
+                InputKey::ArrowRight => self.view.visit_right(tree),
+                InputKey::ArrowUp => self.view.visit_up(tree),
+                InputKey::ArrowDown => self.view.visit_down(tree),
+                _ => {}
             }
         }
     }

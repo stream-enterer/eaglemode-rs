@@ -192,6 +192,7 @@ impl PipelineTestHarness {
         // coordinates to panel-local space for each panel.
         let wf = self.view.window_focused();
         let viewed = self.tree.viewed_panels_dfs();
+        let mut consumed = false;
         for panel_id in viewed {
             // Transform view-space mouse coords to panel-local coords
             let mut panel_ev = ev.clone();
@@ -212,12 +213,27 @@ impl PipelineTestHarness {
                     continue;
                 }
 
-                let consumed = behavior.input(&panel_ev, &panel_state, &self.input_state);
+                consumed = behavior.input(&panel_ev, &panel_state, &self.input_state);
                 self.tree.put_behavior(panel_id, behavior);
                 if consumed {
                     self.view.invalidate_painting(&self.tree, panel_id);
                     break;
                 }
+            }
+        }
+
+        // Arrow key sibling navigation (C++ emPanel.cpp Input, state.IsNoMod() guard).
+        // Only fires if no behavior consumed the event.
+        if !consumed
+            && event.variant == InputVariant::Press
+            && self.input_state.is_no_mod()
+        {
+            match event.key {
+                InputKey::ArrowLeft => self.view.visit_left(&mut self.tree),
+                InputKey::ArrowRight => self.view.visit_right(&mut self.tree),
+                InputKey::ArrowUp => self.view.visit_up(&mut self.tree),
+                InputKey::ArrowDown => self.view.visit_down(&mut self.tree),
+                _ => {}
             }
         }
     }

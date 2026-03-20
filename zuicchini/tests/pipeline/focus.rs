@@ -446,8 +446,6 @@ fn tab_skips_disabled_and_unfocusable_panels() {
 // ── Horizontal layout: Left/Right ────────────────────────────────────
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input
 fn arrow_right_moves_focus_to_right_sibling() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -486,8 +484,6 @@ fn arrow_right_moves_focus_to_right_sibling() {
 }
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input
 fn arrow_left_moves_focus_to_left_sibling() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -528,8 +524,6 @@ fn arrow_left_moves_focus_to_left_sibling() {
 // ── Vertical layout: Up/Down ─────────────────────────────────────────
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input
 fn arrow_down_moves_focus_to_lower_sibling() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -565,8 +559,6 @@ fn arrow_down_moves_focus_to_lower_sibling() {
 }
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input
 fn arrow_up_moves_focus_to_upper_sibling() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -603,8 +595,6 @@ fn arrow_up_moves_focus_to_upper_sibling() {
 // ── Cross-axis: arrow keys should not navigate perpendicular ─────────
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input
 fn arrow_up_down_no_effect_on_horizontal_layout() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -636,8 +626,6 @@ fn arrow_up_down_no_effect_on_horizontal_layout() {
 }
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input
 fn arrow_left_right_no_effect_on_vertical_layout() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -671,8 +659,6 @@ fn arrow_left_right_no_effect_on_vertical_layout() {
 // ── Edge case: no movement at boundary ───────────────────────────────
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input
 fn arrow_at_boundary_stays_on_current_panel() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
@@ -711,8 +697,6 @@ fn arrow_at_boundary_stays_on_current_panel() {
 // ── Modifier keys should NOT trigger navigation ──────────────────────
 
 #[test]
-#[ignore]
-// BLOCKED: needs arrow key navigation handler. C++ ref: emPanel.cpp:Input (state.IsNoMod() guard)
 fn arrow_with_modifier_does_not_navigate() {
     let mut h = PipelineTestHarness::new();
     let root = h.root();
