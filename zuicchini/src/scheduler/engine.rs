@@ -66,6 +66,11 @@ pub(crate) struct EngineCtxInner {
     pub time_slice_counter: u64,
     pub deadline: std::time::Instant,
     pub timer_central: super::timer::TimerCentral,
+    /// Current priority scan index during `do_time_slice`, or `None` outside
+    /// a time slice.  Mirrors C++ `Scheduler.CurrentAwakeList`.  `wake_up_engine`
+    /// and `set_engine_priority` bump this upward so higher-priority engines
+    /// woken mid-slice are visited in the same slice.
+    pub current_awake_idx: Option<usize>,
 }
 
 impl EngineCtx<'_> {
@@ -114,7 +119,7 @@ impl EngineCtx<'_> {
 
 impl EngineCtxInner {
     /// Wake up an engine, moving it to the current time slice if needed.
-    /// Matches C++ `WakeUpImp()` semantics.
+    /// Matches C++ `WakeUpImp()` semantics, including priority re-ascent.
     pub(crate) fn wake_up_engine(&mut self, id: EngineId) {
         let Some(eng) = self.engines.get_mut(id) else {
             return;
@@ -137,5 +142,13 @@ impl EngineCtxInner {
         eng.awake_state = current_parity;
         let queue_idx = (eng.priority as usize) * 2 + (current_parity as usize);
         self.wake_queues[queue_idx].push(id);
+
+        // C++ re-ascent: if this queue is above the current scan position,
+        // bump the scan pointer so the main loop will visit this priority.
+        if let Some(cur) = self.current_awake_idx {
+            if queue_idx > cur {
+                self.current_awake_idx = Some(queue_idx);
+            }
+        }
     }
 }

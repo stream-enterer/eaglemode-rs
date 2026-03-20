@@ -83,6 +83,16 @@ impl Job {
     }
 }
 
+impl Drop for Job {
+    fn drop(&mut self) {
+        debug_assert!(
+            self.queue_slot.is_none(),
+            "Job destructed while still referenced by a JobQueue (state: {:?})",
+            self.state,
+        );
+    }
+}
+
 /// A queue that manages the lifecycle of jobs: enqueuing, priority-sorted
 /// waiting, starting, and completion.
 ///

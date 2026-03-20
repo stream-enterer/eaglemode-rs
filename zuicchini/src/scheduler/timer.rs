@@ -89,14 +89,17 @@ impl TimerCentral {
     /// equivalent position in the time slice.
     pub fn check_and_collect(&mut self) -> Vec<SignalId> {
         let now = Instant::now();
-        let mut signals_to_fire = Vec::new();
+        // Collect expired timers with their fire time for chronological sorting.
+        // C++ processes timers from a sorted linked list (ascending SigTime),
+        // so the earliest-scheduled timer fires first.
+        let mut expired: Vec<(Instant, SignalId)> = Vec::new();
 
         for (_, timer) in &mut self.timers {
             if !timer.active {
                 continue;
             }
             if now >= timer.next_fire {
-                signals_to_fire.push(timer.signal_id);
+                expired.push((timer.next_fire, timer.signal_id));
                 if timer.periodic {
                     timer.next_fire += Duration::from_millis(timer.interval_ms);
                     // Clamp to current time to prevent burst catch-up
@@ -110,10 +113,13 @@ impl TimerCentral {
             }
         }
 
+        // Sort by fire time ascending to match C++ sorted-list iteration order
+        expired.sort_by_key(|&(fire_time, _)| fire_time);
+
         // Purge inactive timers to prevent unbounded growth
         self.timers.retain(|_, t| t.active);
 
-        signals_to_fire
+        expired.into_iter().map(|(_, sig)| sig).collect()
     }
 }
 

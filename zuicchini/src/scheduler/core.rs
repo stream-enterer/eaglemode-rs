@@ -13,7 +13,7 @@ const TIME_SLICE_DURATION: Duration = Duration::from_millis(50);
 /// Faithfully implements the C++ emScheduler/emEngine algorithm:
 /// - Clock-based `is_signaled` detection
 /// - Instant signal chaining (engines woken at same or lower priority run in the same slice)
-/// - Downward-only priority scan (no re-ascent; engines woken at higher priority run next slice)
+/// - Priority re-ascent (engines woken at higher priority mid-slice run in the same slice)
 /// - Reference-counted signal-engine connections
 /// - FIFO ordering with alternating time-slice parity for fairness
 pub struct EngineScheduler {
@@ -35,6 +35,7 @@ impl EngineScheduler {
                 time_slice_counter: 0,
                 deadline: Instant::now(),
                 timer_central: TimerCentral::new(),
+                current_awake_idx: None,
             },
         }
     }
@@ -181,6 +182,16 @@ impl EngineScheduler {
             // Insert into new queue
             let new_idx = (priority as usize) * 2 + (awake_state as usize);
             self.inner.wake_queues[new_idx].push(id);
+
+            // C++ re-ascent: bump scan pointer if this engine is in the
+            // current parity and moved to a higher-priority queue.
+            if awake_state == self.inner.time_slice {
+                if let Some(cur) = self.inner.current_awake_idx {
+                    if new_idx > cur {
+                        self.inner.current_awake_idx = Some(new_idx);
+                    }
+                }
+            }
         }
     }
 
@@ -250,8 +261,9 @@ impl EngineScheduler {
     /// 3. Process timer-fired signals
     /// 4. Run engines from highest to lowest priority
     /// 5. After each engine, process any signals it fired (instant chaining)
-    /// 6. Priority scan only goes downward; higher-priority engines woken mid-slice run next slice
+    /// 6. Priority re-ascent: higher-priority engines woken mid-slice run in the same slice
     pub fn do_time_slice(&mut self) {
+        self.inner.time_slice_counter += 1;
         self.inner.deadline = Instant::now() + TIME_SLICE_DURATION;
         let next_parity = self.inner.time_slice ^ 1;
 
@@ -268,17 +280,21 @@ impl EngineScheduler {
 
         // Main scheduling loop (matches C++ DoTimeSlice structure).
         // Start at highest priority and work down. After processing signals
-        // (which may wake higher-priority engines), re-ascend.
+        // (which may wake higher-priority engines), re-ascend via
+        // current_awake_idx bumped by wake_up_engine / set_engine_priority.
         let parity = self.inner.time_slice as usize;
-        let mut current_priority_idx = (Priority::COUNT - 1) * 2 + parity; // Start at VeryHigh
+        self.inner.current_awake_idx = Some((Priority::COUNT - 1) * 2 + parity);
 
         loop {
             // Increment clock and process pending signals
             self.inner.clock += 1;
             self.process_pending_signals();
 
-            // Find next non-empty queue at or below current priority
+            // Find next non-empty queue at or below current priority.
+            // Re-read current_awake_idx each iteration since signal processing
+            // may have bumped it upward.
             loop {
+                let current_priority_idx = self.inner.current_awake_idx.unwrap();
                 let queue = &self.inner.wake_queues[current_priority_idx];
                 if !queue.is_empty() {
                     break;
@@ -294,15 +310,16 @@ impl EngineScheduler {
                         self.inner.wake_queues[dst].extend(remaining);
                     }
                     self.inner.time_slice = next_parity;
-                    self.inner.time_slice_counter += 1;
+                    self.inner.current_awake_idx = None;
                     return;
                 }
                 // Step down by one priority level (skip by 2 because
                 // queues are interleaved: [pri0_even, pri0_odd, pri1_even, ...])
-                current_priority_idx -= 2;
+                self.inner.current_awake_idx = Some(current_priority_idx - 2);
             }
 
             // Take the first engine from this queue
+            let current_priority_idx = self.inner.current_awake_idx.unwrap();
             let engine_id = self.inner.wake_queues[current_priority_idx].remove(0);
 
             // Mark engine as sleeping (it was removed from queue)
@@ -345,9 +362,9 @@ impl EngineScheduler {
             }
 
             // After engine cycle, process signals it may have fired.
-            // C++ only scans downward (CurrentAwakeList never re-ascends).
-            // Engines woken at higher priority run in the next time slice.
-            self.process_pending_signals();
+            // C++ increments Clock at the top of its for(;;) loop, so signals
+            // fired by an engine get a new clock value in the next iteration.
+            // wake_up_engine may bump current_awake_idx for re-ascent.
         }
     }
 
@@ -749,9 +766,9 @@ mod tests {
     }
 
     #[test]
-    fn no_reascent_to_higher_priority() {
+    fn reascent_to_higher_priority() {
         // Low-priority engine fires signal that wakes high-priority engine.
-        // C++ only scans downward: high-priority engine runs in the NEXT time slice.
+        // C++ re-ascends: high-priority engine runs in the SAME time slice.
         let mut sched = EngineScheduler::new();
         let sig = sched.create_signal();
         let log = Rc::new(RefCell::new(Vec::<&str>::new()));
@@ -797,13 +814,7 @@ mod tests {
 
         sched.do_time_slice();
 
-        // First slice: only low runs; high is woken but at higher priority (no re-ascent)
-        let executed = log.borrow();
-        assert_eq!(*executed, vec!["low_fires"]);
-        drop(executed);
-
-        // Second slice: high runs
-        sched.do_time_slice();
+        // Both run in the same slice: low fires, then high re-ascends and runs
         let executed = log.borrow();
         assert_eq!(*executed, vec!["low_fires", "high_runs"]);
         drop(executed);
