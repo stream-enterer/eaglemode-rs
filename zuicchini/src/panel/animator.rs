@@ -1,8 +1,8 @@
 use crate::dlog;
 
 use super::tree::PanelTree;
-use super::view::View;
-use crate::foundation::Color;
+use super::view::{View, ViewFlags};
+use crate::foundation::{Color, Rect};
 
 /// Trait for view animation strategies.
 pub trait ViewAnimator {
@@ -2336,6 +2336,21 @@ impl MagneticViewAnimator {
     pub fn velocity(&self) -> (f64, f64) {
         (self.velocity_x, self.velocity_y)
     }
+
+    /// Get the view rect for magnetism calculations.
+    ///
+    /// C++ emMagneticViewAnimator::GetViewRect (emViewAnimator.cpp:910-923):
+    /// if VF_POPUP_ZOOM, return the max popup view rect; else return the
+    /// home rect (viewport origin + dimensions).
+    pub fn get_view_rect(view: &View) -> Rect {
+        if view.flags.contains(ViewFlags::POPUP_ZOOM) {
+            view.max_popup_rect()
+                .unwrap_or_else(|| Rect::new(0.0, 0.0, view.viewport_size().0, view.viewport_size().1))
+        } else {
+            let (w, h) = view.viewport_size();
+            Rect::new(0.0, 0.0, w, h)
+        }
+    }
 }
 
 impl ViewAnimator for MagneticViewAnimator {
@@ -2899,6 +2914,19 @@ mod tests {
         assert!(vy.abs() < 1e-12, "vy should be zero");
         assert!(vz.abs() < 1e-12, "vz should be zero");
         assert!(!anim.is_active());
+    }
+
+    #[test]
+    fn get_view_rect_returns_home_rect_when_not_popup() {
+        let (_tree, view) = setup();
+        // Default flags: no POPUP_ZOOM
+        assert!(!view.flags.contains(ViewFlags::POPUP_ZOOM));
+        let rect = MagneticViewAnimator::get_view_rect(&view);
+        let (w, h) = view.viewport_size();
+        assert!((rect.x - 0.0).abs() < 1e-12);
+        assert!((rect.y - 0.0).abs() < 1e-12);
+        assert!((rect.w - w).abs() < 1e-12);
+        assert!((rect.h - h).abs() < 1e-12);
     }
 
     #[test]
