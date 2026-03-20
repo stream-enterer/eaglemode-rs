@@ -1008,6 +1008,7 @@ impl View {
                 }
             }
         }
+        dlog!("set_active_panel_best_possible chose {:?}", best);
         self.set_active_panel(tree, best, false);
     }
 

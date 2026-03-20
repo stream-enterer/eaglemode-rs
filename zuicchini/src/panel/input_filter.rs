@@ -2694,6 +2694,34 @@ mod tests {
     }
 
     #[test]
+    fn dlog_integration_captures_call_site() {
+        let (mut tree, mut view) = setup();
+        let root = view.root();
+
+        // Enable dlog and start capturing
+        crate::foundation::set_dlog_enabled(true);
+        crate::foundation::dlog::start_capture();
+
+        // Trigger a known dlog call site: set_active_panel logs
+        // "active panel changed to ..."
+        let child = tree.create_child(root, "dlog_test_child");
+        tree.set_focusable(child, true);
+        tree.set_layout_rect(child, 0.0, 0.0, 0.5, 1.0);
+        view.update_viewing(&mut tree);
+        view.set_active_panel(&mut tree, child, false);
+
+        let lines = crate::foundation::dlog::stop_capture();
+        crate::foundation::set_dlog_enabled(false);
+
+        // Verify captured output contains the expected call site message
+        assert!(
+            lines.iter().any(|l| l.contains("active panel changed")),
+            "dlog should capture 'active panel changed' from set_active_panel call site, got: {:?}",
+            lines
+        );
+    }
+
+    #[test]
     fn cheat_vif_smwn_toggle() {
         let (_tree, mut view) = setup();
         let mut vif = CheatVIF::new();
