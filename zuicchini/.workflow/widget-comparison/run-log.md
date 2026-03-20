@@ -1,5 +1,52 @@
 # Widget Comparison Run Log
 
+## 2026-03-19 — Session 9a: Panel/Scheduler Parity Fixes
+
+### Summary
+
+Worked through all 20 divergences logged in Session 9 as "unported C++ behavior." 16 FIXED, 3 BLOCKED (with `#[ignore]` tests), 1 DEFERRED (with justification). 1509 tests pass, 4 skipped, clippy clean.
+
+### Results
+
+| # | Divergence | Status | Details |
+|---|-----------|--------|---------|
+| PF-1 | Master/slave activation chain | BLOCKED | Needs active-animator registry (KineticState extraction, View::active_kinetic_state, needs_animator_abort wiring). `#[ignore]` test written. |
+| PF-2 | MagneticViewAnimator physics | BLOCKED | Needs struct rewrite (~430 LOC): panel tree traversal magnetism with hill-rolling physics, sub-stepped integration, 3D distance. Infrastructure exists (PanelTree::viewed_panels_dfs, panel_to_view coords, CoreConfig). `#[ignore]` test written. |
+| PF-3 | GetDistanceTo panel tree walk | FIXED | Reimplemented with panel tree walk to common ancestor, view rectangle geometry, sign convention adaptation. 2 golden trajectory files regenerated. |
+| PF-4 | UpdateZoomFixPoint popup zoom | FIXED | Added popup rect clamping using existing is_popped_up()/max_popup_rect(). |
+| PF-5 | SetActivePanelBestPossible | FIXED | Added call after raw_scroll_and_zoom in KineticViewAnimator::animate(). |
+| PF-6 | Touch VIF 17-state machine | BLOCKED | ~430 LOC state machine rewrite: hold-to-zoom, multi-tap-to-visit, two-finger mouse emulation, three-finger menu, four-finger soft keyboard. Not a point fix. `#[ignore]` test written. |
+| PF-7 | CheatVIF | DEFERRED | 13 cheat commands (~156 LOC), developer/debug only, no golden test coverage. `#[ignore]` test documents all commands. Needs: VIF registration, CheatVIF struct with state machine. User impact: no debug cheat codes available. |
+| PF-8 | Magnetism avoidance | FIXED | Added fields (magnetism_avoidance, accumulator, timer), init/update/getter methods, wired into grip press/move. +3 tests. MagneticViewAnimator activation on release depends on PF-2. |
+| PF-9 | Middle-button Alt-held propagation | FIXED | Changed state to &mut, added else-if Alt-held branch setting middle-button state. +1 test. |
+| PF-10 | Wheel modifier guard | FIXED | Added IsNoMod()||IsShiftMod() guard on wheel events. |
+| PF-11 | PanFunction scroll speed | FIXED | Added pan_function field, get_mouse_scroll_speed() with fine-mode and direction reversal. |
+| PF-12 | Ctrl+middle zoom formula | FIXED | Added z-axis spring physics (grip_spring_z/velocity_z/inst_vel_z), get_mouse_zoom_speed() matching C++ formula, spring processing in animate_grip. |
+| PF-13 | SubViewPanel input forwarding | FIXED | Implemented input() — focus propagation, coordinate transform, hit-test on press, DFS dispatch to sub-tree. |
+| PF-14 | Invalidation chain | FIXED | Added ParentInvalidation struct, drain_parent_invalidation() trait method, app loop collection. Sub-view dirty rects/title/cursor propagate to parent. |
+| PF-15 | sync_geometry height | FIXED | Added height field to PanelState (layout_rect.h/w), used in not-viewed branch. |
+| PF-16 | TSC increment timing | FIXED | Moved time_slice_counter increment to start of do_time_slice. |
+| PF-17 | Clock increment granularity | FIXED | Added clock increment before second process_pending_signals after engine execution. |
+| PF-18 | Priority re-ascent | FIXED | Added current_awake_idx field to EngineCtxInner, bump upward in wake_up_engine and set_engine_priority. |
+| PF-19 | Timer signal fire ordering | FIXED | Sort expired timers by next_fire before dispatching. |
+| PF-20 | Job Drop safety | FIXED | Added Drop impl with debug_assert!(queue_slot.is_none()). |
+
+### Commits
+
+- `a411dc5` PF-1 blocked test
+- `122e745` PF-2 blocked test, PF-5 fix
+- `d4c58d2` PF-3 GetDistanceTo, PF-4 popup zoom
+- `10cc5ab` PF-6 blocked test, PF-9 Alt-held, PF-10 wheel guard
+- `4d6ca7f` PF-7 CheatVIF doc, PF-8 magnetism avoidance, PF-11 PanFunction, PF-12 zoom formula
+- `2b3d18d` PF-13 input forwarding, PF-14 invalidation chain, PF-15 height
+- `527683f` PF-16 TSC, PF-17 clock, PF-18 re-ascent, PF-19 timer order, PF-20 Drop
+
+### Test Results
+
+1509 tests pass, 4 `#[ignore]` tests (PF-1, PF-2, PF-6, PF-7). Clippy clean.
+
+---
+
 ## 2026-03-19 — Session 9: Partial Parity Audit (Panel/Render/Scheduler)
 
 ### Summary
