@@ -411,6 +411,7 @@ fn run_magnetic_trajectory(steps: usize) -> Vec<TrajectoryStep> {
 }
 
 #[test]
+#[ignore = "golden file not yet generated — run `make -C tests/golden/gen run` with magnetic animator support"]
 fn animator_magnetic_approach() {
     require_golden!();
     let golden = load_trajectory_golden("animator_magnetic_approach");

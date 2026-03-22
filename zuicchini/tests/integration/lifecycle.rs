@@ -44,11 +44,10 @@ fn remove_active_panel_reselects() {
     h.tree.remove(a);
     h.tick();
 
-    // View should auto-select a new active panel (set_active_panel_best_possible)
+    // View should auto-select a new active panel (set_active_panel_best_possible).
+    // Only B and root remain; B is the expected pick (deepest focusable).
     h.view.set_active_panel_best_possible(&mut h.tree);
-    let active = h.view.active();
-    assert!(active.is_some());
-    assert_ne!(active, Some(a));
+    assert_eq!(h.view.active(), Some(b), "view should reselect panel B after removing A");
 }
 
 #[test]

@@ -70,6 +70,7 @@ fn update_keeps_loaded_if_fresh() {
     m.update();
     assert!(matches!(m.state(), &FileState::Loaded));
     assert_eq!(m.data().unwrap(), "data", "loaded data should be preserved after fresh update");
+}
 
 #[test]
 fn reset_data_clears_everything() {

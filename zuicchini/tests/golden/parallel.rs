@@ -367,7 +367,7 @@ fn parallel_benchmark() {
         settle(&mut tree, &mut view);
         let mut comp = SoftwareCompositor::new(800, 600);
         comp.render(&mut tree, &view);
-        comp.pixels().to_vec()
+        comp.framebuffer().data().to_vec()
     };
     let multi_pixels = {
         let mut tree = PanelTree::new();
@@ -388,7 +388,7 @@ fn parallel_benchmark() {
         let pool = zuicchini::render::thread_pool::RenderThreadPool::new(4);
         let mut comp = SoftwareCompositor::new(800, 600);
         comp.render_parallel(&mut tree, &view, &pool, 128);
-        comp.pixels().to_vec()
+        comp.framebuffer().data().to_vec()
     };
     assert_eq!(
         single_pixels, multi_pixels,
