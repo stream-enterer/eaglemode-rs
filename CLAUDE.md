@@ -32,6 +32,10 @@ Do not skip with `--no-verify`. If a commit fails, fix the cause and retry.
 - **Unwrap**: `expect("reason")` unless invariant is obvious from context. Bare `unwrap()` fine in tests and same-line proofs.
 - **Warnings**: Fix the cause (remove dead code, prefix `_`, apply clippy fix). Suppress only genuine false positives with a comment.
 
+## C++ Reference Source
+
+Eagle Mode 0.96.4 source is at `~/git/eaglemode-0.96.4/` (headers in `include/emCore/`, implementation in `src/emCore/`).
+
 ## Port Fidelity (zuicchini)
 
 zuicchini is a port of Eagle Mode's emCore. Golden tests compare Rust pixel output against C++ reference data. The fidelity rules depend on what layer the code is in.
