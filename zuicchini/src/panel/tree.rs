@@ -2286,9 +2286,8 @@ mod tests {
         let child = t.create_child(root, "child");
         // child has no behavior, so create_control_panel should
         // walk up to root, which has ControlCreator.
-        let ctrl = t.create_control_panel(child, root, "ctrl");
-        assert!(ctrl.is_some());
-        let ctrl_id = ctrl.unwrap();
+        let ctrl_id = t.create_control_panel(child, root, "ctrl")
+            .expect("create_control_panel should succeed when root has ControlCreator");
         assert_eq!(t.name(ctrl_id), Some("ctrl"));
         // The control panel is created as a child of root (parent_arg).
         assert_eq!(t.parent(ctrl_id), Some(root));

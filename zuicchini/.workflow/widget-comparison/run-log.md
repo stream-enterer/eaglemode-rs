@@ -1221,3 +1221,19 @@ Defects found and fixed:
 
 Defects found and fixed:
 1. `lifecycle.rs:50` — AP-1: `is_some()` + `assert_ne` replaced with specific `assert_eq(Some(b))`
+
+### review-unit: Review tests/unit/ for anti-patterns
+**Tests reviewed**: 57 | **Defective**: 0 | **Strengthened**: 0
+**Bugs found via strengthening**: none
+**Production fixes**: 0
+
+All 57 unit tests are clean. Two borderline is_some() usages in model.rs are testing existence as the test intent (cache purge, parent-child relationship).
+
+### review-inline-tests: Review #[cfg(test)] modules in src/ for anti-patterns
+**Tests reviewed**: 746 | **Defective**: 2 | **Strengthened**: 2
+**Bugs found via strengthening**: none
+**Production fixes**: 0
+
+Defects found and fixed:
+1. `process.rs:625-626` — AP-1: redundant is_some() + unwrap() combined into assert_eq(Some(0))
+2. `tree.rs:2290-2291` — AP-1: redundant is_some() + unwrap() replaced with expect()

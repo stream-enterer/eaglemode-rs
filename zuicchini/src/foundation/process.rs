@@ -622,8 +622,7 @@ mod tests {
             PipeResult::WouldBlock => panic!("unexpected WouldBlock after wait"),
         }
 
-        assert!(proc.get_exit_status().is_some());
-        assert_eq!(proc.get_exit_status().unwrap(), 0);
+        assert_eq!(proc.get_exit_status(), Some(0), "process should exit with status 0");
     }
 
     #[test]
