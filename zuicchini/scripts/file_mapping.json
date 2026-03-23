@@ -1,0 +1,2286 @@
+{
+  "_meta": {
+    "total_headers": 90,
+    "mapped_headers": 75,
+    "no_rust_equivalent": 15,
+    "unmapped_needs_review": 0,
+    "total_rust_files": 90,
+    "accounted_rust_files": 90,
+    "unaccounted_rust_files": []
+  },
+  "rust_only": {
+    "debug/input_trace.rs": {
+      "reason": "Rust-only debug utility for input event tracing",
+      "target_rs": null,
+      "marker_file": null
+    },
+    "foundation/rect.rs": {
+      "reason": "Rust-specific Rect/PixelRect newtypes; C++ passes loose (x,y,w,h) doubles",
+      "target_rs": "src/emCore/rect.rs",
+      "marker_file": "src/emCore/rect.rust_only"
+    },
+    "foundation/fixed.rs": {
+      "reason": "Rust-specific Fixed12 newtype for sub-pixel math; C++ uses inline integer arithmetic",
+      "target_rs": "src/emCore/fixed.rs",
+      "marker_file": "src/emCore/fixed.rust_only"
+    },
+    "widget/toolkit_images.rs": {
+      "reason": "Rust-specific TGA resource loader; C++ loads toolkit images via emGetInsResImage at point of use",
+      "target_rs": "src/emCore/toolkit_images.rs",
+      "marker_file": "src/emCore/toolkit_images.rust_only"
+    }
+  },
+  "mappings": {
+    "emATMatrix.h": {
+      "target_rs": "src/emCore/emATMatrix.rs",
+      "source_files": [
+        "src/foundation/at_matrix.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emATMatrix"
+      ]
+    },
+    "emAnything.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emAnything.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses Box<dyn Any> / std::any::Any",
+      "cpp_symbols": []
+    },
+    "emArray.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emArray.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses Vec<T>",
+      "cpp_symbols": [
+        "emArray::Add / operator+=",
+        "emArray::BinarySearch / BinarySearchByKey",
+        "emArray::Clear",
+        "emArray::Compact",
+        "emArray::Extract",
+        "emArray::Get (pointer/index)",
+        "emArray::GetCount",
+        "emArray::GetSubArray",
+        "emArray::Insert",
+        "emArray::IsEmpty",
+        "emArray::Remove",
+        "emArray::Replace / ReplaceByNew",
+        "emArray::SetCount",
+        "emArray::Sort",
+        "emArray::begin / end",
+        "emArray::emArray (constructors)"
+      ]
+    },
+    "emAvlTree.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emAvlTree.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses BTreeMap / HashMap",
+      "cpp_symbols": []
+    },
+    "emAvlTreeMap.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emAvlTreeMap.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses HashMap / BTreeMap",
+      "cpp_symbols": [
+        "emAvlTreeMap::Contains",
+        "emAvlTreeMap::Get (by key / first / last)",
+        "emAvlTreeMap::GetKey / GetKeyWritable",
+        "emAvlTreeMap::GetNearestGreater / GetNearestGreaterOrEqual / GetNearestLess / GetNearestLessOrEqual",
+        "emAvlTreeMap::GetValue / GetValueWritable / SetValue / operator[]",
+        "emAvlTreeMap::Insert",
+        "emAvlTreeMap::IsEmpty / GetCount",
+        "emAvlTreeMap::Remove / RemoveFirst / RemoveLast / Clear",
+        "emAvlTreeMap::begin / end",
+        "emAvlTreeMap::emAvlTreeMap (constructors)"
+      ]
+    },
+    "emAvlTreeSet.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emAvlTreeSet.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses HashSet / BTreeSet",
+      "cpp_symbols": [
+        "emAvlTreeSet::Clear / IsEmpty / GetCount",
+        "emAvlTreeSet::Contains",
+        "emAvlTreeSet::Get / GetFirst / GetLast",
+        "emAvlTreeSet::GetNearestGreater / GetNearestGreaterOrEqual / GetNearestLess / GetNearestLessOrEqual",
+        "emAvlTreeSet::GetWritable",
+        "emAvlTreeSet::Insert (single / set)",
+        "emAvlTreeSet::Intersect",
+        "emAvlTreeSet::Remove / RemoveFirst / RemoveLast (single / set)",
+        "emAvlTreeSet::begin / end",
+        "emAvlTreeSet::emAvlTreeSet (constructors)",
+        "emAvlTreeSet::operator&= / operator& (intersection operators)",
+        "emAvlTreeSet::operator+= / operator+ / operator|= / operator| (union operators)",
+        "emAvlTreeSet::operator-= / operator- (difference operators)",
+        "emAvlTreeSet::operator== / operator!="
+      ]
+    },
+    "emBorder.h": {
+      "target_rs": "src/emCore/emBorder.rs",
+      "source_files": [
+        "src/widget/border.rs",
+        "src/foundation/alignment.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emBorder class in border.rs; ContentAlignment (emAlignment) in alignment.rs",
+      "cpp_symbols": [
+        "emBorder",
+        "emBorder::GetAuxPanelName",
+        "emBorder::GetAuxRect",
+        "emBorder::GetAuxTallness",
+        "emBorder::GetBestLabelTallness",
+        "emBorder::GetBorderScaling",
+        "emBorder::GetCaption",
+        "emBorder::GetCaptionAlignment",
+        "emBorder::GetContentRect",
+        "emBorder::GetContentRectUnobscured",
+        "emBorder::GetContentRoundRect",
+        "emBorder::GetDescription",
+        "emBorder::GetDescriptionAlignment",
+        "emBorder::GetHowTo",
+        "emBorder::GetIcon",
+        "emBorder::GetInnerBorderType",
+        "emBorder::GetLabelAlignment",
+        "emBorder::GetLook",
+        "emBorder::GetMaxIconAreaTallness",
+        "emBorder::GetOuterBorderType",
+        "emBorder::GetSubstanceRect",
+        "emBorder::GetTkResources",
+        "emBorder::HasAux",
+        "emBorder::HasHowTo",
+        "emBorder::HasLabel",
+        "emBorder::HaveAux",
+        "emBorder::HowToDisabled",
+        "emBorder::HowToFocus",
+        "emBorder::HowToPreface",
+        "emBorder::InnerBorderType",
+        "emBorder::IsIconAboveCaption",
+        "emBorder::IsLabelInBorder",
+        "emBorder::OuterBorderType",
+        "emBorder::Paint",
+        "emBorder::PaintContent",
+        "emBorder::PaintLabel",
+        "emBorder::RemoveAux",
+        "emBorder::SetBorderScaling",
+        "emBorder::SetBorderType",
+        "emBorder::SetCaption",
+        "emBorder::SetCaptionAlignment",
+        "emBorder::SetDescription",
+        "emBorder::SetDescriptionAlignment",
+        "emBorder::SetIcon",
+        "emBorder::SetIconAboveCaption",
+        "emBorder::SetInnerBorderType",
+        "emBorder::SetLabel",
+        "emBorder::SetLabelAlignment",
+        "emBorder::SetLabelInBorder",
+        "emBorder::SetLook",
+        "emBorder::SetMaxIconAreaTallness",
+        "emBorder::SetOuterBorderType",
+        "emBorder::TkResources",
+        "emBorder::emBorder"
+      ]
+    },
+    "emButton.h": {
+      "target_rs": "src/emCore/emButton.rs",
+      "source_files": [
+        "src/widget/button.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emButton",
+        "emButton::CheckMouse",
+        "emButton::Click",
+        "emButton::GetHowTo",
+        "emButton::HasHowTo",
+        "emButton::HowToButton",
+        "emButton::HowToEOIButton",
+        "emButton::Input",
+        "emButton::IsNoEOI",
+        "emButton::IsPressed",
+        "emButton::IsShownBoxed",
+        "emButton::IsShownChecked",
+        "emButton::IsShownRadioed",
+        "emButton::PaintBoxSymbol",
+        "emButton::PaintContent",
+        "emButton::SetNoEOI",
+        "emButton::SetShownBoxed",
+        "emButton::SetShownChecked",
+        "emButton::SetShownRadioed",
+        "emButton::emButton"
+      ]
+    },
+    "emCheckBox.h": {
+      "target_rs": "src/emCore/emCheckBox.rs",
+      "source_files": [
+        "src/widget/check_box.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emCheckBox",
+        "emCheckBox::emCheckBox"
+      ]
+    },
+    "emCheckButton.h": {
+      "target_rs": "src/emCore/emCheckButton.rs",
+      "source_files": [
+        "src/widget/check_button.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emCheckButton",
+        "emCheckButton::GetHowTo",
+        "emCheckButton::HowToCheckButton",
+        "emCheckButton::HowToChecked",
+        "emCheckButton::HowToNotChecked",
+        "emCheckButton::IsChecked",
+        "emCheckButton::SetChecked",
+        "emCheckButton::emCheckButton"
+      ]
+    },
+    "emClipRects.h": {
+      "target_rs": "src/emCore/emClipRects.rs",
+      "source_files": [
+        "src/foundation/clip_rects.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emClipRects",
+        "emClipRects::Clear",
+        "emClipRects::GetCount",
+        "emClipRects::GetFirst",
+        "emClipRects::GetMinMax",
+        "emClipRects::Intersect(NUM,NUM,NUM,NUM)",
+        "emClipRects::Intersect(const emClipRects&)",
+        "emClipRects::IsEmpty",
+        "emClipRects::IsSubsetOf(NUM,NUM,NUM,NUM)",
+        "emClipRects::IsSubsetOf(const emClipRects&)",
+        "emClipRects::IsSupersetOf(NUM,NUM,NUM,NUM)",
+        "emClipRects::IsSupersetOf(const emClipRects&)",
+        "emClipRects::Rect",
+        "emClipRects::Rect::Get",
+        "emClipRects::Rect::GetNext",
+        "emClipRects::Rect::GetX1",
+        "emClipRects::Rect::GetX2",
+        "emClipRects::Rect::GetY1",
+        "emClipRects::Rect::GetY2",
+        "emClipRects::Set(NUM,NUM,NUM,NUM)",
+        "emClipRects::SetToMinMax",
+        "emClipRects::SetToMinMaxOf",
+        "emClipRects::Sort",
+        "emClipRects::Subtract(NUM,NUM,NUM,NUM)",
+        "emClipRects::Subtract(const emClipRects&)",
+        "emClipRects::Unite(NUM,NUM,NUM,NUM)",
+        "emClipRects::Unite(const emClipRects&)",
+        "emClipRects::emClipRects()",
+        "emClipRects::emClipRects(NUM,NUM,NUM,NUM)",
+        "emClipRects::operator!=",
+        "emClipRects::operator&",
+        "emClipRects::operator&=",
+        "emClipRects::operator+",
+        "emClipRects::operator-",
+        "emClipRects::operator-=",
+        "emClipRects::operator==",
+        "emClipRects::operator|",
+        "emClipRects::operator|="
+      ]
+    },
+    "emClipboard.h": {
+      "target_rs": "src/emCore/emClipboard.rs",
+      "source_files": [
+        "src/model/clipboard.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emClipboard::Clear (pure virtual)",
+        "emClipboard::GetText (pure virtual)",
+        "emClipboard::Install (protected)",
+        "emClipboard::LookupInherited",
+        "emClipboard::PutText (pure virtual)"
+      ]
+    },
+    "emColor.h": {
+      "target_rs": "src/emCore/emColor.rs",
+      "source_files": [
+        "src/foundation/color.rs",
+        "src/foundation/x11_colors.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emColor class in color.rs; X11 color name table (for FromName) in x11_colors.rs",
+      "cpp_symbols": [
+        "emColor",
+        "emColor::BLACK",
+        "emColor::BLUE",
+        "emColor::CYAN",
+        "emColor::GRAY",
+        "emColor::GREEN",
+        "emColor::Get",
+        "emColor::GetAlpha",
+        "emColor::GetBlended",
+        "emColor::GetBlue",
+        "emColor::GetGreen",
+        "emColor::GetGrey",
+        "emColor::GetHue",
+        "emColor::GetLighted",
+        "emColor::GetRed",
+        "emColor::GetSat",
+        "emColor::GetTransparented",
+        "emColor::GetVal",
+        "emColor::IsGrey",
+        "emColor::IsOpaque",
+        "emColor::IsTotallyTransparent",
+        "emColor::MAGENTA",
+        "emColor::RED",
+        "emColor::Set(const emColor&,emByte)",
+        "emColor::Set(emByte,emByte,emByte,emByte)",
+        "emColor::Set(emUInt32)",
+        "emColor::SetAlpha",
+        "emColor::SetBlue",
+        "emColor::SetGreen",
+        "emColor::SetGrey",
+        "emColor::SetHSVA",
+        "emColor::SetHue",
+        "emColor::SetRed",
+        "emColor::SetSat",
+        "emColor::SetVal",
+        "emColor::ToString",
+        "emColor::TryParse",
+        "emColor::WHITE",
+        "emColor::YELLOW",
+        "emColor::emColor(const emColor&,emByte)",
+        "emColor::emColor(emByte,emByte,emByte,emByte)",
+        "emColor::emColor(emUInt32)",
+        "emColor::operator emUInt32",
+        "emColor::operator!=",
+        "emColor::operator=="
+      ]
+    },
+    "emColorField.h": {
+      "target_rs": "src/emCore/emColorField.rs",
+      "source_files": [
+        "src/widget/color_field.rs",
+        "src/widget/field_panel.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emColorField in color_field.rs; ScalarFieldPanel wrapper (used by ColorField expansion) in field_panel.rs",
+      "cpp_symbols": [
+        "emColorField::AutoExpand",
+        "emColorField::AutoShrink",
+        "emColorField::ColorChanged",
+        "emColorField::Cycle",
+        "emColorField::GetColor",
+        "emColorField::GetColorSignal",
+        "emColorField::GetHowTo",
+        "emColorField::HasHowTo",
+        "emColorField::IsAlphaEnabled",
+        "emColorField::IsEditable",
+        "emColorField::LayoutChildren",
+        "emColorField::PaintContent",
+        "emColorField::SetAlphaEnabled",
+        "emColorField::SetColor",
+        "emColorField::SetEditable",
+        "emColorField::emColorField(ParentArg, const emString&, const emString&, const emString&, const emImage&, emColor, bool, bool)"
+      ]
+    },
+    "emConfigModel.h": {
+      "target_rs": "src/emCore/emConfigModel.rs",
+      "source_files": [
+        "src/model/config_model.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emConfigModel",
+        "emConfigModel::Cycle",
+        "emConfigModel::GetAutoSaveDelaySeconds",
+        "emConfigModel::GetChangeSignal",
+        "emConfigModel::GetInstallPath",
+        "emConfigModel::GetRec",
+        "emConfigModel::IsUnsaved",
+        "emConfigModel::Load",
+        "emConfigModel::LoadOrInstall",
+        "emConfigModel::PostConstruct",
+        "emConfigModel::Save",
+        "emConfigModel::SetAutoSaveDelaySeconds",
+        "emConfigModel::TryLoad",
+        "emConfigModel::TryLoadOrInstall",
+        "emConfigModel::TrySave"
+      ]
+    },
+    "emContext.h": {
+      "target_rs": "src/emCore/emContext.rs",
+      "source_files": [
+        "src/model/context.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emContext"
+      ]
+    },
+    "emCoreConfig.h": {
+      "target_rs": "src/emCore/emCoreConfig.rs",
+      "source_files": [
+        "src/model/core_config.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": []
+    },
+    "emCoreConfigPanel.h": {
+      "target_rs": "src/emCore/emCoreConfigPanel.rs",
+      "source_files": [
+        "src/widget/core_config_panel.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emCoreConfigPanel",
+        "emCoreConfigPanel::FactorField",
+        "emCoreConfigPanel::KBGroup",
+        "emCoreConfigPanel::KineticGroup",
+        "emCoreConfigPanel::MaxMemGroup",
+        "emCoreConfigPanel::MaxMemTunnel",
+        "emCoreConfigPanel::MouseGroup",
+        "emCoreConfigPanel::MouseMiscGroup",
+        "emCoreConfigPanel::PerformanceGroup"
+      ]
+    },
+    "emCrossPtr.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emCrossPtr.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses Weak<T> references",
+      "cpp_symbols": []
+    },
+    "emCursor.h": {
+      "target_rs": "src/emCore/emCursor.rs",
+      "source_files": [
+        "src/input/cursor.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emCursor::CROSSHAIR",
+        "emCursor::HAND",
+        "emCursor::INVISIBLE",
+        "emCursor::LEFT_RIGHT_ARROW",
+        "emCursor::LEFT_RIGHT_UP_DOWN_ARROW",
+        "emCursor::NORMAL",
+        "emCursor::TEXT",
+        "emCursor::ToString",
+        "emCursor::UP_DOWN_ARROW",
+        "emCursor::WAIT",
+        "emCursor::emCursor (constructors)"
+      ]
+    },
+    "emDialog.h": {
+      "target_rs": "src/emCore/emDialog.rs",
+      "source_files": [
+        "src/widget/dialog.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emDialog",
+        "emDialog::AddCancelButton",
+        "emDialog::AddCustomButton",
+        "emDialog::AddNegativeButton",
+        "emDialog::AddOKButton",
+        "emDialog::AddOKCancelButtons",
+        "emDialog::AddPositiveButton",
+        "emDialog::CUSTOM1",
+        "emDialog::CUSTOM2",
+        "emDialog::CUSTOM3",
+        "emDialog::CheckFinish",
+        "emDialog::DlgButton",
+        "emDialog::DlgPanel",
+        "emDialog::EnableAutoDeletion",
+        "emDialog::Finish",
+        "emDialog::GetButton",
+        "emDialog::GetButtonForResult",
+        "emDialog::GetCancelButton",
+        "emDialog::GetContentPanel",
+        "emDialog::GetOKButton",
+        "emDialog::GetResult",
+        "emDialog::IsAutoDeletionEnabled",
+        "emDialog::NEGATIVE",
+        "emDialog::POSITIVE",
+        "emDialog::PrivateEngineClass",
+        "emDialog::SetRootTitle",
+        "emDialog::ShowMessage",
+        "emDialog::emDialog"
+      ]
+    },
+    "emEngine.h": {
+      "target_rs": "src/emCore/emEngine.rs",
+      "source_files": [
+        "src/scheduler/engine.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emEngine::AddWakeUpSignal",
+        "emEngine::Cycle",
+        "emEngine::GetEnginePriority",
+        "emEngine::GetScheduler",
+        "emEngine::GetWakeUpSignalRefs",
+        "emEngine::IsSignaled",
+        "emEngine::IsTimeSliceAtEnd",
+        "emEngine::PriorityType",
+        "emEngine::RemoveLink",
+        "emEngine::RemoveWakeUpSignal",
+        "emEngine::SetEnginePriority",
+        "emEngine::Signal",
+        "emEngine::WakeUp",
+        "emEngine::WakeUpImp",
+        "emEngine::emEngine",
+        "emEngine::~emEngine"
+      ]
+    },
+    "emErrorPanel.h": {
+      "target_rs": "src/emCore/emErrorPanel.rs",
+      "source_files": [
+        "src/widget/error_panel.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emErrorPanel::IsOpaque",
+        "emErrorPanel::Paint",
+        "emErrorPanel::emErrorPanel(ParentArg, const emString&, const emString&)",
+        "emErrorPanel::~emErrorPanel"
+      ]
+    },
+    "emFileDialog.h": {
+      "target_rs": "src/emCore/emFileDialog.rs",
+      "source_files": [
+        "src/widget/file_dialog.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emFileDialog::AreHiddenFilesShown",
+        "emFileDialog::CheckFinish",
+        "emFileDialog::ClearSelection",
+        "emFileDialog::Cycle",
+        "emFileDialog::GetFilters",
+        "emFileDialog::GetMode",
+        "emFileDialog::GetParentDirectory",
+        "emFileDialog::GetSelectedFilterIndex",
+        "emFileDialog::GetSelectedName",
+        "emFileDialog::GetSelectedNames",
+        "emFileDialog::GetSelectedPath",
+        "emFileDialog::GetSelectionSignal",
+        "emFileDialog::IsDirectoryResultAllowed",
+        "emFileDialog::IsMultiSelectionEnabled",
+        "emFileDialog::ModeType",
+        "emFileDialog::SetDirectoryResultAllowed",
+        "emFileDialog::SetFilters",
+        "emFileDialog::SetHiddenFilesShown",
+        "emFileDialog::SetMode",
+        "emFileDialog::SetMultiSelectionEnabled",
+        "emFileDialog::SetParentDirectory",
+        "emFileDialog::SetSelectedFilterIndex",
+        "emFileDialog::SetSelectedName",
+        "emFileDialog::SetSelectedNames",
+        "emFileDialog::SetSelectedPath",
+        "emFileDialog::emFileDialog(emContext&, ModeType, ViewFlags, WindowFlags, const emString&)",
+        "emFileDialog::~emFileDialog"
+      ]
+    },
+    "emFileModel.h": {
+      "target_rs": "src/emCore/emFileModel.rs",
+      "source_files": [
+        "src/model/file_model.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emFileModel",
+        "emFileModel::AcquireUpdateSignalModel",
+        "emFileModel::CalcFileProgress",
+        "emFileModel::CalcMemoryNeed",
+        "emFileModel::ClearSaveError",
+        "emFileModel::Cycle",
+        "emFileModel::FileState",
+        "emFileModel::FileState::FS_LOADED",
+        "emFileModel::FileState::FS_LOADING",
+        "emFileModel::FileState::FS_LOAD_ERROR",
+        "emFileModel::FileState::FS_SAVE_ERROR",
+        "emFileModel::FileState::FS_SAVING",
+        "emFileModel::FileState::FS_TOO_COSTLY",
+        "emFileModel::FileState::FS_UNSAVED",
+        "emFileModel::FileState::FS_WAITING",
+        "emFileModel::GetErrorText",
+        "emFileModel::GetFilePath",
+        "emFileModel::GetFileProgress",
+        "emFileModel::GetFileState",
+        "emFileModel::GetFileStateSignal",
+        "emFileModel::GetIgnoreUpdateSignal",
+        "emFileModel::GetMemoryNeed",
+        "emFileModel::HardResetFileState",
+        "emFileModel::IsOutOfDate",
+        "emFileModel::Load",
+        "emFileModel::QuitLoading",
+        "emFileModel::QuitSaving",
+        "emFileModel::ResetData",
+        "emFileModel::Save",
+        "emFileModel::SetIgnoreUpdateSignal",
+        "emFileModel::SetUnsavedState",
+        "emFileModel::TryContinueLoading",
+        "emFileModel::TryContinueSaving",
+        "emFileModel::TryFetchDate",
+        "emFileModel::TryStartLoading",
+        "emFileModel::TryStartSaving",
+        "emFileModel::Update"
+      ]
+    },
+    "emFilePanel.h": {
+      "target_rs": "src/emCore/emFilePanel.rs",
+      "source_files": [
+        "src/widget/file_panel.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emFilePanel::ClearCustomError",
+        "emFilePanel::GetCustomError",
+        "emFilePanel::GetFileModel",
+        "emFilePanel::GetIconFileName",
+        "emFilePanel::GetVirFileState",
+        "emFilePanel::GetVirFileStateSignal",
+        "emFilePanel::IsContentReady",
+        "emFilePanel::IsReloadAnnoying",
+        "emFilePanel::IsVFSGood",
+        "emFilePanel::SetCustomError",
+        "emFilePanel::SetFileModel",
+        "emFilePanel::VirtualFileState",
+        "emFilePanel::emFilePanel(ParentArg, const emString&, emFileModel*, bool)",
+        "emFilePanel::~emFilePanel"
+      ]
+    },
+    "emFileSelectionBox.h": {
+      "target_rs": "src/emCore/emFileSelectionBox.rs",
+      "source_files": [
+        "src/widget/file_selection_box.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emFileSelectionBox::AreHiddenFilesShown",
+        "emFileSelectionBox::ClearSelection",
+        "emFileSelectionBox::EnterSubDir",
+        "emFileSelectionBox::FileItemPanel",
+        "emFileSelectionBox::FileOverlayPanel",
+        "emFileSelectionBox::FilesListBox",
+        "emFileSelectionBox::GetFileTriggerSignal",
+        "emFileSelectionBox::GetFilters",
+        "emFileSelectionBox::GetParentDirectory",
+        "emFileSelectionBox::GetSelectedFilterIndex",
+        "emFileSelectionBox::GetSelectedName",
+        "emFileSelectionBox::GetSelectedNames",
+        "emFileSelectionBox::GetSelectedPath",
+        "emFileSelectionBox::GetSelectionSignal",
+        "emFileSelectionBox::GetTriggeredFileName",
+        "emFileSelectionBox::IsFilterHidden",
+        "emFileSelectionBox::IsHiddenCheckBoxHidden",
+        "emFileSelectionBox::IsMultiSelectionEnabled",
+        "emFileSelectionBox::IsNameFieldHidden",
+        "emFileSelectionBox::IsParentDirFieldHidden",
+        "emFileSelectionBox::SetFilterHidden",
+        "emFileSelectionBox::SetFilters",
+        "emFileSelectionBox::SetHiddenCheckBoxHidden",
+        "emFileSelectionBox::SetHiddenFilesShown",
+        "emFileSelectionBox::SetMultiSelectionEnabled",
+        "emFileSelectionBox::SetNameFieldHidden",
+        "emFileSelectionBox::SetParentDirFieldHidden",
+        "emFileSelectionBox::SetParentDirectory",
+        "emFileSelectionBox::SetSelectedFilterIndex",
+        "emFileSelectionBox::SetSelectedName",
+        "emFileSelectionBox::SetSelectedNames",
+        "emFileSelectionBox::SetSelectedPath",
+        "emFileSelectionBox::TriggerFile",
+        "emFileSelectionBox::emFileSelectionBox(ParentArg, const emString&, const emString&, const emString&, const emImage&)",
+        "emFileSelectionBox::~emFileSelectionBox"
+      ]
+    },
+    "emFileStream.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emFileStream.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses std::fs / std::io",
+      "cpp_symbols": [
+        "emFileStream::TryReadInt16BE",
+        "emFileStream::TryReadInt16LE",
+        "emFileStream::TryReadInt32BE",
+        "emFileStream::TryReadInt32LE",
+        "emFileStream::TryReadInt64BE",
+        "emFileStream::TryReadInt64LE",
+        "emFileStream::TryReadInt8",
+        "emFileStream::TryReadUInt16BE",
+        "emFileStream::TryReadUInt16LE",
+        "emFileStream::TryReadUInt32BE",
+        "emFileStream::TryReadUInt32LE",
+        "emFileStream::TryReadUInt64BE",
+        "emFileStream::TryReadUInt64LE",
+        "emFileStream::TryReadUInt8",
+        "emFileStream::TryWriteInt16BE",
+        "emFileStream::TryWriteInt16LE",
+        "emFileStream::TryWriteInt32BE",
+        "emFileStream::TryWriteInt32LE",
+        "emFileStream::TryWriteInt64BE",
+        "emFileStream::TryWriteInt64LE",
+        "emFileStream::TryWriteInt8",
+        "emFileStream::TryWriteUInt16BE",
+        "emFileStream::TryWriteUInt16LE",
+        "emFileStream::TryWriteUInt32BE",
+        "emFileStream::TryWriteUInt32LE",
+        "emFileStream::TryWriteUInt64BE",
+        "emFileStream::TryWriteUInt64LE",
+        "emFileStream::TryWriteUInt8"
+      ]
+    },
+    "emFontCache.h": {
+      "target_rs": "src/emCore/emFontCache.rs",
+      "source_files": [
+        "src/render/em_font.rs",
+        "src/render/bitmap_font.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emFontCache split: font loading/caching in em_font.rs, text measurement in bitmap_font.rs",
+      "cpp_symbols": [
+        "emFontCache",
+        "emFontCache::Acquire",
+        "emFontCache::GetChar"
+      ]
+    },
+    "emFpPlugin.h": {
+      "target_rs": "src/emCore/emFpPlugin.rs",
+      "source_files": [
+        "src/model/fp_plugin.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emFpPlugin",
+        "emFpPlugin::PropertyRec"
+      ]
+    },
+    "emGUIFramework.h": {
+      "target_rs": "src/emCore/emGUIFramework.rs",
+      "source_files": [
+        "src/window/app.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": "emGUIFramework class \u2192 App struct",
+      "cpp_symbols": [
+        "emGUIFramework",
+        "emGUIFramework::AutoTerminatorClass"
+      ]
+    },
+    "emGroup.h": {
+      "target_rs": "src/emCore/emGroup.rs",
+      "source_files": [],
+      "mod_rs_code": "layout/mod.rs (emGroup extends emTiling \u2014 deprecated thin wrapper)",
+      "pattern": "extract",
+      "note": "Deprecated C++ class; extract to own file",
+      "cpp_symbols": [
+        "emGroup::emGroup (protected constructor for emRadioButton::Group)",
+        "emGroup::emGroup (public deprecated constructor)"
+      ]
+    },
+    "emImage.h": {
+      "target_rs": "src/emCore/emImage.rs",
+      "source_files": [
+        "src/foundation/image.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emImage::CalcAlphaMinMaxRect",
+        "emImage::CalcChannelMinMaxRect",
+        "emImage::CalcMinMaxRect",
+        "emImage::Clear",
+        "emImage::Copy(int,int,const emImage&)",
+        "emImage::Copy(int,int,const emImage&,int,int,int,int)",
+        "emImage::CopyChannel(int,int,int,const emImage&,int)",
+        "emImage::CopyChannel(int,int,int,const emImage&,int,int,int,int,int)",
+        "emImage::CopyTransformed",
+        "emImage::DetermineAllColorsSorted",
+        "emImage::Fill(emColor)",
+        "emImage::Fill(int,int,int,int,emColor)",
+        "emImage::FillChannel(int,emByte)",
+        "emImage::FillChannel(int,int,int,int,int,emByte)",
+        "emImage::GetChannelCount",
+        "emImage::GetConverted",
+        "emImage::GetCropped",
+        "emImage::GetCroppedByAlpha",
+        "emImage::GetHeight",
+        "emImage::GetMap",
+        "emImage::GetPixel",
+        "emImage::GetPixelChannel",
+        "emImage::GetPixelInterpolated",
+        "emImage::GetTransformed",
+        "emImage::GetWidth",
+        "emImage::GetWritableMap",
+        "emImage::HasAnyNonGreyPixel",
+        "emImage::HasAnyTransparentPixel",
+        "emImage::HasUserMap",
+        "emImage::IsChannelCountPaintable",
+        "emImage::IsEmpty",
+        "emImage::PreparePainter",
+        "emImage::SetPixel",
+        "emImage::SetPixelChannel",
+        "emImage::SetUserMap",
+        "emImage::Setup",
+        "emImage::TryParseXpm",
+        "emImage::emImage()",
+        "emImage::emImage(int width, int height, int channelCount)",
+        "emImage::operator!=",
+        "emImage::operator=="
+      ]
+    },
+    "emImageFile.h": {
+      "target_rs": "src/emCore/emImageFile.rs",
+      "source_files": [
+        "src/model/image_file_model.rs",
+        "src/widget/image_file_panel.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "C++ header has both model and panel; Rust splits them",
+      "cpp_symbols": []
+    },
+    "emInput.h": {
+      "target_rs": "src/emCore/emInput.rs",
+      "source_files": [
+        "src/input/event.rs",
+        "src/input/state.rs",
+        "src/input/hotkey.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emInput.h contains emInputEvent, emInputKey, emInputState; emInputHotkey in separate but related header",
+      "cpp_symbols": []
+    },
+    "emInstallInfo.h": {
+      "target_rs": "src/emCore/emInstallInfo.rs",
+      "source_files": [
+        "src/foundation/install_info.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": []
+    },
+    "emJob.h": {
+      "target_rs": "src/emCore/emJob.rs",
+      "source_files": [
+        "src/scheduler/job.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emJob::GetErrorText",
+        "emJob::GetNext",
+        "emJob::GetPrev",
+        "emJob::GetPriority",
+        "emJob::GetState",
+        "emJob::GetStateSignal",
+        "emJob::SetPriority",
+        "emJob::StateEnum",
+        "emJob::emJob",
+        "emJob::~emJob"
+      ]
+    },
+    "emLabel.h": {
+      "target_rs": "src/emCore/emLabel.rs",
+      "source_files": [
+        "src/widget/label.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emLabel::PaintContent",
+        "emLabel::emLabel(ParentArg, const emString&, const emString&, const emString&, const emImage&)"
+      ]
+    },
+    "emLinearGroup.h": {
+      "target_rs": "src/emCore/emLinearGroup.rs",
+      "source_files": [
+        "src/layout/linear.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "extract",
+      "note": "emLinearGroup currently in linear.rs; extract to own file",
+      "cpp_symbols": [
+        "emLinearGroup",
+        "emLinearGroup::emLinearGroup (constructor)"
+      ]
+    },
+    "emLinearLayout.h": {
+      "target_rs": "src/emCore/emLinearLayout.rs",
+      "source_files": [
+        "src/layout/linear.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emLinearLayout",
+        "emLinearLayout::CalculateForce (private)",
+        "emLinearLayout::GetAlignment",
+        "emLinearLayout::GetChildWeight(int index)",
+        "emLinearLayout::GetMaxChildTallness(int index)",
+        "emLinearLayout::GetMinCellCount",
+        "emLinearLayout::GetMinChildTallness(int index)",
+        "emLinearLayout::GetOrientationThresholdTallness",
+        "emLinearLayout::GetSpaceB",
+        "emLinearLayout::GetSpaceH",
+        "emLinearLayout::GetSpaceL",
+        "emLinearLayout::GetSpaceR",
+        "emLinearLayout::GetSpaceT",
+        "emLinearLayout::GetSpaceV",
+        "emLinearLayout::LayoutChildren (protected virtual)",
+        "emLinearLayout::SetAlignment",
+        "emLinearLayout::SetChildTallness(double tallness)",
+        "emLinearLayout::SetChildTallness(int index, double tallness)",
+        "emLinearLayout::SetChildWeight(double weight)",
+        "emLinearLayout::SetChildWeight(int index, double weight)",
+        "emLinearLayout::SetHorizontal",
+        "emLinearLayout::SetInnerSpace",
+        "emLinearLayout::SetMaxChildTallness(double maxCT)",
+        "emLinearLayout::SetMaxChildTallness(int index, double maxCT)",
+        "emLinearLayout::SetMinCellCount",
+        "emLinearLayout::SetMinChildTallness(double minCT)",
+        "emLinearLayout::SetMinChildTallness(int index, double minCT)",
+        "emLinearLayout::SetOrientationThresholdTallness",
+        "emLinearLayout::SetOuterSpace(double l, double t, double r, double b)",
+        "emLinearLayout::SetOuterSpace(double lr, double tb)",
+        "emLinearLayout::SetSpace(double l, double t, double h, double v, double r, double b)",
+        "emLinearLayout::SetSpace(double lr, double tb, double h, double v)",
+        "emLinearLayout::SetSpaceB",
+        "emLinearLayout::SetSpaceH",
+        "emLinearLayout::SetSpaceL",
+        "emLinearLayout::SetSpaceR",
+        "emLinearLayout::SetSpaceT",
+        "emLinearLayout::SetSpaceV",
+        "emLinearLayout::SetVertical",
+        "emLinearLayout::emLinearLayout (constructor)"
+      ]
+    },
+    "emList.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emList.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses Vec / VecDeque",
+      "cpp_symbols": [
+        "emList::Add / operator+= / operator+",
+        "emList::Clear",
+        "emList::Extract / ExtractFirst / ExtractLast",
+        "emList::GetAtIndex / GetIndexOf",
+        "emList::GetCount",
+        "emList::GetFirst / GetLast / GetNext / GetPrev",
+        "emList::GetSubList / GetSubListOfFirst / GetSubListOfLast",
+        "emList::InsertAtBeg / InsertAtEnd / InsertBefore / InsertAfter",
+        "emList::IsEmpty",
+        "emList::MoveToBeg / MoveToEnd / MoveBefore / MoveAfter",
+        "emList::Remove / RemoveFirst / RemoveLast",
+        "emList::Sort",
+        "emList::begin / end",
+        "emList::emList (constructors)"
+      ]
+    },
+    "emListBox.h": {
+      "target_rs": "src/emCore/emListBox.rs",
+      "source_files": [
+        "src/widget/list_box.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emListBox::AddItem",
+        "emListBox::AutoExpand",
+        "emListBox::AutoShrink",
+        "emListBox::ClearItems",
+        "emListBox::ClearSelection",
+        "emListBox::CreateItemPanel",
+        "emListBox::DefaultItemPanel",
+        "emListBox::Deselect",
+        "emListBox::GetHowTo",
+        "emListBox::GetItemCount",
+        "emListBox::GetItemData",
+        "emListBox::GetItemIndex",
+        "emListBox::GetItemName",
+        "emListBox::GetItemPanel",
+        "emListBox::GetItemPanelInterface",
+        "emListBox::GetItemText",
+        "emListBox::GetItemTriggerSignal",
+        "emListBox::GetSelectedIndex",
+        "emListBox::GetSelectedIndices",
+        "emListBox::GetSelectionCount",
+        "emListBox::GetSelectionSignal",
+        "emListBox::GetSelectionType",
+        "emListBox::GetTriggeredItemIndex",
+        "emListBox::HasHowTo",
+        "emListBox::Input",
+        "emListBox::InsertItem",
+        "emListBox::IsSelected",
+        "emListBox::ItemPanelInterface",
+        "emListBox::MoveItem",
+        "emListBox::Notice",
+        "emListBox::RemoveItem",
+        "emListBox::Select",
+        "emListBox::SelectAll",
+        "emListBox::SelectionType",
+        "emListBox::SetItemData",
+        "emListBox::SetItemText",
+        "emListBox::SetSelectedIndex",
+        "emListBox::SetSelectedIndices",
+        "emListBox::SetSelectionType",
+        "emListBox::SortItems",
+        "emListBox::ToggleSelection",
+        "emListBox::TriggerItem",
+        "emListBox::emListBox(ParentArg, const emString&, const emString&, const emString&, const emImage&, SelectionType)"
+      ]
+    },
+    "emLook.h": {
+      "target_rs": "src/emCore/emLook.rs",
+      "source_files": [
+        "src/widget/look.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emLook",
+        "emLook::Apply",
+        "emLook::GetBgColor",
+        "emLook::GetButtonBgColor",
+        "emLook::GetButtonFgColor",
+        "emLook::GetFgColor",
+        "emLook::GetInputBgColor",
+        "emLook::GetInputFgColor",
+        "emLook::GetInputHlColor",
+        "emLook::GetOutputBgColor",
+        "emLook::GetOutputFgColor",
+        "emLook::GetOutputHlColor",
+        "emLook::SetBgColor",
+        "emLook::SetButtonBgColor",
+        "emLook::SetButtonFgColor",
+        "emLook::SetFgColor",
+        "emLook::SetInputBgColor",
+        "emLook::SetInputFgColor",
+        "emLook::SetInputHlColor",
+        "emLook::SetOutputBgColor",
+        "emLook::SetOutputFgColor",
+        "emLook::SetOutputHlColor",
+        "emLook::emLook()",
+        "emLook::operator!=",
+        "emLook::operator=="
+      ]
+    },
+    "emMiniIpc.h": {
+      "target_rs": "src/emCore/emMiniIpc.rs",
+      "source_files": [
+        "src/foundation/mini_ipc.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": []
+    },
+    "emModel.h": {
+      "target_rs": "src/emCore/emModel.rs",
+      "source_files": [
+        "src/model/context.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "extract",
+      "note": "emModel base class currently in context.rs; extract to own file",
+      "cpp_symbols": [
+        "emModel::Acquire",
+        "emModel::Cycle",
+        "emModel::GetMinCommonLifetime",
+        "emModel::GetName",
+        "emModel::GetRootContext",
+        "emModel::IsCommon",
+        "emModel::IsRegistered",
+        "emModel::Register",
+        "emModel::SetMinCommonLifetime",
+        "emModel::Unregister"
+      ]
+    },
+    "emOwnPtr.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emOwnPtr.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses Box<T>",
+      "cpp_symbols": []
+    },
+    "emOwnPtrArray.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emOwnPtrArray.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses Vec<Box<T>>",
+      "cpp_symbols": [
+        "emOwnPtrArray::Add / operator+= / Insert",
+        "emOwnPtrArray::Get / operator[]",
+        "emOwnPtrArray::GetCount / SetCount / Compact",
+        "emOwnPtrArray::Remove / Clear / IsEmpty",
+        "emOwnPtrArray::Set / Reset / Release",
+        "emOwnPtrArray::Sort / BinarySearchByKey / BinaryInsert / BinaryRemoveByKey",
+        "emOwnPtrArray::begin / end"
+      ]
+    },
+    "emPackGroup.h": {
+      "target_rs": "src/emCore/emPackGroup.rs",
+      "source_files": [
+        "src/layout/pack.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "extract",
+      "note": "emPackGroup currently in pack.rs; extract to own file",
+      "cpp_symbols": [
+        "emPackGroup",
+        "emPackGroup::emPackGroup (constructor)"
+      ]
+    },
+    "emPackLayout.h": {
+      "target_rs": "src/emCore/emPackLayout.rs",
+      "source_files": [
+        "src/layout/pack.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emPackLayout",
+        "emPackLayout::CountCells (private)",
+        "emPackLayout::FillTPIs (private)",
+        "emPackLayout::GetChildWeight(int index)",
+        "emPackLayout::GetMinCellCount",
+        "emPackLayout::GetPrefChildTallness(int index)",
+        "emPackLayout::GetTPILogPCTSum (private)",
+        "emPackLayout::GetTPIWeightSum (private)",
+        "emPackLayout::LayoutChildren (protected virtual)",
+        "emPackLayout::Pack1 (private)",
+        "emPackLayout::Pack2 (private)",
+        "emPackLayout::Pack3 (private)",
+        "emPackLayout::PackN (private)",
+        "emPackLayout::RateCell (private)",
+        "emPackLayout::RateHorizontally (private)",
+        "emPackLayout::RateVertically (private)",
+        "emPackLayout::SetChildWeight(double weight)",
+        "emPackLayout::SetChildWeight(int index, double weight)",
+        "emPackLayout::SetMinCellCount",
+        "emPackLayout::SetPrefChildTallness(double pct)",
+        "emPackLayout::SetPrefChildTallness(int index, double pct)",
+        "emPackLayout::TmpInfo (private struct)",
+        "emPackLayout::TmpPanelInfo (private struct)",
+        "emPackLayout::emPackLayout (constructor)"
+      ]
+    },
+    "emPainter.h": {
+      "target_rs": "src/emCore/emPainter.rs",
+      "source_files": [
+        "src/render/painter.rs",
+        "src/render/interpolation.rs",
+        "src/render/scanline.rs",
+        "src/render/scanline_avx2.rs",
+        "src/render/scanline_tool.rs",
+        "src/render/draw_list.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emPainter split: main API in painter.rs, interpolation/scanline/draw_list for parallel rendering",
+      "cpp_symbols": [
+        "emPainter::Clear(texture, canvasColor)",
+        "emPainter::GetClipX1()",
+        "emPainter::GetClipX2()",
+        "emPainter::GetClipY1()",
+        "emPainter::GetClipY2()",
+        "emPainter::GetOriginX()",
+        "emPainter::GetOriginY()",
+        "emPainter::GetScaleX()",
+        "emPainter::GetScaleY()",
+        "emPainter::GetTextSize(text, charHeight, formatted, relLineSpace, pHeight, textLen) [static]",
+        "emPainter::GetUserClipX1()",
+        "emPainter::GetUserClipX2()",
+        "emPainter::GetUserClipY1()",
+        "emPainter::GetUserClipY2()",
+        "emPainter::LineCap [enum]",
+        "emPainter::PaintBezier(xy[], n, texture, canvasColor)",
+        "emPainter::PaintBezierLine(xy[], n, thickness, stroke, strokeStart, strokeEnd, canvasColor)",
+        "emPainter::PaintBezierOutline(xy[], n, thickness, stroke, canvasColor)",
+        "emPainter::PaintBorderImage(x, y, w, h, l, t, r, b, img, srcL, srcT, srcR, srcB, alpha, canvasColor, whichSubRects) [whole image]",
+        "emPainter::PaintBorderImage(x, y, w, h, l, t, r, b, img, srcX, srcY, srcW, srcH, srcL, srcT, srcR, srcB, alpha, canvasColor, whichSubRects) [sub-image]",
+        "emPainter::PaintBorderImageColored(x, y, w, h, l, t, r, b, img, srcL, srcT, srcR, srcB, color1, color2, canvasColor, whichSubRects) [whole image]",
+        "emPainter::PaintBorderImageColored(x, y, w, h, l, t, r, b, img, srcX, srcY, srcW, srcH, srcL, srcT, srcR, srcB, color1, color2, canvasColor, whichSubRects) [sub-image]",
+        "emPainter::PaintEdgeCorrection(x1, y1, x2, y2, color1, color2)",
+        "emPainter::PaintEllipse(x, y, w, h, startAngle, rangeAngle, texture, canvasColor) [deprecated]",
+        "emPainter::PaintEllipse(x, y, w, h, texture, canvasColor)",
+        "emPainter::PaintEllipseArc(x, y, w, h, startAngle, rangeAngle, thickness, stroke, strokeStart, strokeEnd, canvasColor)",
+        "emPainter::PaintEllipseOutline(x, y, w, h, startAngle, rangeAngle, thickness, color, canvasColor) [deprecated]",
+        "emPainter::PaintEllipseOutline(x, y, w, h, thickness, stroke, canvasColor)",
+        "emPainter::PaintEllipseSector(x, y, w, h, startAngle, rangeAngle, texture, canvasColor)",
+        "emPainter::PaintEllipseSectorOutline(x, y, w, h, startAngle, rangeAngle, thickness, stroke, canvasColor)",
+        "emPainter::PaintImage(x, y, w, h, img, alpha, canvasColor, extension) [whole image]",
+        "emPainter::PaintImage(x, y, w, h, img, srcX, srcY, srcW, srcH, alpha, canvasColor, extension) [sub-image]",
+        "emPainter::PaintImageColored(x, y, w, h, img, color1, color2, canvasColor, extension) [whole image]",
+        "emPainter::PaintImageColored(x, y, w, h, img, srcX, srcY, srcW, srcH, color1, color2, canvasColor, extension) [sub-image]",
+        "emPainter::PaintLine(x1, y1, x2, y2, thickness, cap1, cap2, color, canvasColor) [deprecated LineCap overload]",
+        "emPainter::PaintLine(x1, y1, x2, y2, thickness, stroke, strokeStart, strokeEnd, canvasColor)",
+        "emPainter::PaintPolygon(xy[], n, texture, canvasColor)",
+        "emPainter::PaintPolygonOutline(xy[], n, thickness, stroke, canvasColor)",
+        "emPainter::PaintPolyline(xy[], n, thickness, stroke, strokeStart, strokeEnd, canvasColor)",
+        "emPainter::PaintRect(x, y, w, h, texture, canvasColor)",
+        "emPainter::PaintRectOutline(x, y, w, h, thickness, stroke, canvasColor)",
+        "emPainter::PaintRoundRect(x, y, w, h, rx, ry, texture, canvasColor)",
+        "emPainter::PaintRoundRectOutline(x, y, w, h, rx, ry, thickness, stroke, canvasColor)",
+        "emPainter::PaintText(x, y, text, charHeight, widthScale, color, canvasColor, textLen)",
+        "emPainter::PaintTextBoxed(x, y, w, h, text, maxCharHeight, color, canvasColor, boxAlignment, textAlignment, minWidthScale, formatted, relLineSpace, textLen)",
+        "emPainter::RoundDownX(x)",
+        "emPainter::RoundDownY(y)",
+        "emPainter::RoundUpX(x)",
+        "emPainter::RoundUpY(y)",
+        "emPainter::RoundX(x)",
+        "emPainter::RoundY(y)",
+        "emPainter::SetClipping(clipX1, clipY1, clipX2, clipY2)",
+        "emPainter::SetOrigin(originX, originY)",
+        "emPainter::SetScaling(scaleX, scaleY)",
+        "emPainter::SetTransformation(originX, originY, scaleX, scaleY)",
+        "emPainter::emPainter() [default constructor]"
+      ]
+    },
+    "emPanel.h": {
+      "target_rs": "src/emCore/emPanel.rs",
+      "source_files": [
+        "src/panel/behavior.rs",
+        "src/panel/ctx.rs",
+        "src/panel/tree.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "Large class split: behavior (trait), ctx (panel context), tree (panel tree)",
+      "cpp_symbols": [
+        "emPanel::Activate",
+        "emPanel::AutoExpand (protected virtual)",
+        "emPanel::AutoShrink (protected virtual)",
+        "emPanel::AutoplayHandlingFlags / APH_* (enum)",
+        "emPanel::BeFirst / BeLast / BePrevOf / BeNextOf",
+        "emPanel::CreateControlPanel (protected virtual)",
+        "emPanel::Cycle (protected virtual)",
+        "emPanel::DeleteAllChildren",
+        "emPanel::Focus",
+        "emPanel::GetAutoExpansionThresholdValue / GetAutoExpansionThresholdType / SetAutoExpansionThreshold",
+        "emPanel::GetCanvasColor",
+        "emPanel::GetChild",
+        "emPanel::GetClipX1 / GetClipY1 / GetClipX2 / GetClipY2",
+        "emPanel::GetCursor (protected virtual)",
+        "emPanel::GetEssenceRect",
+        "emPanel::GetFirstChild / GetLastChild",
+        "emPanel::GetFocusableParent / GetFocusableFirstChild / GetFocusableLastChild / GetFocusablePrev / GetFocusableNext",
+        "emPanel::GetIconFileName",
+        "emPanel::GetIdentity / EncodeIdentity / DecodeIdentity",
+        "emPanel::GetInputClockMS",
+        "emPanel::GetLayoutX / GetLayoutY / GetLayoutWidth / GetLayoutHeight",
+        "emPanel::GetMemoryLimit",
+        "emPanel::GetName",
+        "emPanel::GetParent",
+        "emPanel::GetPlaybackState",
+        "emPanel::GetPrev / GetNext",
+        "emPanel::GetRootContext",
+        "emPanel::GetScreen",
+        "emPanel::GetSoughtName (protected)",
+        "emPanel::GetSubstanceRect",
+        "emPanel::GetTitle",
+        "emPanel::GetTouchEventPriority",
+        "emPanel::GetUpdatePriority",
+        "emPanel::GetView",
+        "emPanel::GetViewCondition",
+        "emPanel::GetViewContext",
+        "emPanel::GetViewedPixelTallness",
+        "emPanel::GetViewedX / GetViewedY / GetViewedWidth / GetViewedHeight",
+        "emPanel::GetWidth / GetHeight / GetTallness",
+        "emPanel::GetWindow",
+        "emPanel::Input (protected virtual)",
+        "emPanel::InvalidateAutoExpansion (protected)",
+        "emPanel::InvalidateChildrenLayout (protected)",
+        "emPanel::InvalidateControlPanel (protected)",
+        "emPanel::InvalidateCursor (protected)",
+        "emPanel::InvalidatePainting (protected, both overloads)",
+        "emPanel::InvalidateTitle (protected)",
+        "emPanel::IsActivatedAdherent",
+        "emPanel::IsActive / IsInActivePath",
+        "emPanel::IsAutoExpanded",
+        "emPanel::IsContentReady",
+        "emPanel::IsFocused / IsInFocusedPath",
+        "emPanel::IsHopeForSeeking (protected virtual)",
+        "emPanel::IsOpaque (protected virtual)",
+        "emPanel::IsPointInSubstanceRect",
+        "emPanel::IsViewFocused",
+        "emPanel::IsViewed / IsInViewedPath",
+        "emPanel::Layout",
+        "emPanel::LayoutChildren (protected virtual)",
+        "emPanel::LinkCrossPtr",
+        "emPanel::Notice (protected virtual)",
+        "emPanel::NoticeFlags / NF_* (enum, protected)",
+        "emPanel::Paint (protected virtual)",
+        "emPanel::PanelToViewDeltaX / PanelToViewDeltaY / ViewToPanelDeltaX / ViewToPanelDeltaY",
+        "emPanel::PanelToViewX / PanelToViewY / ViewToPanelX / ViewToPanelY",
+        "emPanel::ParentArgClass::GetPanel",
+        "emPanel::ParentArgClass::GetRootContext",
+        "emPanel::ParentArgClass::GetView",
+        "emPanel::SetAutoplayHandling / GetAutoplayHandling",
+        "emPanel::SetEnableSwitch / GetEnableSwitch / IsEnabled",
+        "emPanel::SetFocusable / IsFocusable",
+        "emPanel::SetPlaybackState",
+        "emPanel::SortChildren",
+        "emPanel::ViewConditionType (enum)",
+        "emPanel::emPanel (constructor)"
+      ]
+    },
+    "emPriSchedAgent.h": {
+      "target_rs": "src/emCore/emPriSchedAgent.rs",
+      "source_files": [
+        "src/scheduler/pri_sched_agent.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emPriSchedAgent::GotAccess",
+        "emPriSchedAgent::HasAccess",
+        "emPriSchedAgent::IsWaitingForAccess",
+        "emPriSchedAgent::PriSchedModel",
+        "emPriSchedAgent::ReleaseAccess",
+        "emPriSchedAgent::RequestAccess",
+        "emPriSchedAgent::SetAccessPriority",
+        "emPriSchedAgent::emPriSchedAgent",
+        "emPriSchedAgent::~emPriSchedAgent"
+      ]
+    },
+    "emProcess.h": {
+      "target_rs": "src/emCore/emProcess.rs",
+      "source_files": [
+        "src/foundation/process.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emProcess",
+        "emProcess::CloseReading",
+        "emProcess::CloseReadingErr",
+        "emProcess::CloseWriting",
+        "emProcess::GetArg0",
+        "emProcess::GetExitStatus",
+        "emProcess::IsRunning",
+        "emProcess::SendKillSignal",
+        "emProcess::SendTerminationSignal",
+        "emProcess::StartFlags",
+        "emProcess::Terminate",
+        "emProcess::TryRead",
+        "emProcess::TryReadErr",
+        "emProcess::TryStart",
+        "emProcess::TryStartUnmanaged",
+        "emProcess::TryWrite",
+        "emProcess::WaitFlags",
+        "emProcess::WaitForTermination",
+        "emProcess::WaitPipes",
+        "emProcess::emProcess",
+        "emProcess::~emProcess"
+      ]
+    },
+    "emRadioBox.h": {
+      "target_rs": "src/emCore/emRadioBox.rs",
+      "source_files": [
+        "src/widget/radio_box.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emRadioBox",
+        "emRadioBox::emRadioBox"
+      ]
+    },
+    "emRadioButton.h": {
+      "target_rs": "src/emCore/emRadioButton.rs",
+      "source_files": [
+        "src/widget/radio_button.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emRadioButton",
+        "emRadioButton::CheckChanged",
+        "emRadioButton::Clicked",
+        "emRadioButton::GetHowTo",
+        "emRadioButton::Group",
+        "emRadioButton::HowToRadioButton",
+        "emRadioButton::LinearGroup",
+        "emRadioButton::LinearGroup::LinearGroup",
+        "emRadioButton::Mechanism",
+        "emRadioButton::Mechanism::Add",
+        "emRadioButton::Mechanism::AddAll",
+        "emRadioButton::Mechanism::GetButton",
+        "emRadioButton::Mechanism::GetCheckIndex",
+        "emRadioButton::Mechanism::GetChecked",
+        "emRadioButton::Mechanism::GetCount",
+        "emRadioButton::Mechanism::GetIndexOf",
+        "emRadioButton::Mechanism::Mechanism",
+        "emRadioButton::Mechanism::Remove",
+        "emRadioButton::Mechanism::RemoveAll",
+        "emRadioButton::Mechanism::RemoveByIndex",
+        "emRadioButton::Mechanism::SetCheckIndex",
+        "emRadioButton::Mechanism::SetChecked",
+        "emRadioButton::RasterGroup",
+        "emRadioButton::RasterGroup::RasterGroup",
+        "emRadioButton::emRadioButton",
+        "emRadioButton::~emRadioButton"
+      ]
+    },
+    "emRasterGroup.h": {
+      "target_rs": "src/emCore/emRasterGroup.rs",
+      "source_files": [
+        "src/layout/raster.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "extract",
+      "note": "emRasterGroup currently in raster.rs; extract to own file",
+      "cpp_symbols": [
+        "emRasterGroup",
+        "emRasterGroup::emRasterGroup (constructor)"
+      ]
+    },
+    "emRasterLayout.h": {
+      "target_rs": "src/emCore/emRasterLayout.rs",
+      "source_files": [
+        "src/layout/raster.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emRasterLayout",
+        "emRasterLayout::GetAlignment",
+        "emRasterLayout::GetFixedColumnCount",
+        "emRasterLayout::GetFixedRowCount",
+        "emRasterLayout::GetMaxChildTallness",
+        "emRasterLayout::GetMinCellCount",
+        "emRasterLayout::GetMinChildTallness",
+        "emRasterLayout::GetPrefChildTallness",
+        "emRasterLayout::GetSpaceB",
+        "emRasterLayout::GetSpaceH",
+        "emRasterLayout::GetSpaceL",
+        "emRasterLayout::GetSpaceR",
+        "emRasterLayout::GetSpaceT",
+        "emRasterLayout::GetSpaceV",
+        "emRasterLayout::IsRowByRow",
+        "emRasterLayout::IsStrictRaster",
+        "emRasterLayout::LayoutChildren (protected virtual)",
+        "emRasterLayout::SetAlignment",
+        "emRasterLayout::SetChildTallness",
+        "emRasterLayout::SetFixedColumnCount",
+        "emRasterLayout::SetFixedRowCount",
+        "emRasterLayout::SetInnerSpace",
+        "emRasterLayout::SetMaxChildTallness",
+        "emRasterLayout::SetMinCellCount",
+        "emRasterLayout::SetMinChildTallness",
+        "emRasterLayout::SetOuterSpace(double l, double t, double r, double b)",
+        "emRasterLayout::SetOuterSpace(double lr, double tb)",
+        "emRasterLayout::SetPrefChildTallness",
+        "emRasterLayout::SetRowByRow",
+        "emRasterLayout::SetSpace(double l, double t, double h, double v, double r, double b)",
+        "emRasterLayout::SetSpace(double lr, double tb, double h, double v)",
+        "emRasterLayout::SetSpaceB",
+        "emRasterLayout::SetSpaceH",
+        "emRasterLayout::SetSpaceL",
+        "emRasterLayout::SetSpaceR",
+        "emRasterLayout::SetSpaceT",
+        "emRasterLayout::SetSpaceV",
+        "emRasterLayout::SetStrictRaster",
+        "emRasterLayout::emRasterLayout (constructor)"
+      ]
+    },
+    "emRec.h": {
+      "target_rs": "src/emCore/emRec.rs",
+      "source_files": [
+        "src/foundation/em_rec.rs",
+        "src/model/rec_types.rs",
+        "src/model/record.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emRec class hierarchy split: parsing in em_rec.rs, rec types in rec_types.rs, Record trait in record.rs",
+      "cpp_symbols": [
+        "emRec"
+      ]
+    },
+    "emRecFileModel.h": {
+      "target_rs": "src/emCore/emRecFileModel.rs",
+      "source_files": [
+        "src/model/rec_file_model.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emRecFileModel",
+        "emRecFileModel::CalcFileProgress",
+        "emRecFileModel::CalcMemoryNeed",
+        "emRecFileModel::GetChangeSignal",
+        "emRecFileModel::GetRec",
+        "emRecFileModel::PostConstruct",
+        "emRecFileModel::QuitLoading",
+        "emRecFileModel::QuitSaving",
+        "emRecFileModel::ResetData",
+        "emRecFileModel::TryContinueLoading",
+        "emRecFileModel::TryContinueSaving",
+        "emRecFileModel::TryStartLoading",
+        "emRecFileModel::TryStartSaving"
+      ]
+    },
+    "emRef.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emRef.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses Rc<T> / Arc<T>",
+      "cpp_symbols": [
+        "emRef::Get / operator CLS* / operator->",
+        "emRef::emRef (constructors) / operator= / Set / Reset"
+      ]
+    },
+    "emRenderThreadPool.h": {
+      "target_rs": "src/emCore/emRenderThreadPool.rs",
+      "source_files": [
+        "src/render/thread_pool.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": []
+    },
+    "emRes.h": {
+      "target_rs": "src/emCore/emRes.rs",
+      "source_files": [
+        "src/model/resource_cache.rs",
+        "src/foundation/tga.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emResModelBase \u2192 ResourceCache; TGA loading (emGetResImage uses TGA) \u2192 tga.rs",
+      "cpp_symbols": []
+    },
+    "emScalarField.h": {
+      "target_rs": "src/emCore/emScalarField.rs",
+      "source_files": [
+        "src/widget/scalar_field.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emScalarField::CheckMouse",
+        "emScalarField::DefaultTextOfValue",
+        "emScalarField::GetHowTo",
+        "emScalarField::GetKeyboardInterval",
+        "emScalarField::GetMaxValue",
+        "emScalarField::GetMinValue",
+        "emScalarField::GetScaleMarkIntervals",
+        "emScalarField::GetTextBoxTallness",
+        "emScalarField::GetValue",
+        "emScalarField::GetValueSignal",
+        "emScalarField::HasHowTo",
+        "emScalarField::Input",
+        "emScalarField::IsEditable",
+        "emScalarField::IsNeverHidingMarks",
+        "emScalarField::PaintContent",
+        "emScalarField::SetEditable",
+        "emScalarField::SetKeyboardInterval",
+        "emScalarField::SetMaxValue",
+        "emScalarField::SetMinMaxValues",
+        "emScalarField::SetMinValue",
+        "emScalarField::SetNeverHideMarks",
+        "emScalarField::SetScaleMarkIntervals(const emArray<emUInt64>&)",
+        "emScalarField::SetScaleMarkIntervals(unsigned, unsigned, ...)",
+        "emScalarField::SetTextBoxTallness",
+        "emScalarField::SetTextOfValueFunc",
+        "emScalarField::SetValue",
+        "emScalarField::TextOfValue",
+        "emScalarField::ValueChanged",
+        "emScalarField::emScalarField(ParentArg, const emString&, const emString&, const emString&, const emImage&, emInt64, emInt64, emInt64, bool)"
+      ]
+    },
+    "emScheduler.h": {
+      "target_rs": "src/emCore/emScheduler.rs",
+      "source_files": [
+        "src/scheduler/core.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emScheduler::DoTimeSlice",
+        "emScheduler::GetTimeSliceCounter",
+        "emScheduler::InitiateTermination",
+        "emScheduler::IsTimeSliceAtEnd",
+        "emScheduler::Run",
+        "emScheduler::emScheduler",
+        "emScheduler::~emScheduler"
+      ]
+    },
+    "emScreen.h": {
+      "target_rs": "src/emCore/emScreen.rs",
+      "source_files": [
+        "src/window/screen.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emScreen::Beep",
+        "emScreen::CanMoveMousePointer",
+        "emScreen::CreateWindowPort (protected pure virtual)",
+        "emScreen::GetDPI",
+        "emScreen::GetDesktopRect",
+        "emScreen::GetGeometrySignal",
+        "emScreen::GetMonitorCount",
+        "emScreen::GetMonitorIndexOfRect",
+        "emScreen::GetMonitorRect",
+        "emScreen::GetWindows",
+        "emScreen::GetWindowsSignal",
+        "emScreen::Install (protected)",
+        "emScreen::LeaveFullscreenModes",
+        "emScreen::LookupInherited",
+        "emScreen::MoveMousePointer",
+        "emScreen::SignalGeometrySignal (protected)",
+        "emScreen::emScreen (protected constructor)"
+      ]
+    },
+    "emSigModel.h": {
+      "target_rs": "src/emCore/emSigModel.rs",
+      "source_files": [
+        "src/model/watched_var.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "extract",
+      "note": "emSigModel currently in watched_var.rs; extract to own file",
+      "cpp_symbols": [
+        "emSigModel",
+        "emSigModel::Acquire",
+        "emSigModel::Lookup",
+        "emSigModel::LookupInherited",
+        "emSigModel::Sig"
+      ]
+    },
+    "emSignal.h": {
+      "target_rs": "src/emCore/emSignal.rs",
+      "source_files": [
+        "src/scheduler/signal.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emSignal::Abort",
+        "emSignal::IsPending",
+        "emSignal::Signal",
+        "emSignal::emSignal",
+        "emSignal::~emSignal"
+      ]
+    },
+    "emSplitter.h": {
+      "target_rs": "src/emCore/emSplitter.rs",
+      "source_files": [
+        "src/widget/splitter.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emSplitter::GetCursor",
+        "emSplitter::GetMaxPos",
+        "emSplitter::GetMinPos",
+        "emSplitter::GetPos",
+        "emSplitter::GetPosSignal",
+        "emSplitter::Input",
+        "emSplitter::IsVertical",
+        "emSplitter::LayoutChildren",
+        "emSplitter::PaintContent",
+        "emSplitter::SetMinMaxPos",
+        "emSplitter::SetPos",
+        "emSplitter::SetVertical",
+        "emSplitter::emSplitter(ParentArg, const emString&, const emString&, const emString&, const emImage&, bool, double, double, double)"
+      ]
+    },
+    "emStd1.h": {
+      "target_rs": "src/emCore/emStd1.rs",
+      "source_files": [
+        "src/foundation/dlog.rs"
+      ],
+      "mod_rs_code": "foundation/mod.rs (set_fatal_error_graphical, is_fatal_error_graphical)",
+      "pattern": "split",
+      "note": "Most of emStd1.h is Rust std prelude; emDLog\u2192dlog.rs, emFatalError/emSetFatalErrorGraphical\u2192mod.rs functions",
+      "cpp_symbols": []
+    },
+    "emStd2.h": {
+      "target_rs": "src/emCore/emStd2.rs",
+      "source_files": [
+        "src/foundation/checksum.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emCalcAdler32 etc. in checksum.rs; most emStd2.h file/process utilities covered by Rust std",
+      "cpp_symbols": []
+    },
+    "emString.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emString.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses String / &str",
+      "cpp_symbols": [
+        "emString",
+        "emString::Add / Insert / Replace",
+        "emString::Clear / IsEmpty",
+        "emString::Extract",
+        "emString::Format / VFormat",
+        "emString::Get / operator const char* / operator[]",
+        "emString::GetCount / GetLen",
+        "emString::GetSubString",
+        "emString::Remove",
+        "emString::emString (constructors)",
+        "emString::operator= / operator+= / operator+",
+        "emString::operator== / operator!= / operator< / operator> / operator<= / operator>= (and friend overloads)"
+      ]
+    },
+    "emStroke.h": {
+      "target_rs": "src/emCore/emStroke.rs",
+      "source_files": [
+        "src/render/stroke.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emStroke",
+        "emStroke::DashTypeEnum",
+        "emStroke::GetColor",
+        "emStroke::GetDashLengthFactor",
+        "emStroke::GetDashType",
+        "emStroke::GetGapLengthFactor",
+        "emStroke::IsRounded",
+        "emStroke::SetColor",
+        "emStroke::SetDashLengthFactor",
+        "emStroke::SetDashType",
+        "emStroke::SetGapLengthFactor",
+        "emStroke::SetRounded",
+        "emStroke::emStroke(emColor,bool,DashTypeEnum,double,double)",
+        "emStroke::emStroke(emUInt32)"
+      ]
+    },
+    "emStrokeEnd.h": {
+      "target_rs": "src/emCore/emStrokeEnd.rs",
+      "source_files": [
+        "src/render/stroke.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "extract",
+      "note": "emStrokeEnd currently in stroke.rs; extract to own file",
+      "cpp_symbols": [
+        "emStrokeEnd",
+        "emStrokeEnd::GetInnerColor",
+        "emStrokeEnd::GetLengthFactor",
+        "emStrokeEnd::GetType",
+        "emStrokeEnd::GetWidthFactor",
+        "emStrokeEnd::IsDecorated",
+        "emStrokeEnd::SetInnerColor",
+        "emStrokeEnd::SetLengthFactor",
+        "emStrokeEnd::SetType",
+        "emStrokeEnd::SetWidthFactor",
+        "emStrokeEnd::TypeEnum",
+        "emStrokeEnd::emStrokeEnd"
+      ]
+    },
+    "emSubViewPanel.h": {
+      "target_rs": "src/emCore/emSubViewPanel.rs",
+      "source_files": [
+        "src/panel/sub_view_panel.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emSubViewPanel::GetCursor (protected virtual)",
+        "emSubViewPanel::GetSubView",
+        "emSubViewPanel::GetTitle",
+        "emSubViewPanel::GetTouchEventPriority",
+        "emSubViewPanel::Input (protected virtual)",
+        "emSubViewPanel::IsOpaque (protected virtual)",
+        "emSubViewPanel::Notice (protected virtual)",
+        "emSubViewPanel::Paint (protected virtual)",
+        "emSubViewPanel::emSubViewPanel (constructor)"
+      ]
+    },
+    "emTextField.h": {
+      "target_rs": "src/emCore/emTextField.rs",
+      "source_files": [
+        "src/widget/text_field.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emTextField::CanRedo",
+        "emTextField::CanUndo",
+        "emTextField::CheckMouse",
+        "emTextField::CopySelectedTextToClipboard",
+        "emTextField::CutSelectedTextToClipboard",
+        "emTextField::Cycle",
+        "emTextField::DeleteSelectedText",
+        "emTextField::EmptySelection",
+        "emTextField::GetCanUndoRedoSignal",
+        "emTextField::GetCursorIndex",
+        "emTextField::GetHowTo",
+        "emTextField::GetMultiLineMode",
+        "emTextField::GetOverwriteMode",
+        "emTextField::GetPasswordMode",
+        "emTextField::GetSelectionEndIndex",
+        "emTextField::GetSelectionSignal",
+        "emTextField::GetSelectionStartIndex",
+        "emTextField::GetText",
+        "emTextField::GetTextLen",
+        "emTextField::GetTextSignal",
+        "emTextField::HasHowTo",
+        "emTextField::Input",
+        "emTextField::IsCursorBlinkOn",
+        "emTextField::IsEditable",
+        "emTextField::IsSelectionEmpty",
+        "emTextField::Notice",
+        "emTextField::PaintContent",
+        "emTextField::PasteSelectedText",
+        "emTextField::PasteSelectedTextFromClipboard",
+        "emTextField::PublishSelection",
+        "emTextField::Redo",
+        "emTextField::Select",
+        "emTextField::SelectAll",
+        "emTextField::SelectionChanged",
+        "emTextField::SetCursorIndex",
+        "emTextField::SetEditable",
+        "emTextField::SetMultiLineMode",
+        "emTextField::SetOverwriteMode",
+        "emTextField::SetPasswordMode",
+        "emTextField::SetText",
+        "emTextField::SetValidateFunc",
+        "emTextField::TextChanged",
+        "emTextField::Undo",
+        "emTextField::Validate",
+        "emTextField::emTextField(ParentArg, const emString&, const emString&, const emString&, const emImage&, const emString&, bool)"
+      ]
+    },
+    "emTexture.h": {
+      "target_rs": "src/emCore/emTexture.rs",
+      "source_files": [
+        "src/render/texture.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emTexture",
+        "emTexture::DownscaleQualityType",
+        "emTexture::ExtensionType",
+        "emTexture::GetAlpha/SetAlpha",
+        "emTexture::GetColor/SetColor",
+        "emTexture::GetColor1/SetColor1/GetColor2/SetColor2",
+        "emTexture::GetDownscaleQuality/SetDownscaleQuality",
+        "emTexture::GetExtension/SetExtension",
+        "emTexture::GetImage/SetImage",
+        "emTexture::GetSrcX/SetSrcX/GetSrcY/SetSrcY/GetSrcW/SetSrcW/GetSrcH/SetSrcH",
+        "emTexture::GetUpscaleQuality/SetUpscaleQuality",
+        "emTexture::GetX/SetX/GetY/SetY/GetW/SetW/GetH/SetH",
+        "emTexture::GetX1/SetX1/GetY1/SetY1/GetX2/SetX2/GetY2/SetY2",
+        "emTexture::TextureType",
+        "emTexture::UpscaleQualityType",
+        "emTexture::emTexture(double,double,double,double,const emImage&,...)",
+        "emTexture::emTexture(emColor)",
+        "emTexture::emTexture(image+colors overload)",
+        "emTexture::emTexture(linear gradient overload)",
+        "emTexture::emTexture(radial gradient overload)"
+      ]
+    },
+    "emThread.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emThread.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses std::thread; single-threaded UI tree",
+      "cpp_symbols": []
+    },
+    "emTiling.h": {
+      "target_rs": "src/emCore/emTiling.rs",
+      "source_files": [],
+      "mod_rs_code": "layout/mod.rs (Orientation, Alignment, Spacing, ChildConstraint)",
+      "pattern": "rename",
+      "note": "emTiling layout types moved to layout module-level code",
+      "cpp_symbols": [
+        "emTiling::GetAlignment",
+        "emTiling::GetFixedColumnCount",
+        "emTiling::GetFixedRowCount",
+        "emTiling::GetForcedChildTallnessColumn",
+        "emTiling::GetForcedChildTallnessRow",
+        "emTiling::GetMinCellCount",
+        "emTiling::GetPrefChildTallness(int idx)",
+        "emTiling::GetSpaceB",
+        "emTiling::GetSpaceH",
+        "emTiling::GetSpaceL",
+        "emTiling::GetSpaceR",
+        "emTiling::GetSpaceT",
+        "emTiling::GetSpaceV",
+        "emTiling::IsRowByRow",
+        "emTiling::LayoutChildren (protected virtual)",
+        "emTiling::SetAlignment",
+        "emTiling::SetChildTallness",
+        "emTiling::SetChildTallnessForced",
+        "emTiling::SetFixedColumnCount",
+        "emTiling::SetFixedRowCount",
+        "emTiling::SetForcedChildTallnessColumn",
+        "emTiling::SetForcedChildTallnessRow",
+        "emTiling::SetInnerSpace",
+        "emTiling::SetMinCellCount",
+        "emTiling::SetOuterSpace(double l, double t, double r, double b)",
+        "emTiling::SetOuterSpace(double lr, double tb)",
+        "emTiling::SetPrefChildTallness (scalar overload)",
+        "emTiling::SetPrefChildTallness(double pct, int idx, bool allFurther)",
+        "emTiling::SetRowByRow",
+        "emTiling::SetSpace(double l, double t, double h, double v, double r, double b)",
+        "emTiling::SetSpace(double lr, double tb, double h, double v)",
+        "emTiling::SetSpaceB",
+        "emTiling::SetSpaceH",
+        "emTiling::SetSpaceL",
+        "emTiling::SetSpaceR",
+        "emTiling::SetSpaceT",
+        "emTiling::SetSpaceV",
+        "emTiling::emTiling (constructor)"
+      ]
+    },
+    "emTimer.h": {
+      "target_rs": "src/emCore/emTimer.rs",
+      "source_files": [
+        "src/scheduler/timer.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emTimer::GetScheduler",
+        "emTimer::GetSignal",
+        "emTimer::IsRunning",
+        "emTimer::Start",
+        "emTimer::Stop",
+        "emTimer::TimerCentral::Cycle",
+        "emTimer::TimerCentral::Insert",
+        "emTimer::TimerCentral::TimerCentral",
+        "emTimer::emTimer",
+        "emTimer::~emTimer"
+      ]
+    },
+    "emTmpFile.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emTmpFile.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Rust uses tempfile crate / std::env::temp_dir",
+      "cpp_symbols": [
+        "emTmpFile",
+        "emTmpFile::Discard",
+        "emTmpFile::GetPath",
+        "emTmpFile::Setup",
+        "emTmpFile::SetupCustomPath",
+        "emTmpFile::TrySetup",
+        "emTmpFile::emTmpFile()",
+        "emTmpFile::emTmpFile(const emString&)",
+        "emTmpFile::emTmpFile(emRootContext&, const char*)",
+        "emTmpFile::~emTmpFile"
+      ]
+    },
+    "emToolkit.h": {
+      "target_rs": null,
+      "marker_file": "src/emCore/emToolkit.no_rust_equivalent",
+      "source_files": [],
+      "mod_rs_code": null,
+      "pattern": "no-rust-equivalent",
+      "reason": "Umbrella header \u2014 just #includes other widget headers",
+      "cpp_symbols": [
+        "emToolkit"
+      ]
+    },
+    "emTunnel.h": {
+      "target_rs": "src/emCore/emTunnel.rs",
+      "source_files": [
+        "src/widget/tunnel.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emTunnel::GetChildRect (const)",
+        "emTunnel::GetChildRect (non-const deprecated overload)",
+        "emTunnel::GetChildTallness / SetChildTallness",
+        "emTunnel::GetDepth / SetDepth",
+        "emTunnel::LayoutChildren (protected)",
+        "emTunnel::PaintContent (protected)",
+        "emTunnel::emTunnel (constructor)"
+      ]
+    },
+    "emVarModel.h": {
+      "target_rs": "src/emCore/emVarModel.rs",
+      "source_files": [
+        "src/model/watched_var.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": "emVarModel<T> \u2192 WatchedVar<T>",
+      "cpp_symbols": [
+        "emVarModel::Acquire",
+        "emVarModel::Get",
+        "emVarModel::GetAndRemove",
+        "emVarModel::GetInherited",
+        "emVarModel::Lookup",
+        "emVarModel::LookupInherited",
+        "emVarModel::Remove",
+        "emVarModel::Set",
+        "emVarModel::Var"
+      ]
+    },
+    "emVarSigModel.h": {
+      "target_rs": "src/emCore/emVarSigModel.rs",
+      "source_files": [
+        "src/model/watched_var.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "extract",
+      "note": "emVarSigModel currently in watched_var.rs; extract to own file",
+      "cpp_symbols": [
+        "emVarSigModel::Acquire",
+        "emVarSigModel::Get",
+        "emVarSigModel::GetAndRemove",
+        "emVarSigModel::GetInherited",
+        "emVarSigModel::Lookup",
+        "emVarSigModel::LookupInherited",
+        "emVarSigModel::Remove",
+        "emVarSigModel::Set",
+        "emVarSigModel::Sig",
+        "emVarSigModel::Var"
+      ]
+    },
+    "emView.h": {
+      "target_rs": "src/emCore/emView.rs",
+      "source_files": [
+        "src/panel/view.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emView::CreateControlPanel(emPanel&, const emString&) / GetControlPanelSignal()",
+        "emView::DoCustomCheat(const char*)",
+        "emView::GetActiveAnimator() / ActivateMagneticViewAnimator() / AbortActiveAnimator()",
+        "emView::GetActivePanel() / SetActivePanel() / SetActivePanelBestPossible() / IsActivationAdherent()",
+        "emView::GetBackgroundColor() / SetBackgroundColor(emColor)",
+        "emView::GetCursor() [protected virtual]",
+        "emView::GetFirstVIF() / GetLastVIF()",
+        "emView::GetHomeX/Y/Width/Height/PixelTallness/Tallness() / GetCurrentX/Y/Width/Height/PixelTallness/Tallness() / GetGeometrySignal()",
+        "emView::GetInputClockMS()",
+        "emView::GetMaxPopupViewRect(double*, double*, double*, double*)",
+        "emView::GetPanelAt(double, double) / GetFocusablePanelAt(double, double, bool)",
+        "emView::GetPanelByIdentity(const char*)",
+        "emView::GetRootPanel()",
+        "emView::GetSupremeViewedPanel()",
+        "emView::GetTitle() / InvalidateTitle()",
+        "emView::GetTitleSignal()",
+        "emView::GetTouchEventPriority(double, double, bool)",
+        "emView::GetViewFlags() / SetViewFlags(ViewFlags)",
+        "emView::GetViewFlagsSignal()",
+        "emView::GetVisitedPanel(double*, double*, double*)",
+        "emView::GetWindow() / GetScreen()",
+        "emView::GetZoomFactorLogarithmPerPixel()",
+        "emView::Input(emInputEvent&, const emInputState&) [protected virtual]",
+        "emView::InvalidateCursor() / InvalidatePainting() / InvalidatePainting(x,y,w,h)",
+        "emView::IsFocused() / Focus() / GetFocusSignal()",
+        "emView::IsPoppedUp()",
+        "emView::IsSoftKeyboardShown() / ShowSoftKeyboard(bool)",
+        "emView::Paint(const emPainter&, emColor) [protected virtual]",
+        "emView::RawScrollAndZoom(fixX, fixY, deltaX, deltaY, deltaZ, panel, pDeltaXDone, pDeltaYDone, pDeltaZDone)",
+        "emView::RawVisit(panel, relX, relY, relA) / RawVisit(panel) / RawVisitFullsized(panel, utilizeView)",
+        "emView::Scroll(double, double)",
+        "emView::SignalEOIDelayed() / GetEOISignal()",
+        "emView::ViewFlags (typedef + enum constants: VF_POPUP_ZOOM, VF_ROOT_SAME_TALLNESS, VF_NO_ZOOM, VF_NO_USER_NAVIGATION, VF_NO_FOCUS_HIGHLIGHT, VF_NO_ACTIVE_HIGHLIGHT, VF_EGO_MODE, VF_STRESS_TEST)",
+        "emView::Visit(panel/identity, relX, relY, relA, adherent, subject) overloads",
+        "emView::VisitFullsized(panel/identity, adherent, utilizeView, subject) overloads",
+        "emView::VisitNext/Prev/First/Last/Left/Right/Up/Down/Neighbour/In/Out()",
+        "emView::Zoom(double, double, double)",
+        "emView::ZoomOut() / RawZoomOut() / IsZoomedOut()",
+        "emView::emView(emContext&, ViewFlags)"
+      ]
+    },
+    "emViewAnimator.h": {
+      "target_rs": "src/emCore/emViewAnimator.rs",
+      "source_files": [
+        "src/panel/animator.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": []
+    },
+    "emViewInputFilter.h": {
+      "target_rs": "src/emCore/emViewInputFilter.rs",
+      "source_files": [
+        "src/panel/input_filter.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": []
+    },
+    "emViewRenderer.h": {
+      "target_rs": "src/emCore/emViewRenderer.rs",
+      "source_files": [
+        "src/render/software_compositor.rs",
+        "src/render/compositor.rs",
+        "src/render/tile_cache.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emViewRenderer split: software path, WGPU path, and tile cache",
+      "cpp_symbols": []
+    },
+    "emWindow.h": {
+      "target_rs": "src/emCore/emWindow.rs",
+      "source_files": [
+        "src/window/zui_window.rs",
+        "src/window/platform.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "split",
+      "note": "emWindow class in zui_window.rs; platform beep/screensaver inhibit in platform.rs",
+      "cpp_symbols": [
+        "emWindow::AllowScreensaver",
+        "emWindow::GetBorderSizes",
+        "emWindow::GetCloseSignal",
+        "emWindow::GetMonitorIndex",
+        "emWindow::GetScreen",
+        "emWindow::GetWMResName",
+        "emWindow::GetWindowFlags",
+        "emWindow::GetWindowFlagsSignal",
+        "emWindow::GetWindowIcon",
+        "emWindow::GetWindowPort",
+        "emWindow::InhibitScreensaver",
+        "emWindow::InvalidateTitle (protected)",
+        "emWindow::Raise",
+        "emWindow::SetViewPos",
+        "emWindow::SetViewPosSize",
+        "emWindow::SetViewSize",
+        "emWindow::SetWinPos",
+        "emWindow::SetWinPosSize",
+        "emWindow::SetWinPosViewSize (const char* geometry)",
+        "emWindow::SetWinPosViewSize (double x,y,w,h)",
+        "emWindow::SetWinSize",
+        "emWindow::SetWindowFlags",
+        "emWindow::SetWindowIcon",
+        "emWindow::SignalClosing",
+        "emWindow::WF_AUTO_DELETE",
+        "emWindow::WF_FULLSCREEN",
+        "emWindow::WF_MAXIMIZED",
+        "emWindow::WF_MODAL",
+        "emWindow::WF_POPUP",
+        "emWindow::WF_UNDECORATED",
+        "emWindow::WindowFlags (typedef int)",
+        "emWindow::emWindow (constructor)"
+      ]
+    },
+    "emWindowStateSaver.h": {
+      "target_rs": "src/emCore/emWindowStateSaver.rs",
+      "source_files": [
+        "src/window/state_saver.rs"
+      ],
+      "mod_rs_code": null,
+      "pattern": "rename",
+      "note": null,
+      "cpp_symbols": [
+        "emWindowStateSaver::Cycle (protected virtual)",
+        "emWindowStateSaver::ModelClass (inner private class)",
+        "emWindowStateSaver::ModelClass::ViewX/ViewY/ViewWidth/ViewHeight/Maximized/Fullscreen (fields)",
+        "emWindowStateSaver::emWindowStateSaver (constructor)"
+      ]
+    }
+  }
+}

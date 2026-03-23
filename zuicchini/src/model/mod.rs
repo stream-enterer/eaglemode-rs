@@ -10,6 +10,9 @@ mod rec_types;
 mod record;
 mod resource_cache;
 mod watched_var;
+mod model_base;
+mod sig_model;
+mod var_sig_model;
 
 pub use clipboard::{lookup_clipboard, Clipboard, PrivateClipboard};
 pub use config_model::ConfigModel;

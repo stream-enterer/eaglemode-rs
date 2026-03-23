@@ -36,6 +36,16 @@ Do not skip with `--no-verify`. If a commit fails, fix the cause and retry.
 
 Eagle Mode 0.96.4 source is at `~/git/eaglemode-0.96.4/` (headers in `include/emCore/`, implementation in `src/emCore/`).
 
+## File and Name Correspondence
+
+The codebase should be a transparent overlay on the C++ original. A developer holding `emFoo.h` open should be able to find `emFoo.rs`, scan for the snake_cased method name, and land on the corresponding code without guessing, searching, or asking. Where the overlay can't be 1:1, the exception is marked at the exact point of divergence with the C++ name and the reason, so the developer never has to wonder whether something was missed or renamed silently.
+
+Every C++ header in `include/emCore/` has exactly one Rust file in `src/emCore/` with the same name (`emFoo.h` → `emFoo.rs`), containing all types and methods from that header with identical names: types keep their C++ names including the `em` prefix (`class emColor` → `struct emColor`), methods are snake_cased (`GetRed` → `get_red`). Where Rust requires splitting one C++ file into multiple Rust files (e.g., the Modules rule "one primary type per file" requires it), the primary file keeps the C++ name and the splits are named `emFoo{Suffix}.rs` where the suffix is derived from the existing Rust filename, with a `SPLIT:` comment at the top explaining why. Where a Rust method or type cannot keep the C++ name, it has a `DIVERGED:` comment at its definition with the C++ name and the reason. Everything not annotated `SPLIT:` or `DIVERGED:` is 1:1 by name.
+
+Filesystem markers in `src/emCore/`:
+- C++ headers with no Rust equivalent (e.g., `emArray.h` → `Vec<T>`) get an empty marker file: `emArray.no_rust_equivalent`. Lists all exempt headers visibly on the filesystem.
+- Rust files with no C++ header get an empty marker file alongside them: `rect.rust_only`. Identifies Rust-only code visibly on the filesystem.
+
 ## Port Fidelity (zuicchini)
 
 zuicchini is a port of Eagle Mode's emCore. Golden tests compare Rust pixel output against C++ reference data. The fidelity rules depend on what layer the code is in.
@@ -44,7 +54,7 @@ zuicchini is a port of Eagle Mode's emCore. Golden tests compare Rust pixel outp
 
 **Geometry** (coordinates, rects, transforms, layout): Same algorithm and operation order on golden-tested paths. `Iterator::sum` OK (left-fold matches C++ loop). Clamp/min/max must preserve C++ boundary values.
 
-**State logic, data structures, ownership, API surface**: Fully idiomatic Rust. Golden tests verify output, not structure. Preserve behavioral contracts (return values, side effects, ordering). Adapt syntax freely.
+**State logic, data structures, ownership, API surface**: Fully idiomatic Rust, subject to File and Name Correspondence (names and file structure match C++ even when Rust idiom would differ). Golden tests verify output, not structure. Preserve behavioral contracts (return values, side effects, ordering). Adapt syntax freely where it does not break name correspondence.
 
 **When in doubt**: Check if the function's output feeds a golden test. If yes → port the C++ formula exactly. If no → write idiomatic Rust.
 
@@ -57,7 +67,7 @@ zuicchini is a port of Eagle Mode's emCore. Golden tests compare Rust pixel outp
 
 ## Do NOT
 
-- `#[allow(...)]` / `#[expect(...)]` — fix the warning instead, UNLESS warning is for too many arguments (which is allowed).
+- `#[allow(...)]` / `#[expect(...)]` — fix the warning instead, UNLESS warning is for too many arguments (which is allowed), `non_snake_case` on the `emCore` module, or `non_camel_case_types` on `em`-prefixed types (both required by File and Name Correspondence).
 - `Arc` / `Mutex` — single-threaded UI tree
 - `Cow` — use `String` / `&str`
 - Glob imports (`use foo::*`) — except `use super::*` in tests
