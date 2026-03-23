@@ -48,8 +48,8 @@ impl emFileDialog {
     pub fn new(mode: FileDialogMode, look: std::rc::Rc<emLook>) -> Self {
         let (title, ok_label) = mode_title_and_ok(mode);
         let mut dialog = emDialog::new(title, look);
-        dialog.add_button(ok_label, DialogResult::Ok);
-        dialog.add_button("Cancel", DialogResult::Cancel);
+        dialog.AddCustomButton(ok_label, DialogResult::Ok);
+        dialog.AddCustomButton("Cancel", DialogResult::Cancel);
 
         let mut fsb = emFileSelectionBox::new("");
         fsb.border_mut().outer = super::emBorder::OuterBorderType::None;
@@ -72,7 +72,7 @@ impl emFileDialog {
     pub fn set_mode(&mut self, mode: FileDialogMode) {
         self.mode = mode;
         let (title, ok_label) = mode_title_and_ok(mode);
-        self.dialog.set_title(title);
+        self.dialog.SetRootTitle(title);
         self.dialog
             .set_button_label_for_result(&DialogResult::Ok, ok_label);
     }
@@ -170,11 +170,11 @@ impl emFileDialog {
     }
 
     pub fn finish(&mut self, result: DialogResult) {
-        self.dialog.finish(result);
+        self.dialog.Finish(result);
     }
 
     pub fn result(&self) -> Option<&DialogResult> {
-        self.dialog.result()
+        self.dialog.GetResult()
     }
 
     /// Check whether the dialog can finish with the given result.

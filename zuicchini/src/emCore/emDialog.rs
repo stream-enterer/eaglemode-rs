@@ -49,12 +49,12 @@ impl emDialog {
         }
     }
 
-    pub fn add_button(&mut self, label: &str, result: DialogResult) {
+    pub fn AddCustomButton(&mut self, label: &str, result: DialogResult) {
         self.buttons.push((label.to_string(), result));
     }
 
     /// Update the dialog title (border caption).
-    pub fn set_title(&mut self, title: &str) {
+    pub fn SetRootTitle(&mut self, title: &str) {
         self.border.set_caption(title);
     }
 
@@ -65,11 +65,11 @@ impl emDialog {
         }
     }
 
-    pub fn result(&self) -> Option<&DialogResult> {
+    pub fn GetResult(&self) -> Option<&DialogResult> {
         self.result.as_ref()
     }
 
-    pub fn finish(&mut self, result: DialogResult) {
+    pub fn Finish(&mut self, result: DialogResult) {
         if let Some(cb) = &mut self.on_check_finish {
             if !cb(&result) {
                 return;
@@ -138,43 +138,43 @@ impl emDialog {
     /// Access a button label and result by index.
     ///
     /// Port of C++ `emDialog::GetButton`.
-    pub fn get_button(&self, index: usize) -> Option<&(String, DialogResult)> {
+    pub fn GetButton(&self, index: usize) -> Option<&(String, DialogResult)> {
         self.buttons.get(index)
     }
 
     /// Find the first button whose result matches `result`.
     ///
     /// Port of C++ `emDialog::GetButtonForResult`.
-    pub fn get_button_for_result(&self, result: &DialogResult) -> Option<&(String, DialogResult)> {
+    pub fn GetButtonForResult(&self, result: &DialogResult) -> Option<&(String, DialogResult)> {
         self.buttons.iter().find(|(_, r)| r == result)
     }
 
     /// Convenience accessor for the first `Ok` button.
-    pub fn ok_button(&self) -> Option<&(String, DialogResult)> {
-        self.get_button_for_result(&DialogResult::Ok)
+    pub fn GetOKButton(&self) -> Option<&(String, DialogResult)> {
+        self.GetButtonForResult(&DialogResult::Ok)
     }
 
     /// Convenience accessor for the first `Cancel` button.
-    pub fn cancel_button(&self) -> Option<&(String, DialogResult)> {
-        self.get_button_for_result(&DialogResult::Cancel)
+    pub fn GetCancelButton(&self) -> Option<&(String, DialogResult)> {
+        self.GetButtonForResult(&DialogResult::Cancel)
     }
 
     /// Enable automatic deletion when the dialog closes.
-    pub fn enable_auto_deletion(&mut self) {
+    pub fn EnableAutoDeletion(&mut self) {
         self.auto_delete = true;
     }
 
     /// Check if auto-deletion is enabled.
-    pub fn is_auto_deletion_enabled(&self) -> bool {
+    pub fn IsAutoDeletionEnabled(&self) -> bool {
         self.auto_delete
     }
 
     /// Static convenience to create a message dialog (returns a configured `emDialog`).
     ///
     /// Port of C++ `emDialog::ShowMessage`.
-    pub fn show_message(text: &str, look: Rc<emLook>) -> Self {
+    pub fn ShowMessage(text: &str, look: Rc<emLook>) -> Self {
         let mut dlg = Self::new(text, look);
-        dlg.add_button("OK", DialogResult::Ok);
+        dlg.AddCustomButton("OK", DialogResult::Ok);
         dlg
     }
 
@@ -197,11 +197,11 @@ impl emDialog {
         }
         match event.key {
             InputKey::Enter => {
-                self.finish(DialogResult::Ok);
+                self.Finish(DialogResult::Ok);
                 true
             }
             InputKey::Escape => {
-                self.finish(DialogResult::Cancel);
+                self.Finish(DialogResult::Cancel);
                 true
             }
             _ => false,
@@ -211,7 +211,7 @@ impl emDialog {
     /// Check if the dialog should close (i.e. a result has been set).
     ///
     /// Port of C++ `emDialog::CheckFinish`.
-    pub fn check_finish(&self) -> bool {
+    pub fn CheckFinish(&self) -> bool {
         self.result.is_some()
     }
 }
