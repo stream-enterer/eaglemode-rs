@@ -9,10 +9,13 @@ use rand::Rng;
 use zuicchini::emCore::emColor::Color;
 use zuicchini::emCore::emPackLayout::PackLayout;
 use zuicchini::emCore::emTiling::ChildConstraint;
-use zuicchini::panel::{PanelBehavior, ViewFlags};
+use zuicchini::emCore::emPanel::PanelBehavior;
+use zuicchini::emCore::emView::ViewFlags;
 use zuicchini::emCore::emPainter::Painter;
-use zuicchini::widget::{Border, Look, OuterBorderType};
-use zuicchini::window::{App, WindowFlags};
+use zuicchini::emCore::emBorder::{Border, OuterBorderType};
+use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emGUIFramework::App;
+use zuicchini::emCore::emWindow::WindowFlags;
 
 struct BorderPanel {
     border: Border,

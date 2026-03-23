@@ -14,24 +14,56 @@ use std::cell::Cell;
 use std::f64::consts::PI;
 use std::rc::Rc;
 
-use zuicchini::foundation::{load_tga, Color, Image};
-use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::emCore::emLinearLayout::{LinearGroup, LinearLayout};
-use zuicchini::emCore::emRasterLayout::{RasterGroup, RasterLayout};
-use zuicchini::layout::{ChildConstraint, Orientation};
-use zuicchini::panel::{
-    NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View, ViewConditionType,
-    ViewFlags,
-};
-use zuicchini::render::{
-    ImageExtension, ImageQuality, LineCap, LineJoin, Painter, SoftwareCompositor, Stroke,
-    StrokeEnd, StrokeEndType, TextAlignment, Texture, VAlign,
-};
-use zuicchini::widget::{
-    Border, Button, CheckBox, CheckButton, ColorField, InnerBorderType, ListBox, Look,
-    OuterBorderType, RadioBox, RadioButton, RadioGroup, ScalarField, SelectionMode, Splitter,
-    TextField,
-};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emResTga::load_tga;
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::InputEvent;
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emLinearLayout::LinearLayout;
+use zuicchini::emCore::emLinearGroup::LinearGroup;
+use zuicchini::emCore::emRasterLayout::RasterLayout;
+use zuicchini::emCore::emRasterGroup::RasterGroup;
+use zuicchini::emCore::emTiling::{ChildConstraint, Orientation};
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
+
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+
+use zuicchini::emCore::emStroke::{LineCap, LineJoin, Stroke};
+
+use zuicchini::emCore::emStrokeEnd::{StrokeEnd, StrokeEndType};
+
+use zuicchini::emCore::emTexture::{ImageExtension, ImageQuality, Texture};
+
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+
+use zuicchini::emCore::emButton::Button;
+
+use zuicchini::emCore::emCheckBox::CheckBox;
+
+use zuicchini::emCore::emCheckButton::CheckButton;
+
+use zuicchini::emCore::emColorField::ColorField;
+
+use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+
+use zuicchini::emCore::emLook::Look;
+
+use zuicchini::emCore::emRadioBox::RadioBox;
+
+use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+
+use zuicchini::emCore::emScalarField::ScalarField;
+
+use zuicchini::emCore::emSplitter::Splitter;
+
+use zuicchini::emCore::emTextField::TextField;
 
 use super::common::*;
 

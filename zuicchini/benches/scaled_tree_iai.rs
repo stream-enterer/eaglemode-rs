@@ -2,9 +2,13 @@
 mod common;
 
 use gungraun::{library_benchmark, library_benchmark_group, main};
-use zuicchini::foundation::{Color, Image};
-use zuicchini::panel::{PanelTree, View};
-use zuicchini::render::Painter;
+use zuicchini::emCore::emColor::Color;
+
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPanelTree::PanelTree;
+
+use zuicchini::emCore::emView::View;
+use zuicchini::emCore::emPainter::Painter;
 
 use common::scaled::{build_scaled_tree, run_one_scaled_frame};
 use common::{DEFAULT_VH, DEFAULT_VW};

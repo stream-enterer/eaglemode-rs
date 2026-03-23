@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{InputEvent, InputKey};
-use zuicchini::panel::{PanelId, PanelTree};
+use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
 use super::common::*;
 use super::support::{InputTrackingBehavior, TestHarness};

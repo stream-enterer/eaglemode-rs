@@ -1,4 +1,4 @@
-use zuicchini::foundation::{decode_message, encode_message};
+use zuicchini::emCore::emMiniIpc::{decode_message, encode_message};
 
 #[test]
 fn encode_decode_round_trip() {
@@ -88,7 +88,7 @@ mod linux {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use zuicchini::foundation::{MiniIpcClient, MiniIpcServer};
+    use zuicchini::emCore::emMiniIpc::{MiniIpcClient, MiniIpcServer};
     use zuicchini::emCore::emScheduler::EngineScheduler;
 
     #[test]

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use zuicchini::model::{FileModel, FileModelOps, FileState};
+use zuicchini::emCore::emFileModel::{FileModel, FileModelOps, FileState};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 fn make_signals() -> (

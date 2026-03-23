@@ -2,9 +2,11 @@
 mod common;
 
 use gungraun::{library_benchmark, library_benchmark_group, main};
-use zuicchini::foundation::Image;
-use zuicchini::panel::{PanelTree, View};
-use zuicchini::render::TileCache;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPanelTree::PanelTree;
+
+use zuicchini::emCore::emView::View;
+use zuicchini::emCore::emViewRendererTileCache::TileCache;
 
 use common::{run_one_frame, setup_tree_and_view, DEFAULT_VH, DEFAULT_VW, SCENARIOS};
 

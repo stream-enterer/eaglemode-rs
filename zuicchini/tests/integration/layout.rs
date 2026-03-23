@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{InputEvent, InputKey};
-use zuicchini::panel::{PanelCtx, PanelId};
+use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emPanelTree::PanelId;
 
 use crate::support::{RecordingBehavior, TestHarness};
 

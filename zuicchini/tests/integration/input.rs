@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{InputEvent, InputKey};
+use zuicchini::emCore::emInput::{InputEvent, InputKey};
 
 use crate::support::{RecordingBehavior, TestHarness};
 

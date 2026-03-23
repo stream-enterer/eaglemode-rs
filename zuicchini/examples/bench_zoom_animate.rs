@@ -5,9 +5,14 @@
 
 use std::time::Instant;
 
-use zuicchini::foundation::{Color, Image};
-use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
-use zuicchini::render::{Painter, Stroke, TileCache, TILE_SIZE};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emStroke::Stroke;
+use zuicchini::emCore::emViewRendererTileCache::{TileCache, TILE_SIZE};
 
 const VW: u32 = 1920;
 const VH: u32 = 1080;

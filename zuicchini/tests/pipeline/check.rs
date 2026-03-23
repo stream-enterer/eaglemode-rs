@@ -8,10 +8,15 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::panel::{PanelBehavior, PanelState};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{CheckBox, CheckButton, Look};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::InputEvent;
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emCheckBox::CheckBox;
+use zuicchini::emCore::emCheckButton::CheckButton;
+use zuicchini::emCore::emLook::Look;
 
 use super::support::pipeline::PipelineTestHarness;
 

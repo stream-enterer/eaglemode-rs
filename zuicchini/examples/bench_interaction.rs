@@ -12,12 +12,20 @@
 use std::f64::consts::PI;
 use std::time::Instant;
 
-use zuicchini::foundation::{Color, Image};
-use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
-use zuicchini::render::{
-    ImageExtension, ImageQuality, LineCap, LineJoin, Painter, Stroke, StrokeEnd, StrokeEndType,
-    Texture, TileCache, TILE_SIZE,
-};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+
+use zuicchini::emCore::emStroke::{LineCap, LineJoin, Stroke};
+
+use zuicchini::emCore::emStrokeEnd::{StrokeEnd, StrokeEndType};
+
+use zuicchini::emCore::emTexture::{ImageExtension, ImageQuality, Texture};
+
+use zuicchini::emCore::emViewRendererTileCache::{TileCache, TILE_SIZE};
 
 // ---------------------------------------------------------------------------
 // Inline TestPanel (same as profile_testpanel.rs)

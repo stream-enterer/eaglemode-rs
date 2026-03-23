@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use zuicchini::foundation::{
-    get_config_dir_overloadable, get_install_path, InstallDirType, InstallInfoError,
-};
+use zuicchini::emCore::emInstallInfo::{get_config_dir_overloadable, get_install_path, InstallDirType, InstallInfoError};
 
 /// Serialize all tests that mutate environment variables.
 static ENV_LOCK: Mutex<()> = Mutex::new(());

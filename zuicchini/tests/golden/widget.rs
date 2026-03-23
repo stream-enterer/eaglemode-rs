@@ -1,16 +1,45 @@
 use std::rc::Rc;
 
-use zuicchini::emCore::emLinearLayout::LinearGroup;
+use zuicchini::emCore::emLinearGroup::LinearGroup;
 use zuicchini::emCore::emTiling::Orientation;
-use zuicchini::panel::{
-    PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewConditionType, ViewFlags,
-};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{
-    Border, Button, CheckBox, ColorField, ErrorPanel, FilePanel, FileSelectionBox, InnerBorderType,
-    Label, ListBox, Look, OuterBorderType, RadioButton, RadioGroup, ScalarField, Splitter,
-    TextField, Tunnel,
-};
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+
+use zuicchini::emCore::emPanelTree::{PanelTree, ViewConditionType};
+
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+
+use zuicchini::emCore::emButton::Button;
+
+use zuicchini::emCore::emCheckBox::CheckBox;
+
+use zuicchini::emCore::emColorField::ColorField;
+
+use zuicchini::emCore::emErrorPanel::ErrorPanel;
+
+use zuicchini::emCore::emFilePanel::FilePanel;
+
+use zuicchini::emCore::emFileSelectionBox::FileSelectionBox;
+
+use zuicchini::emCore::emLabel::Label;
+
+use zuicchini::emCore::emListBox::ListBox;
+
+use zuicchini::emCore::emLook::Look;
+
+use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+
+use zuicchini::emCore::emScalarField::ScalarField;
+
+use zuicchini::emCore::emSplitter::Splitter;
+
+use zuicchini::emCore::emTextField::TextField;
+
+use zuicchini::emCore::emTunnel::Tunnel;
 
 use super::common::*;
 

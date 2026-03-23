@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::model::{lookup_clipboard, Clipboard, Context, PrivateClipboard};
+use zuicchini::emCore::emClipboard::{lookup_clipboard, Clipboard, PrivateClipboard};
+use zuicchini::emCore::emContext::Context;
 
 #[test]
 fn clipboard_trait_exists_and_is_object_safe() {

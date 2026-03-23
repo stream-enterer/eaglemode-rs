@@ -5,11 +5,17 @@ pub mod pipeline;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::panel::{
-    KeyboardZoomScrollVIF, MouseZoomScrollVIF, NoticeFlags, PanelBehavior, PanelCtx, PanelId,
-    PanelState, PanelTree, View, ViewInputFilter,
-};
+use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
+
+use zuicchini::emCore::emView::View;
+
+use zuicchini::emCore::emViewInputFilter::{KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 /// Headless test harness that wires together PanelTree, EngineScheduler, and View

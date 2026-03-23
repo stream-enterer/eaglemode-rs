@@ -6,11 +6,20 @@
 
 use std::rc::Rc;
 
-use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{
-    Border, CheckBox, InnerBorderType, Label, Look, OuterBorderType, ScalarField,
-};
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+
+use zuicchini::emCore::emCheckBox::CheckBox;
+
+use zuicchini::emCore::emLabel::Label;
+
+use zuicchini::emCore::emLook::Look;
+
+use zuicchini::emCore::emScalarField::ScalarField;
 
 use super::common::*;
 

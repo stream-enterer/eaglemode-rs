@@ -1,10 +1,14 @@
 #![allow(dead_code)]
 
-use zuicchini::input::{InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::panel::{
-    KeyboardZoomScrollVIF, MouseZoomScrollVIF, PanelBehavior, PanelId, PanelTree, View,
-    ViewInputFilter,
-};
+use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::PanelBehavior;
+
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
+
+use zuicchini::emCore::emView::View;
+
+use zuicchini::emCore::emViewInputFilter::{KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 /// Test harness that dispatches input through the FULL coordinate transform

@@ -1,5 +1,7 @@
-use zuicchini::foundation::{Color, Image};
-use zuicchini::render::{Painter, Stroke};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emStroke::Stroke;
 
 #[test]
 fn paint_rect_fills_correct_pixels() {

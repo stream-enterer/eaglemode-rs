@@ -13,11 +13,16 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use zuicchini::emCore::emColor::Color;
-use zuicchini::input::{InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, ViewFlags};
-use zuicchini::render::{Painter, TextAlignment, VAlign};
-use zuicchini::scheduler::{Engine, EngineCtx, Priority, SignalId};
-use zuicchini::window::{App, WindowFlags};
+use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emView::ViewFlags;
+use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
+use zuicchini::emCore::emSignal::SignalId;
+use zuicchini::emCore::emGUIFramework::App;
+use zuicchini::emCore::emWindow::WindowFlags;
 
 // ── Shared state between engine and panels ──
 

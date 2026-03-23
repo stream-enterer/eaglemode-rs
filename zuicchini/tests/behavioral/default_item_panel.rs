@@ -1,4 +1,5 @@
-use zuicchini::widget::{DefaultItemPanel, ItemPanelInterface, ListBox, Look};
+use zuicchini::emCore::emListBox::{DefaultItemPanel, ItemPanelInterface, ListBox};
+use zuicchini::emCore::emLook::Look;
 
 struct CustomPanel {
     index: usize,

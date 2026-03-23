@@ -5,10 +5,14 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use zuicchini::input::{Cursor, InputEvent, InputKey, InputState};
-use zuicchini::panel::{PanelBehavior, PanelState};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{Button, Look};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emButton::Button;
+use zuicchini::emCore::emLook::Look;
 
 use super::support::pipeline::PipelineTestHarness;
 

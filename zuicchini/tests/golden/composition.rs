@@ -6,17 +6,41 @@
 use std::rc::Rc;
 
 use zuicchini::emCore::emColor::Color;
-use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::emCore::emRasterLayout::{RasterGroup, RasterLayout};
-use zuicchini::panel::{
-    NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View,
-    ViewConditionType, ViewFlags,
-};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{
-    Border, Button, CheckBox, CheckButton, ColorField, InnerBorderType, ListBox, Look,
-    OuterBorderType, RadioBox, RadioButton, RadioGroup, ScalarField, SelectionMode, TextField,
-};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::InputEvent;
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emRasterLayout::RasterLayout;
+use zuicchini::emCore::emRasterGroup::RasterGroup;
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
+
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+
+use zuicchini::emCore::emButton::Button;
+
+use zuicchini::emCore::emCheckBox::CheckBox;
+
+use zuicchini::emCore::emCheckButton::CheckButton;
+
+use zuicchini::emCore::emColorField::ColorField;
+
+use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+
+use zuicchini::emCore::emLook::Look;
+
+use zuicchini::emCore::emRadioBox::RadioBox;
+
+use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+
+use zuicchini::emCore::emScalarField::ScalarField;
+
+use zuicchini::emCore::emTextField::TextField;
 
 use super::common::*;
 

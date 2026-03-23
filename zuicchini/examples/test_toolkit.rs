@@ -6,15 +6,38 @@
 use std::rc::Rc;
 
 use zuicchini::emCore::emColor::Color;
-use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::emCore::emRasterLayout::RasterGroup;
-use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelCtx, PanelState, ViewConditionType, ViewFlags};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::InputEvent;
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emRasterGroup::RasterGroup;
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emPanelTree::ViewConditionType;
+use zuicchini::emCore::emView::ViewFlags;
 use zuicchini::emCore::emPainter::Painter;
-use zuicchini::widget::{
-    Button, CheckBox, CheckButton, ColorField, ListBox, Look, RadioBox, RadioButton, RadioGroup,
-    ScalarField, SelectionMode, TextField, Tunnel,
-};
-use zuicchini::window::{App, WindowFlags};
+use zuicchini::emCore::emButton::Button;
+
+use zuicchini::emCore::emCheckBox::CheckBox;
+
+use zuicchini::emCore::emCheckButton::CheckButton;
+
+use zuicchini::emCore::emColorField::ColorField;
+
+use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+
+use zuicchini::emCore::emLook::Look;
+
+use zuicchini::emCore::emRadioBox::RadioBox;
+
+use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+
+use zuicchini::emCore::emScalarField::ScalarField;
+
+use zuicchini::emCore::emTextField::TextField;
+
+use zuicchini::emCore::emTunnel::Tunnel;
+use zuicchini::emCore::emGUIFramework::App;
+use zuicchini::emCore::emWindow::WindowFlags;
 
 // ═══════════════════════════════════════════════════════════════════════
 // Widget wrapper panels (identical to test_panel.rs)

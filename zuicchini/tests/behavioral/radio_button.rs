@@ -1,4 +1,5 @@
-use zuicchini::widget::{Look, RadioButton, RadioGroup};
+use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
 
 /// emRadioButton::Mechanism::AddAll(emPanel*)
 /// Adds multiple button slots to the group at once.

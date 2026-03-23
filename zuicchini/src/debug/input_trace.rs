@@ -5,14 +5,18 @@
 
 #[cfg(test)]
 mod tests {
-    use crate::foundation::{Color, Rect};
-    use crate::input::{InputEvent, InputKey, InputState};
-    use crate::panel::PanelId;
-    use crate::panel::{
-        PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewConditionType, ViewFlags,
-    };
-    use crate::render::Painter;
-    use crate::widget::{Button, CheckButton, Look};
+    use crate::emCore::emColor::Color;
+    use crate::emCore::rect::Rect;
+    use crate::emCore::emInput::{InputEvent, InputKey};
+    use crate::emCore::emInputState::InputState;
+    use crate::emCore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
+    use crate::emCore::emPanel::{PanelBehavior, PanelState};
+    use crate::emCore::emPanelCtx::PanelCtx;
+    use crate::emCore::emView::{View, ViewFlags};
+    use crate::emCore::emPainter::Painter;
+    use crate::emCore::emButton::Button;
+    use crate::emCore::emCheckButton::CheckButton;
+    use crate::emCore::emLook::Look;
     use slotmap::Key as _;
 
     use std::rc::Rc;
@@ -30,6 +34,7 @@ mod tests {
             priority: 1.0,
             memory_limit: u64::MAX,
             pixel_tallness: 1.0,
+            height: 0.5,
         }
     }
 
@@ -133,13 +138,13 @@ mod tests {
         let mut btn = Button::new("Test", look.clone());
 
         // Paint to set last_w/last_h
-        let mut img = crate::foundation::Image::new(100, 40, 4);
+        let mut img = crate::emCore::emImage::Image::new(100, 40, 4);
         let mut painter = Painter::new(&mut img);
         btn.paint(&mut painter, 1.0, 0.4, true);
 
         // Test content_round_rect directly
         let border =
-            crate::widget::Border::new(crate::widget::OuterBorderType::InstrumentMoreRound)
+            crate::emCore::emBorder::Border::new(crate::emCore::emBorder::OuterBorderType::InstrumentMoreRound)
                 .with_caption("Test")
                 .with_label_in_border(false);
         let (rect, r) = border.content_round_rect(1.0, 0.4, &look);
@@ -149,9 +154,9 @@ mod tests {
             rect.x, rect.y, rect.w, rect.h, r
         );
 
-        let hit_center = crate::widget::check_mouse_round_rect(0.5, 0.2, &rect, r);
-        let hit_origin = crate::widget::check_mouse_round_rect(0.0, 0.0, &rect, r);
-        let hit_outside = crate::widget::check_mouse_round_rect(-1.0, -1.0, &rect, r);
+        let hit_center = crate::emCore::widget_utils::check_mouse_round_rect(0.5, 0.2, &rect, r);
+        let hit_origin = crate::emCore::widget_utils::check_mouse_round_rect(0.0, 0.0, &rect, r);
+        let hit_outside = crate::emCore::widget_utils::check_mouse_round_rect(-1.0, -1.0, &rect, r);
         eprintln!("  hit_test(0.5, 0.2) [center]: {}", hit_center);
         eprintln!("  hit_test(0.0, 0.0) [origin]: {}", hit_origin);
         eprintln!("  hit_test(-1, -1) [outside]: {}", hit_outside);
@@ -201,7 +206,7 @@ mod tests {
 
         // Paint all
         {
-            let mut img = crate::foundation::Image::new(800, 600, 4);
+            let mut img = crate::emCore::emImage::Image::new(800, 600, 4);
             for &pid in &viewed {
                 if let Some(mut beh) = tree.take_behavior(pid) {
                     let lr = tree.get(pid).unwrap().layout_rect;

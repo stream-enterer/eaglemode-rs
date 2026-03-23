@@ -10,7 +10,7 @@
 //! `visit_left/right/up/down` for sibling navigation.
 
 use zuicchini::emCore::emInput::InputKey;
-use zuicchini::panel::{PanelId, PanelTree};
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
 use super::support::pipeline::PipelineTestHarness;
 

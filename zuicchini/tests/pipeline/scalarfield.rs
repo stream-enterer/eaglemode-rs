@@ -9,10 +9,14 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{Cursor, InputEvent, InputKey, InputState};
-use zuicchini::panel::{PanelBehavior, PanelState};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{Look, ScalarField};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emScalarField::ScalarField;
 
 use super::support::pipeline::PipelineTestHarness;
 

@@ -4,10 +4,13 @@
 //! modifier matching, key press/release tracking, and mouse position.
 
 use zuicchini::emCore::emColor::Color;
-use zuicchini::input::{InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::panel::{PanelBehavior, PanelState, ViewFlags};
-use zuicchini::render::{Painter, TextAlignment, VAlign};
-use zuicchini::window::{App, WindowFlags};
+use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emView::ViewFlags;
+use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+use zuicchini::emCore::emGUIFramework::App;
+use zuicchini::emCore::emWindow::WindowFlags;
 
 const MAX_LOG: usize = 15;
 

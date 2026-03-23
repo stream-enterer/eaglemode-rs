@@ -1,5 +1,6 @@
 use zuicchini::emCore::emRec::RecStruct;
-use zuicchini::model::{FileStatMode, FpPlugin, FpPluginList, FpPluginProperty, Record};
+use zuicchini::emCore::emFpPlugin::{FileStatMode, FpPlugin, FpPluginList, FpPluginProperty};
+use zuicchini::emCore::emRecRecord::Record;
 
 // ── Helper ──────────────────────────────────────────────────────────
 

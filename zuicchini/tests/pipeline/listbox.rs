@@ -9,12 +9,17 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{Cursor, InputEvent, InputKey, InputState};
-use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelState};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{
-    Border, InnerBorderType, ListBox, Look, OuterBorderType, SelectionMode,
-};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+
+use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+
+use zuicchini::emCore::emLook::Look;
 
 use super::support::pipeline::PipelineTestHarness;
 

@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::scheduler::{EngineScheduler, PriSchedModel};
+use zuicchini::emCore::emPriSchedAgent::PriSchedModel;
+use zuicchini::emCore::emScheduler::EngineScheduler;
 
 #[test]
 fn highest_priority_gets_access_first() {

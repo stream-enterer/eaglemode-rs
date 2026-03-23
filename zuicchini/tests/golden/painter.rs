@@ -1,7 +1,10 @@
-use zuicchini::foundation::{Color, Image};
-use zuicchini::render::{
-    DashType, LineCap, LineJoin, Painter, Stroke, StrokeEnd, StrokeEndType, TextAlignment, VAlign,
-};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+
+use zuicchini::emCore::emStroke::{DashType, LineCap, LineJoin, Stroke};
+
+use zuicchini::emCore::emStrokeEnd::{StrokeEnd, StrokeEndType};
 
 use super::common::*;
 

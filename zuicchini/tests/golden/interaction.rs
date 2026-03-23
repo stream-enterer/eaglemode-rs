@@ -1,4 +1,5 @@
-use zuicchini::panel::{PanelId, PanelTree, View};
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
+use zuicchini::emCore::emView::View;
 
 use super::common::*;
 

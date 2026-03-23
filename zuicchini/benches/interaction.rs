@@ -2,8 +2,8 @@
 mod common;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use zuicchini::foundation::Image;
-use zuicchini::render::TileCache;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emViewRendererTileCache::TileCache;
 
 use common::{run_one_frame, setup_tree_and_view, DEFAULT_VH, DEFAULT_VW, SCENARIOS};
 

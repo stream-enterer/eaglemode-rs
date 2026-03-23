@@ -9,7 +9,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState};
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emPanelTree::PanelId;
 
 use super::support::pipeline::PipelineTestHarness;
 use super::support::{NoticeBehavior, TestHarness};

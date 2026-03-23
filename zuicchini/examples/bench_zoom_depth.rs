@@ -8,8 +8,11 @@
 
 use std::time::Instant;
 
-use zuicchini::foundation::{Color, Image};
-use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::{View, ViewFlags};
 use zuicchini::emCore::emPainter::Painter;
 
 // Reuse the same TestPanel from bench_interaction

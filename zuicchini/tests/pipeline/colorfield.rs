@@ -10,10 +10,14 @@
 use std::rc::Rc;
 
 use zuicchini::emCore::emColor::Color;
-use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::InputEvent;
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
 use zuicchini::emCore::emPainter::Painter;
-use zuicchini::widget::{ColorField, Look};
+use zuicchini::emCore::emColorField::ColorField;
+use zuicchini::emCore::emLook::Look;
 
 use super::support::pipeline::PipelineTestHarness;
 

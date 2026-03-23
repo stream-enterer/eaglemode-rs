@@ -1,6 +1,11 @@
-use zuicchini::foundation::{Color, Image};
-use zuicchini::panel::{PanelBehavior, PanelId, PanelState, PanelTree, View, ViewFlags};
-use zuicchini::render::Painter;
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
+
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
 
 use super::{DEFAULT_VH, DEFAULT_VW};
 

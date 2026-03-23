@@ -2,15 +2,36 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use zuicchini::emCore::rect::Rect;
-use zuicchini::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::emCore::emLinearLayout::LinearGroup;
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emLinearGroup::LinearGroup;
 use zuicchini::emCore::emTiling::Orientation;
-use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, PanelTree, View, ViewFlags};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{
-    Border, Button, CheckBox, CheckButton, InnerBorderType, ListBox, Look, OuterBorderType,
-    RadioButton, RadioGroup, ScalarField, SelectionMode, Splitter, TextField,
-};
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emBorder::{Border, InnerBorderType, OuterBorderType};
+
+use zuicchini::emCore::emButton::Button;
+
+use zuicchini::emCore::emCheckBox::CheckBox;
+
+use zuicchini::emCore::emCheckButton::CheckButton;
+
+use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+
+use zuicchini::emCore::emLook::Look;
+
+use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+
+use zuicchini::emCore::emScalarField::ScalarField;
+
+use zuicchini::emCore::emSplitter::Splitter;
+
+use zuicchini::emCore::emTextField::TextField;
 
 use super::common::*;
 

@@ -1,7 +1,6 @@
-use zuicchini::panel::{
-    KineticViewAnimator, MagneticViewAnimator, PanelTree, SpeedingViewAnimator,
-    SwipingViewAnimator, View, ViewAnimator, ViewFlags, VisitingViewAnimator,
-};
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emViewAnimator::{KineticViewAnimator, MagneticViewAnimator, SpeedingViewAnimator, SwipingViewAnimator, ViewAnimator, VisitingViewAnimator};
 
 use super::common::*;
 

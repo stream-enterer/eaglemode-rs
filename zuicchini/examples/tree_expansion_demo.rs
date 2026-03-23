@@ -5,9 +5,12 @@
 //! Zooming into any panel reveals the next level.
 
 use zuicchini::emCore::emColor::Color;
-use zuicchini::panel::{PanelBehavior, PanelCtx, PanelState, ViewFlags};
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emView::ViewFlags;
 use zuicchini::emCore::emPainter::Painter;
-use zuicchini::window::{App, WindowFlags};
+use zuicchini::emCore::emGUIFramework::App;
+use zuicchini::emCore::emWindow::WindowFlags;
 
 struct MyPanel {
     bg: Color,

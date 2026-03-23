@@ -1,5 +1,7 @@
 use zuicchini::emCore::emRec::RecStruct;
-use zuicchini::model::{Context, CoreConfig, Record};
+use zuicchini::emCore::emContext::Context;
+use zuicchini::emCore::emCoreConfig::CoreConfig;
+use zuicchini::emCore::emRecRecord::Record;
 
 #[test]
 fn defaults_match_cpp() {

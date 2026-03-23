@@ -1,7 +1,12 @@
-use zuicchini::foundation::{Color, Rect};
-use zuicchini::panel::{
-    NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, PanelTree, View, ViewFlags,
-};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::rect::Rect;
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
+
+use zuicchini::emCore::emView::{View, ViewFlags};
 
 use zuicchini::emCore::emPainter::Painter;
 

@@ -7,10 +7,18 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::input::{Cursor, InputEvent, InputState};
-use zuicchini::panel::{NoticeFlags, PanelBehavior, PanelCtx, PanelState};
-use zuicchini::render::{Painter, SoftwareCompositor};
-use zuicchini::widget::{Button, ColorField, ListBox, Look, ScalarField, SelectionMode};
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::InputEvent;
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
+use zuicchini::emCore::emButton::Button;
+use zuicchini::emCore::emColorField::ColorField;
+use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+use zuicchini::emCore::emLook::Look;
+use zuicchini::emCore::emScalarField::ScalarField;
 
 use super::support::pipeline::PipelineTestHarness;
 
@@ -262,7 +270,7 @@ fn colorfield_expansion_creates_child_sliders() {
 #[test]
 fn button_click_works_after_zoom() {
     use std::cell::Cell;
-    use zuicchini::emCore::emFontCache::Image;
+    use zuicchini::emCore::emImage::Image;
 
     let look = Look::new();
     let mut btn = Button::new("Zoom Test", look.clone());

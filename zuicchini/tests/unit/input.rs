@@ -1,4 +1,6 @@
-use zuicchini::input::{Hotkey, InputKey, InputState};
+use zuicchini::emCore::emInput::InputKey;
+use zuicchini::emCore::emInputHotkey::Hotkey;
+use zuicchini::emCore::emInputState::InputState;
 
 #[test]
 fn hotkey_parse_ctrl_c() {

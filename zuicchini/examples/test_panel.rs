@@ -8,21 +8,49 @@ use std::cell::Cell;
 use std::f64::consts::PI;
 use std::rc::Rc;
 
-use zuicchini::foundation::{Color, Image};
-use zuicchini::input::{Cursor, InputEvent, InputKey, InputState, InputVariant};
-use zuicchini::emCore::emRasterLayout::RasterGroup;
-use zuicchini::panel::{
-    NoticeFlags, PanelBehavior, PanelCtx, PanelId, PanelState, ViewConditionType, ViewFlags,
-};
-use zuicchini::render::{
-    ImageExtension, ImageQuality, LineCap, LineJoin, Painter, Stroke, StrokeEnd, StrokeEndType,
-    TextAlignment, Texture, VAlign,
-};
-use zuicchini::widget::{
-    Button, CheckBox, CheckButton, ColorField, Label, ListBox, Look, RadioBox, RadioButton,
-    RadioGroup, ScalarField, SelectionMode, TextField,
-};
-use zuicchini::window::{App, WindowFlags};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emCursor::Cursor;
+use zuicchini::emCore::emInput::{InputEvent, InputKey, InputVariant};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emRasterGroup::RasterGroup;
+use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+
+use zuicchini::emCore::emPanelTree::{PanelId, ViewConditionType};
+
+use zuicchini::emCore::emView::ViewFlags;
+use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+
+use zuicchini::emCore::emStroke::{LineCap, LineJoin, Stroke};
+
+use zuicchini::emCore::emStrokeEnd::{StrokeEnd, StrokeEndType};
+
+use zuicchini::emCore::emTexture::{ImageExtension, ImageQuality, Texture};
+use zuicchini::emCore::emButton::Button;
+
+use zuicchini::emCore::emCheckBox::CheckBox;
+
+use zuicchini::emCore::emCheckButton::CheckButton;
+
+use zuicchini::emCore::emColorField::ColorField;
+
+use zuicchini::emCore::emLabel::Label;
+
+use zuicchini::emCore::emListBox::{ListBox, SelectionMode};
+
+use zuicchini::emCore::emLook::Look;
+
+use zuicchini::emCore::emRadioBox::RadioBox;
+
+use zuicchini::emCore::emRadioButton::{RadioButton, RadioGroup};
+
+use zuicchini::emCore::emScalarField::ScalarField;
+
+use zuicchini::emCore::emTextField::TextField;
+use zuicchini::emCore::emGUIFramework::App;
+use zuicchini::emCore::emWindow::WindowFlags;
 
 // ── Constants ──
 

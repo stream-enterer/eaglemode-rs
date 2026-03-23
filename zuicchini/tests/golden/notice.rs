@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::panel::{NoticeFlags, PanelId, PanelTree, View, ViewFlags};
+use zuicchini::emCore::emPanel::NoticeFlags;
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
+use zuicchini::emCore::emView::{View, ViewFlags};
 
 use super::common::*;
 use super::support::NoticeBehavior;

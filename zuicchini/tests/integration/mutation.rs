@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::panel::{PanelCtx, PanelId};
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emPanelTree::PanelId;
 
 use crate::support::{MutatingBehavior, RecordingBehavior, TestHarness};
 

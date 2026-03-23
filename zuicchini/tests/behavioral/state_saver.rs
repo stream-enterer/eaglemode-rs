@@ -1,5 +1,6 @@
-use zuicchini::foundation::{parse_rec, write_rec, RecStruct};
-use zuicchini::model::{RecError, Record};
+use zuicchini::emCore::emRec::{parse_rec, write_rec, RecStruct};
+use zuicchini::emCore::emRec::RecError;
+use zuicchini::emCore::emRecRecord::Record;
 use zuicchini::emCore::emWindowStateSaver::WindowGeometry;
 
 #[test]

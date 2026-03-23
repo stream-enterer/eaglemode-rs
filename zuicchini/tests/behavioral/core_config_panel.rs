@@ -1,8 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::model::{ConfigModel, CoreConfig};
-use zuicchini::widget::{CoreConfigPanel, Look};
+use zuicchini::emCore::emConfigModel::ConfigModel;
+use zuicchini::emCore::emCoreConfig::CoreConfig;
+use zuicchini::emCore::emCoreConfigPanel::CoreConfigPanel;
+use zuicchini::emCore::emLook::Look;
 
 #[test]
 fn smoke_new() {

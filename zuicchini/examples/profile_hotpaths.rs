@@ -9,9 +9,13 @@ use std::time::Instant;
 use zuicchini::emCore::emColor::Color;
 use zuicchini::emCore::emPackLayout::PackLayout;
 use zuicchini::emCore::emTiling::ChildConstraint;
-use zuicchini::panel::{PanelBehavior, PanelTree, ViewFlags};
-use zuicchini::render::{Painter, TileCache, TILE_SIZE};
-use zuicchini::widget::{Border, Look, OuterBorderType};
+use zuicchini::emCore::emPanel::PanelBehavior;
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::ViewFlags;
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRendererTileCache::{TileCache, TILE_SIZE};
+use zuicchini::emCore::emBorder::{Border, OuterBorderType};
+use zuicchini::emCore::emLook::Look;
 
 struct BorderPanel {
     border: Border,

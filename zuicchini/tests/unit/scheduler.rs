@@ -1,7 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use zuicchini::scheduler::{Engine, EngineCtx, EngineScheduler, Priority, SignalId};
+use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
+use zuicchini::emCore::emScheduler::EngineScheduler;
+use zuicchini::emCore::emSignal::SignalId;
 
 struct RecordingEngine {
     label: &'static str,

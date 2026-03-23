@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
-use zuicchini::foundation::{parse_rec, write_rec, RecStruct};
-use zuicchini::model::{ConfigModel, RecError, Record};
+use zuicchini::emCore::emRec::{parse_rec, write_rec, RecStruct};
+use zuicchini::emCore::emConfigModel::ConfigModel;
+use zuicchini::emCore::emRec::RecError;
+use zuicchini::emCore::emRecRecord::Record;
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 /// Test record type that exercises all field types RecStruct supports.

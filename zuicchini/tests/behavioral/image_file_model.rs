@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
-use zuicchini::emCore::emFontCache::Image;
-use zuicchini::model::{FileState, ImageFileData, ImageFileModel};
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emFileModel::FileState;
+use zuicchini::emCore::emImageFile::{ImageFileData, ImageFileModel};
 use zuicchini::emCore::emScheduler::EngineScheduler;
 use zuicchini::emCore::emImageFileImageFilePanel::ImageFilePanel;
 

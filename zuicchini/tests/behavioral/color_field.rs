@@ -1,5 +1,7 @@
 use zuicchini::emCore::emColor::Color;
-use zuicchini::widget::{ColorField, ListBox, Look};
+use zuicchini::emCore::emColorField::ColorField;
+use zuicchini::emCore::emListBox::ListBox;
+use zuicchini::emCore::emLook::Look;
 
 /// emColorField — auto-expand / auto-shrink panel lifecycle.
 #[test]

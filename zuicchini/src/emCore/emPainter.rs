@@ -6135,8 +6135,8 @@ mod tests {
     /// correctness: if replay matches direct, then parallel replay also matches.
     #[test]
     fn draw_list_replay_matches_direct() {
-        use crate::emCore::super::emPainterDrawList::DrawList;
-        use crate::emCore::super::emRenderThreadPool::RenderThreadPool;
+        use crate::emCore::emPainterDrawList::DrawList;
+        use crate::emCore::emRenderThreadPool::RenderThreadPool;
 
         let w = 64u32;
         let h = 64u32;

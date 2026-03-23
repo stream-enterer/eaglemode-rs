@@ -1,10 +1,19 @@
 use std::path::PathBuf;
 
 use zuicchini::emCore::emRec::RecStruct;
-use zuicchini::model::{
-    Context, FileModel, FileModelOps, FileState, RecError, RecFileModel, Record, ResourceCache,
-    WatchedVar,
-};
+use zuicchini::emCore::emContext::Context;
+
+use zuicchini::emCore::emFileModel::{FileModel, FileModelOps, FileState};
+
+use zuicchini::emCore::emRec::RecError;
+
+use zuicchini::emCore::emRecFileModel::RecFileModel;
+
+use zuicchini::emCore::emRecRecord::Record;
+
+use zuicchini::emCore::emRes::ResourceCache;
+
+use zuicchini::emCore::emVarModel::WatchedVar;
 use zuicchini::emCore::emScheduler::EngineScheduler;
 
 // ── Shared test record ──────────────────────────────────────────────────────

@@ -1,6 +1,9 @@
 use zuicchini::emCore::emColor::Color;
-use zuicchini::panel::{PanelBehavior, PanelState, PanelTree, View, ViewFlags};
-use zuicchini::render::{Painter, SoftwareCompositor};
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emPanelTree::PanelTree;
+use zuicchini::emCore::emView::{View, ViewFlags};
+use zuicchini::emCore::emPainter::Painter;
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
 
 use super::common::*;
 

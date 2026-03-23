@@ -6,13 +6,19 @@
 
 use std::f64::consts::PI;
 
-use zuicchini::foundation::{Color, Image};
-use zuicchini::panel::{PanelBehavior, PanelState, ViewFlags};
-use zuicchini::render::{
-    ImageExtension, ImageQuality, LineCap, LineJoin, Painter, Stroke, StrokeEnd, StrokeEndType,
-    TextAlignment, Texture, VAlign,
-};
-use zuicchini::window::{App, WindowFlags};
+use zuicchini::emCore::emColor::Color;
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPanel::{PanelBehavior, PanelState};
+use zuicchini::emCore::emView::ViewFlags;
+use zuicchini::emCore::emPainter::{Painter, TextAlignment, VAlign};
+
+use zuicchini::emCore::emStroke::{LineCap, LineJoin, Stroke};
+
+use zuicchini::emCore::emStrokeEnd::{StrokeEnd, StrokeEndType};
+
+use zuicchini::emCore::emTexture::{ImageExtension, ImageQuality, Texture};
+use zuicchini::emCore::emGUIFramework::App;
+use zuicchini::emCore::emWindow::WindowFlags;
 
 struct PaintPanel {
     test_image: Image,

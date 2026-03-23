@@ -2,8 +2,10 @@
 mod common;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use zuicchini::foundation::{Color, Image};
-use zuicchini::render::Painter;
+use zuicchini::emCore::emColor::Color;
+
+use zuicchini::emCore::emImage::Image;
+use zuicchini::emCore::emPainter::Painter;
 
 use common::scaled::{build_scaled_tree, run_one_scaled_frame};
 use common::{DEFAULT_VH, DEFAULT_VW};

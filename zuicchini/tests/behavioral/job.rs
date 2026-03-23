@@ -1,4 +1,5 @@
-use zuicchini::scheduler::{EngineScheduler, Job, JobQueue, JobState};
+use zuicchini::emCore::emJob::{Job, JobQueue, JobState};
+use zuicchini::emCore::emScheduler::EngineScheduler;
 
 #[test]
 fn enqueue_transitions_to_waiting() {

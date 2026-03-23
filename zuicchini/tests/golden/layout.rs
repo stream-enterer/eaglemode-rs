@@ -2,8 +2,10 @@ use zuicchini::emCore::rect::Rect;
 use zuicchini::emCore::emLinearLayout::LinearLayout;
 use zuicchini::emCore::emPackLayout::PackLayout;
 use zuicchini::emCore::emRasterLayout::RasterLayout;
-use zuicchini::layout::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
-use zuicchini::panel::{PanelBehavior, PanelCtx, PanelId, PanelTree};
+use zuicchini::emCore::emTiling::{AlignmentH, AlignmentV, ChildConstraint, Spacing};
+use zuicchini::emCore::emPanel::PanelBehavior;
+use zuicchini::emCore::emPanelCtx::PanelCtx;
+use zuicchini::emCore::emPanelTree::{PanelId, PanelTree};
 
 use super::common::*;
 

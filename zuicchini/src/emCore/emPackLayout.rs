@@ -633,7 +633,7 @@ mod tests {
         // Normalized rect is (0,0,1.0,0.75). sx=1.0/2=0.5, sy=0.75/2=0.375
         // actual_ml=0.25, actual_mt=0.1875, content_w=0.5, content_h=0.375
         let (mut tree, root, children) = setup(1, 400.0, 300.0);
-        let mut layout = PackLayout::new().with_spacing(super::super::Spacing::uniform(0.5, 0.0));
+        let mut layout = PackLayout::new().with_spacing(crate::emCore::emTiling::Spacing::uniform(0.5, 0.0));
         layout.do_layout(&mut PanelCtx::new(&mut tree, root));
 
         let r = tree.get(children[0]).unwrap().layout_rect;

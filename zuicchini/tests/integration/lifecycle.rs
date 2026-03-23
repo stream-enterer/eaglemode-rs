@@ -52,7 +52,7 @@ fn remove_active_panel_reselects() {
 
 #[test]
 fn remove_panel_with_engine() {
-    use zuicchini::scheduler::{Engine, EngineCtx, Priority};
+    use zuicchini::emCore::emEngine::{Engine, EngineCtx, Priority};
 
     struct DummyEngine;
     impl Engine for DummyEngine {

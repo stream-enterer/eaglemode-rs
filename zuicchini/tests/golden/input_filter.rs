@@ -1,7 +1,10 @@
-use zuicchini::input::{InputEvent, InputKey, InputState};
-use zuicchini::panel::{
-    KeyboardZoomScrollVIF, MouseZoomScrollVIF, PanelTree, View, ViewFlags, ViewInputFilter,
-};
+use zuicchini::emCore::emInput::{InputEvent, InputKey};
+use zuicchini::emCore::emInputState::InputState;
+use zuicchini::emCore::emPanelTree::PanelTree;
+
+use zuicchini::emCore::emView::{View, ViewFlags};
+
+use zuicchini::emCore::emViewInputFilter::{KeyboardZoomScrollVIF, MouseZoomScrollVIF, ViewInputFilter};
 
 use super::common::*;
 
