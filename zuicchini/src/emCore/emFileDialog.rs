@@ -65,7 +65,7 @@ impl emFileDialog {
         }
     }
 
-    pub fn mode(&self) -> FileDialogMode {
+    pub fn GetMode(&self) -> FileDialogMode {
         self.mode
     }
 
@@ -93,7 +93,7 @@ impl emFileDialog {
         self.fsb.set_multi_selection_enabled(enabled);
     }
 
-    pub fn parent_directory(&self) -> &Path {
+    pub fn GetParentDirectory(&self) -> &Path {
         self.fsb.GetParentDirectory()
     }
 
@@ -101,11 +101,11 @@ impl emFileDialog {
         self.fsb.set_parent_directory(dir);
     }
 
-    pub fn selected_name(&self) -> Option<&str> {
+    pub fn GetSelectedName(&self) -> Option<&str> {
         self.fsb.GetSelectedName()
     }
 
-    pub fn selected_names(&self) -> &[String] {
+    pub fn GetSelectedNames(&self) -> &[String] {
         self.fsb.GetSelectedNames()
     }
 
@@ -121,7 +121,7 @@ impl emFileDialog {
         self.fsb.clear_selection();
     }
 
-    pub fn selected_path(&self) -> PathBuf {
+    pub fn GetSelectedPath(&self) -> PathBuf {
         self.fsb.GetSelectedPath()
     }
 
@@ -129,7 +129,7 @@ impl emFileDialog {
         self.fsb.set_selected_path(path);
     }
 
-    pub fn filters(&self) -> &[String] {
+    pub fn GetFilters(&self) -> &[String] {
         self.fsb.GetFilters()
     }
 
@@ -137,7 +137,7 @@ impl emFileDialog {
         self.fsb.set_filters(filters);
     }
 
-    pub fn selected_filter_index(&self) -> i32 {
+    pub fn GetSelectedFilterIndex(&self) -> i32 {
         self.fsb.GetSelectedFilterIndex()
     }
 
@@ -182,7 +182,7 @@ impl emFileDialog {
     /// Port of C++ `emFileDialog::CheckFinish`. Validates the selection
     /// based on the dialog mode (Open checks existence, Save confirms
     /// overwrite).
-    pub fn check_finish(&mut self, result: &DialogResult) -> FileDialogCheckResult {
+    pub fn CheckFinish(&mut self, result: &DialogResult) -> FileDialogCheckResult {
         if *result == DialogResult::Cancel {
             return FileDialogCheckResult::Allow;
         }
