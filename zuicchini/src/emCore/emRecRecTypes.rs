@@ -89,11 +89,11 @@ impl emAlignmentRec {
         self.value = value;
     }
 
-    pub fn set_to_default(&mut self) {
+    pub fn SetToDefault(&mut self) {
         self.value = self.default_value;
     }
 
-    pub fn is_default(&self) -> bool {
+    pub fn IsSetToDefault(&self) -> bool {
         self.value == self.default_value
     }
 
@@ -102,7 +102,7 @@ impl emAlignmentRec {
     }
 
     /// Read from a `RecValue` (expected to be an `Ident`).
-    pub fn from_rec_value(val: &RecValue) -> Result<Alignment, RecError> {
+    pub fn FromRecValue(val: &RecValue) -> Result<Alignment, RecError> {
         match val {
             RecValue::Ident(s) => match s.as_str() {
                 "start" | "left" | "top" => Ok(Alignment::Start),
@@ -122,7 +122,7 @@ impl emAlignmentRec {
     }
 
     /// Convert to a `RecValue` identifier.
-    pub fn to_rec_value(alignment: Alignment) -> RecValue {
+    pub fn ToRecValue(alignment: Alignment) -> RecValue {
         let s = match alignment {
             Alignment::Start => "start",
             Alignment::Center => "center",
@@ -178,15 +178,15 @@ impl emColorRec {
         }
     }
 
-    pub fn set_to_default(&mut self) {
+    pub fn SetToDefault(&mut self) {
         self.value = self.default_value;
     }
 
-    pub fn is_default(&self) -> bool {
+    pub fn IsSetToDefault(&self) -> bool {
         self.value == self.default_value
     }
 
-    pub fn have_alpha(&self) -> bool {
+    pub fn HaveAlpha(&self) -> bool {
         self.have_alpha
     }
 
@@ -194,7 +194,7 @@ impl emColorRec {
     ///
     /// Expects a struct with fields `r`, `g`, `b`, and optionally `a`,
     /// each an integer 0..255.
-    pub fn from_rec_struct(rec: &RecStruct, have_alpha: bool) -> Result<emColor, RecError> {
+    pub fn FromRecStruct(rec: &RecStruct, have_alpha: bool) -> Result<emColor, RecError> {
         let r = rec
             .get_int("r")
             .ok_or_else(|| RecError::MissingField("r".into()))? as u8;
@@ -213,7 +213,7 @@ impl emColorRec {
     }
 
     /// Write a color to a `RecStruct`.
-    pub fn to_rec_struct(color: emColor, have_alpha: bool) -> RecStruct {
+    pub fn ToRecStruct(color: emColor, have_alpha: bool) -> RecStruct {
         let mut s = RecStruct::new();
         s.set_int("r", color.GetRed() as i32);
         s.set_int("g", color.GetGreen() as i32);
