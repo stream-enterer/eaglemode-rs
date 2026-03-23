@@ -105,7 +105,7 @@ impl<T> emFileModel<T> {
         }
     }
 
-    pub fn state(&self) -> &FileState {
+    pub fn GetFileState(&self) -> &FileState {
         &self.state
     }
 
@@ -117,11 +117,11 @@ impl<T> emFileModel<T> {
         self.data.as_mut()
     }
 
-    pub fn path(&self) -> &Path {
+    pub fn GetFilePath(&self) -> &Path {
         &self.path
     }
 
-    pub fn change_signal(&self) -> SignalId {
+    pub fn GetFileStateSignal(&self) -> SignalId {
         self.change_signal
     }
 
@@ -133,7 +133,7 @@ impl<T> emFileModel<T> {
         self.memory_limit
     }
 
-    pub fn progress(&self) -> f64 {
+    pub fn GetFileProgress(&self) -> f64 {
         match &self.state {
             FileState::Loading { progress } => *progress,
             FileState::Loaded | FileState::Unsaved => 100.0,
@@ -143,7 +143,7 @@ impl<T> emFileModel<T> {
 
     /// Begin loading. Transitions from `Waiting` to `Loading`.
     /// Also allows retry from `LoadError` and `TooCostly`.
-    pub fn request_load(&mut self) -> bool {
+    pub fn Load(&mut self) -> bool {
         match &self.state {
             FileState::Waiting | FileState::LoadError(_) | FileState::TooCostly => {
                 self.state = FileState::Loading { progress: 0.0 };
@@ -177,14 +177,14 @@ impl<T> emFileModel<T> {
     }
 
     /// Mark data as modified (unsaved).
-    pub fn mark_unsaved(&mut self) {
+    pub fn SetUnsavedState(&mut self) {
         if matches!(self.state, FileState::Loaded) {
             self.state = FileState::Unsaved;
         }
     }
 
     /// Begin saving. Transitions from `Unsaved` to `Saving`.
-    pub fn request_save(&mut self) -> bool {
+    pub fn Save(&mut self) -> bool {
         match &self.state {
             FileState::Unsaved | FileState::SaveError(_) => {
                 self.state = FileState::Saving;
@@ -207,7 +207,7 @@ impl<T> emFileModel<T> {
     }
 
     /// Reset to `Waiting` and clear data.
-    pub fn reset(&mut self) -> bool {
+    pub fn HardResetFileState(&mut self) -> bool {
         if self.state == FileState::Waiting && self.data.is_none() {
             return false;
         }
@@ -260,33 +260,33 @@ impl<T> emFileModel<T> {
 
     /// Port of C++ `emFileModel::CalcMemoryNeed`.
     /// Update and return the cached memory need value.
-    pub fn update_memory_need(&mut self, need: u64) {
+    pub fn CalcMemoryNeed(&mut self, need: u64) {
         self.memory_need = need;
     }
 
     /// Port of C++ `emFileModel::CalcFileProgress`.
     /// Update and return the cached file progress value.
-    pub fn update_file_progress(&mut self, progress: f64) {
+    pub fn CalcFileProgress(&mut self, progress: f64) {
         self.file_progress = progress;
     }
 
     /// Port of C++ `emFileModel::TryFetchDate`.
     /// Store file metadata for freshness checking.
-    pub fn set_file_date(&mut self, mtime: u64, size: u64) {
+    pub fn TryFetchDate(&mut self, mtime: u64, size: u64) {
         self.last_mtime = mtime;
         self.last_size = size;
     }
 
     /// Port of C++ `emFileModel::IsOutOfDate`.
     /// Check if the stored file metadata differs from current.
-    pub fn check_out_of_date(&mut self, current_mtime: u64, current_size: u64) -> bool {
+    pub fn IsOutOfDate(&mut self, current_mtime: u64, current_size: u64) -> bool {
         let out_of_date = self.last_mtime != current_mtime || self.last_size != current_size;
         self.out_of_date = out_of_date;
         out_of_date
     }
 
     /// Port of C++ `emFileModel::GetIgnoreUpdateSignal`.
-    pub fn ignore_update_signal(&self) -> bool {
+    pub fn GetIgnoreUpdateSignal(&self) -> bool {
         self.ignore_update_signal
     }
 
@@ -297,11 +297,11 @@ impl<T> emFileModel<T> {
 
     /// Port of C++ `emFileModel::AcquireUpdateSignalModel`.
     /// Returns the update signal ID.
-    pub fn update_signal(&self) -> SignalId {
+    pub fn AcquireUpdateSignalModel(&self) -> SignalId {
         self.update_signal
     }
 
-    pub fn error_text(&self) -> &str {
+    pub fn GetErrorText(&self) -> &str {
         &self.error_text
     }
 

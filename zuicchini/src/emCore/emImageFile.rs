@@ -50,11 +50,11 @@ impl emImageFileModel {
     }
 
     pub fn state(&self) -> &FileState {
-        self.file_model.state()
+        self.file_model.GetFileState()
     }
 
     pub fn path(&self) -> &Path {
-        self.file_model.path()
+        self.file_model.GetFilePath()
     }
 
     pub fn file_model(&self) -> &emFileModel<ImageFileData> {
@@ -99,7 +99,7 @@ impl emImageFileModel {
         }
         if let Some(data) = self.file_model.data_mut() {
             data.image = image;
-            self.file_model.mark_unsaved();
+            self.file_model.SetUnsavedState();
             true
         } else {
             false
@@ -115,7 +115,7 @@ impl emImageFileModel {
         }
         if let Some(data) = self.file_model.data_mut() {
             data.comment = comment;
-            self.file_model.mark_unsaved();
+            self.file_model.SetUnsavedState();
             true
         } else {
             false
@@ -131,7 +131,7 @@ impl emImageFileModel {
         }
         if let Some(data) = self.file_model.data_mut() {
             data.format_info = info;
-            self.file_model.mark_unsaved();
+            self.file_model.SetUnsavedState();
             true
         } else {
             false
