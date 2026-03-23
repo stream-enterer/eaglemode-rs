@@ -313,7 +313,7 @@ mod platform {
 
     impl emEngine for MiniIpcEngine {
         fn cycle(&mut self, ctx: &mut EngineCtx<'_>) -> bool {
-            if ctx.is_signaled(self.timer_signal) {
+            if ctx.IsSignaled(self.timer_signal) {
                 self.inner.borrow_mut().poll();
             }
             false

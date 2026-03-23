@@ -88,7 +88,7 @@ impl EngineCtx<'_> {
     /// time this engine's `cycle()` was called.
     ///
     /// This is the Rust equivalent of the C++ `emEngine::IsSignaled()`.
-    pub fn is_signaled(&self, signal: super::emSignal::SignalId) -> bool {
+    pub fn IsSignaled(&self, signal: super::emSignal::SignalId) -> bool {
         if let Some(sig) = self.scheduler.signals.get(signal) {
             sig.clock
                 > self
@@ -102,7 +102,7 @@ impl EngineCtx<'_> {
     }
 
     /// Check if the current time slice has exceeded its deadline.
-    pub fn is_time_slice_at_end(&self) -> bool {
+    pub fn IsTimeSliceAtEnd(&self) -> bool {
         std::time::Instant::now() >= self.scheduler.deadline
     }
 
