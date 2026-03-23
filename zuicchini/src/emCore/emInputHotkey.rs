@@ -26,7 +26,7 @@ impl Hotkey {
     }
 
     /// Parse a hotkey from a string like "Ctrl+Shift+C" or "Alt+F4".
-    pub fn parse(s: &str) -> Option<Self> {
+    pub fn TryParse(s: &str) -> Option<Self> {
         let parts: Vec<&str> = s.split('+').map(|p| p.trim()).collect();
         if parts.is_empty() {
             return None;
@@ -67,7 +67,7 @@ impl Hotkey {
     }
 
     /// Check if this hotkey matches the current input state plus a just-pressed key.
-    pub fn matches(&self, key: InputKey, state: &emInputState) -> bool {
+    pub fn Match(&self, key: InputKey, state: &emInputState) -> bool {
         self.key == key
             && self.ctrl == state.ctrl()
             && self.alt == state.alt()
@@ -76,7 +76,7 @@ impl Hotkey {
     }
 
     /// Clear all modifier keys.
-    pub fn clear_modifiers(&mut self) {
+    pub fn ClearModifiers(&mut self) {
         self.ctrl = false;
         self.alt = false;
         self.shift = false;
@@ -84,7 +84,7 @@ impl Hotkey {
     }
 
     /// Add a modifier key. Non-modifier keys are ignored.
-    pub fn add_modifier(&mut self, key: InputKey) {
+    pub fn AddModifier(&mut self, key: InputKey) {
         match key {
             InputKey::Ctrl => self.ctrl = true,
             InputKey::Alt => self.alt = true,
@@ -95,7 +95,7 @@ impl Hotkey {
     }
 
     /// Set the main (non-modifier) key.
-    pub fn set_key(&mut self, key: InputKey) {
+    pub fn SetKey(&mut self, key: InputKey) {
         self.key = key;
     }
 }
