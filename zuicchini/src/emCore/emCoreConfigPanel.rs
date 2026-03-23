@@ -1472,7 +1472,7 @@ impl emCoreConfigPanel {
     /// Pass `screen.can_move_mouse_pointer()`. Matches C++ emCoreConfigPanel line 232:
     /// `StickPossible = (screen && screen->CanMoveMousePointer())`.
     /// Must be called before the panel's children are first created (before first layout).
-    pub fn set_stick_possible(&mut self, possible: bool) {
+    pub fn SetStickPossible(&mut self, possible: bool) {
         self.stick_possible = possible;
     }
 
