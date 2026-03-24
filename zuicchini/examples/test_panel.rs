@@ -276,7 +276,7 @@ impl TestPanel {
     }
 
     fn bg_color(&self) -> emColor {
-        self.bg_color_shared.GetRec()
+        self.bg_color_shared.get()
     }
 
     /// Paint all the primitive-drawing tests (Match C++ Paint() body).
@@ -847,9 +847,9 @@ impl PanelBehavior for TestPanel {
         cf.SetCaption("Background Color");
         cf.SetEditable(true);
         cf.SetAlphaEnabled(true);
-        cf.SetColor(bg_shared.GetRec());
+        cf.SetColor(bg_shared.get());
         cf.on_color = Some(Box::new(move |color| {
-            bg_for_cf.Set(color);
+            bg_for_cf.set(color);
         }));
         ctx.create_child_with("bgcf", Box::new(ColorFieldPanel { widget: cf }));
 

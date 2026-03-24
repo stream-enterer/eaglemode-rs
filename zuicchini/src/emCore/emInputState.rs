@@ -385,7 +385,7 @@ mod tests {
         ];
         for key in keys {
             let s = key.emInputKeyToString();
-            let parsed = InputKey::from_str_name(s);
+            let parsed = InputKey::emStringToInputKey(s);
             assert_eq!(parsed, Some(key), "roundtrip failed for {s}");
         }
     }

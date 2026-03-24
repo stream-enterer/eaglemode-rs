@@ -113,7 +113,7 @@ impl TestHarness {
 
         // For mouse press: hit test and set active panel
         if event.variant == InputVariant::Press
-            && Match!(
+            && matches!(
                 event.key,
                 InputKey::MouseLeft | InputKey::MouseRight | InputKey::MouseMiddle
             )

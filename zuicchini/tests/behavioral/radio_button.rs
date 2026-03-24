@@ -34,7 +34,7 @@ fn add_all_preserves_existing_buttons() {
 fn add_all_preserves_selection() {
     let group = RadioGroup::new();
     group.borrow_mut().AddAll(3);
-    group.borrow_mut().Select(1);
+    group.borrow_mut().SetChecked(1);
     assert_eq!(group.borrow().GetChecked(), Some(1));
 
     // Adding more doesn't change selection

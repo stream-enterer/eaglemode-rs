@@ -17,7 +17,7 @@ fn make_model() -> emImageFileModel {
 #[test]
 fn initial_state_is_waiting() {
     let m = make_model();
-    assert!(Match!(m.state(), &FileState::Waiting));
+    assert!(matches!(m.state(), &FileState::Waiting));
 }
 
 #[test]
@@ -53,12 +53,12 @@ fn set_image_changes_data() {
     let mut m = make_model();
     let data = ImageFileData::default();
     m.file_model_mut().complete_load(data);
-    assert!(Match!(m.state(), &FileState::Loaded));
+    assert!(matches!(m.state(), &FileState::Loaded));
 
     let img = emImage::new(10, 10, 4);
     let changed = m.set_image(img);
     assert!(changed);
-    assert!(Match!(m.state(), &FileState::Unsaved));
+    assert!(matches!(m.state(), &FileState::Unsaved));
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn set_image_same_value_no_change() {
     let same_img = emImage::new(10, 10, 4);
     let changed = m.set_image(same_img);
     assert!(!changed);
-    assert!(Match!(m.state(), &FileState::Loaded));
+    assert!(matches!(m.state(), &FileState::Loaded));
 }
 
 #[test]
@@ -85,14 +85,14 @@ fn set_comment_changes_data() {
     let changed = m.set_comment("hello".to_string());
     assert!(changed);
     assert_eq!(m.GetComment(), Some("hello"));
-    assert!(Match!(m.state(), &FileState::Unsaved));
+    assert!(matches!(m.state(), &FileState::Unsaved));
 }
 
 #[test]
 fn set_comment_same_value_no_change() {
     let mut m = make_model();
     let data = ImageFileData {
-        GetimagemImage::new(0, 0, 4),
+        image: emImage::new(0, 0, 4),
         comment: "hello".to_string(),
         format_info: String::new(),
     };
@@ -100,7 +100,7 @@ fn set_comment_same_value_no_change() {
 
     let changed = m.set_comment("hello".to_string());
     assert!(!changed);
-    assert!(Match!(m.state(), &FileState::Loaded));
+    assert!(matches!(m.state(), &FileState::Loaded));
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn set_format_info_changes_data() {
 fn set_format_info_same_value_no_change() {
     let mut m = make_model();
     let data = ImageFileData {
-        GetImaimageage::new(0, 0, 4),
+        image: emImage::new(0, 0, 4),
         comment: String::new(),
         format_info: "PNG".to_string(),
     };
@@ -131,10 +131,10 @@ fn set_format_info_same_value_no_change() {
 fn reset_data_clears() {
     let mut m = make_model();
     m.file_model_mut().complete_load(ImageFileData::default());
-    assert!(Match!(m.state(), &FileState::Loaded));
+    assert!(matches!(m.state(), &FileState::Loaded));
 
     m.reset_data();
-    assert!(Match!(m.state(), &FileState::Waiting));
+    assert!(matches!(m.state(), &FileState::Waiting));
     assert!(m.GetImage().is_none());
 }
 

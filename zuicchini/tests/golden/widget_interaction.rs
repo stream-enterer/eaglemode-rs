@@ -137,7 +137,7 @@ fn widget_radiobutton_switch() {
     let _rb_c = emRadioButton::new("Option C", look, group.clone(), 2);
 
     // Initial: A checked
-    group.borrow_mut().Select(0);
+    group.borrow_mut().SetChecked(0);
     let initial = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     assert_eq!(
         group.borrow().GetChecked(),
@@ -182,7 +182,7 @@ fn widget_listbox_select() {
     // Parse golden: [u32 GetCount][u32 * GetCount indices]
     let count = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     let mut expected_indices: Vec<usize> = Vec::new();
-    for i in 0..GetCount {
+    for i in 0..count {
         let off = 4 + i * 4;
         expected_indices
             .push(u32::from_le_bytes(golden[off..off + 4].try_into().unwrap()) as usize);
@@ -397,7 +397,7 @@ fn widget_button_click() {
 
     // Initial state: not pressed, callback not fired
     assert_eq!(
-        btn.Get() as u8,
+        btn.IsPressed() as u8,
         golden[0],
         "initial pressed state mismatch"
     );
@@ -406,7 +406,7 @@ fn widget_button_click() {
     // After programmatic Click(): pressed state unchanged (Click is instantaneous)
     btn.Click();
     assert_eq!(
-        btn.Get() as u8,
+        btn.IsPressed() as u8,
         golden[1],
         "after 1st click pressed mismatch"
     );
@@ -415,7 +415,7 @@ fn widget_button_click() {
     // After second Click
     btn.Click();
     assert_eq!(
-        btn.Get() as u8,
+        btn.IsPressed() as u8,
         golden[2],
         "after 2nd click pressed mismatch"
     );
@@ -447,7 +447,7 @@ fn widget_listbox_multi() {
     // Parse golden: [u32 GetCount][u32*GetCount indices]
     let count = u32::from_le_bytes(golden[0..4].try_into().unwrap()) as usize;
     let mut expected_indices: Vec<usize> = Vec::new();
-    for i in 0..GetCount {
+    for i in 0..count {
         let off = 4 + i * 4;
         expected_indices
             .push(u32::from_le_bytes(golden[off..off + 4].try_into().unwrap()) as usize);
@@ -671,7 +671,7 @@ fn splitter_layout_h() {
 
     let eps = 1e-9;
     for (i, &pos) in positions.iter().enumerate() {
-        let actual = run_splitter_layout_step(Orientation::Horizontal, GetParentContext, pos);
+        let actual = run_splitter_layout_step(Orientation::Horizontal, parent, pos);
         for j in 0..9 {
             assert!(
                 (actual[j] - expected[i][j]).abs() < eps,
@@ -696,7 +696,7 @@ fn splitter_layout_v() {
 
     let eps = 1e-9;
     for (i, &pos) in positions.iter().enumerate() {
-        let actual = run_splitter_layout_step(Orientation::Vertical, GetParentContext, pos);
+        let actual = run_splitter_layout_step(Orientation::Vertical, parent, pos);
         for j in 0..9 {
             assert!(
                 (actual[j] - expected[i][j]).abs() < eps,
@@ -743,7 +743,7 @@ fn dispatch_event(
 ) {
     // For mouse press: set active panel via hit test
     if event.variant == InputVariant::Press
-        && Match!(
+        && matches!(
             event.key,
             InputKey::MouseLeft | InputKey::MouseRight | InputKey::MouseMiddle
         )

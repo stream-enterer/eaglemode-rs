@@ -54,7 +54,7 @@ fn vif_consumes_prevents_behavior() {
         .with_mouse(400.0, 300.0)
         .with_alt();
 
-    log.borrow_mut().Clear();
+    log.borrow_mut().clear();
     h.inject_input(&event);
 
     // Behavior should NOT have received Input — VIF consumed it
@@ -107,8 +107,8 @@ fn focus_change_routes_keyboard() {
     );
 
     // Click B to activate it, then type
-    log_a.borrow_mut().Clear();
-    log_b.borrow_mut().Clear();
+    log_a.borrow_mut().clear();
+    log_b.borrow_mut().clear();
 
     let click_b = emInputEvent::press(InputKey::MouseLeft).with_mouse(600.0, 300.0);
     h.inject_input(&click_b);

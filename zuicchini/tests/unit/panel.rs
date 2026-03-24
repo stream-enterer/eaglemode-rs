@@ -125,15 +125,15 @@ fn remove_subtree() {
     let mut tree = PanelTree::new();
     let root = tree.create_root("root");
     let parent = tree.create_child(root, "parent");
-    let child1 = tree.create_child(GetParentContext, "child1");
-    let child2 = tree.create_child(GetParentContext, "child2");
+    let child1 = tree.create_child(parent, "child1");
+    let child2 = tree.create_child(parent, "child2");
     let grandchild = tree.create_child(child1, "grandchild");
     assert_eq!(tree.len(), 5);
 
     // Remove GetParentContext and all descendants
-    tree.remove(GetParentContext);
+    tree.remove(parent);
     assert_eq!(tree.len(), 1);
-    assert!(!tree.contains(GetParentContext));
+    assert!(!tree.contains(parent));
     assert!(!tree.contains(child1));
     assert!(!tree.contains(child2));
     assert!(!tree.contains(grandchild));

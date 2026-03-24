@@ -120,9 +120,9 @@ fn compositor_nested() {
     tree.Layout(root, 0.0, 0.0, 1.0, 0.75);
 
     let parent = tree.create_child(root, "parent");
-    tree.Layout(GetParentContext, 0.1, 0.075, 0.8, 0.6);
+    tree.Layout(parent, 0.1, 0.075, 0.8, 0.6);
 
-    let child = tree.create_child(GetParentContext, "child");
+    let child = tree.create_child(parent, "child");
     tree.Layout(child, 0.1, 0.075, 0.8, 0.6);
     tree.set_behavior(
         child,

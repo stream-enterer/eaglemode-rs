@@ -14,9 +14,9 @@ fn auto_expand_creates_all_panels() {
 
     assert!(lb.GetItemPanel(0).is_none());
     lb.auto_expand_items();
-    assert_eq!(lb.GetItemPanel(0).unwrap().text(), "A", "panel 0 text");
-    assert_eq!(lb.GetItemPanel(1).unwrap().text(), "B", "panel 1 text");
-    assert_eq!(lb.GetItemPanel(2).unwrap().text(), "C", "panel 2 text");
+    assert_eq!(lb.GetItemPanel(0).unwrap().GetText(), "A", "panel 0 text");
+    assert_eq!(lb.GetItemPanel(1).unwrap().GetText(), "B", "panel 1 text");
+    assert_eq!(lb.GetItemPanel(2).unwrap().GetText(), "C", "panel 2 text");
 }
 
 #[test]

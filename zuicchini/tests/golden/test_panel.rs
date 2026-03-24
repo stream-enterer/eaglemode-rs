@@ -449,7 +449,7 @@ impl TestPanel {
     }
 
     fn bg_color(&self) -> emColor {
-        self.bg_color_shared.GetRec()
+        self.bg_color_shared.get()
     }
 
     fn paint_primitives(&self, p: &mut emPainter, fg: emColor, bg: emColor) {
@@ -969,9 +969,9 @@ impl PanelBehavior for TestPanel {
         let mut cf = emColorField::new(emLook::new());
         cf.SetEditable(true);
         cf.SetAlphaEnabled(true);
-        cf.SetColor(bg_shared.GetRec());
+        cf.SetColor(bg_shared.get());
         cf.on_color = Some(Box::new(move |color| {
-            bg_for_cf.Set(color);
+            bg_for_cf.set(color);
         }));
         ctx.create_child_with("bgcf", Box::new(ColorFieldPanel { widget: cf }));
 

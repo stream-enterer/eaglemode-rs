@@ -745,7 +745,7 @@ mod tests {
         let mut inner = RecStruct::new();
         inner.set_int("x", 10);
         let mut outer = RecStruct::new();
-        outer.set_value("sub", RecValue::Struct(inner));
+        outer.SetValue("sub", RecValue::Struct(inner));
 
         let text = write_rec(&outer);
         let back = parse_rec(&text).unwrap();
@@ -759,7 +759,7 @@ mod tests {
     #[test]
     fn array_round_trip() {
         let mut s = RecStruct::new();
-        s.set_value(
+        s.SetValue(
             "items",
             RecValue::Array(vec![RecValue::Int(1), RecValue::Int(2), RecValue::Int(3)]),
         );
@@ -775,7 +775,7 @@ mod tests {
     #[test]
     fn union_round_trip() {
         let mut s = RecStruct::new();
-        s.set_value(
+        s.SetValue(
             "color",
             RecValue::Union("rgb".into(), Box::new(RecValue::Int(255))),
         );
@@ -783,7 +783,7 @@ mod tests {
         let text = write_rec(&s);
         let back = parse_rec(&text).unwrap();
 
-        if let Some(RecValue::Union(name, inner)) = back.get("color") {
+        if let Some(RecValue::Union(name, inner)) = back.GetRec("color") {
             assert_eq!(name, "rgb");
             assert!(matches!(**inner, RecValue::Int(255)));
         } else {

@@ -10,7 +10,7 @@ fn enqueue_transitions_to_waiting() {
     let sig = job.GetStateSignal();
     let id = queue.EnqueueJob(job, &mut sched);
 
-    assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Waiting);
+    assert_eq!(queue.GetRec(id).unwrap().GetState(), JobState::Waiting);
     assert!(!queue.IsEmpty());
 
     queue.AbortJob(id, &mut sched);
@@ -27,7 +27,7 @@ fn start_transitions_to_running() {
     let id = queue.EnqueueJob(job, &mut sched);
     queue.StartJob(id, &mut sched);
 
-    assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Running);
+    assert_eq!(queue.GetRec(id).unwrap().GetState(), JobState::Running);
     assert!(!queue.IsEmpty());
 
     queue.SucceedJob(id, &mut sched);
@@ -45,7 +45,7 @@ fn succeed_transitions_to_success() {
     queue.StartJob(id, &mut sched);
     queue.SucceedJob(id, &mut sched);
 
-    assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Success);
+    assert_eq!(queue.GetRec(id).unwrap().GetState(), JobState::Success);
     assert!(queue.IsEmpty());
 
     sched.remove_signal(sig);
@@ -63,7 +63,7 @@ fn fail_records_error_text() {
     queue.FailJob(id, "out of memory".to_string(), &mut sched);
 
     let j = queue.GetRec(id).unwrap();
-    assert_eq!(j.state(), JobState::Error);
+    assert_eq!(j.GetState(), JobState::Error);
     assert_eq!(j.GetErrorText(), "out of memory");
     assert!(queue.IsEmpty());
 
@@ -80,7 +80,7 @@ fn abort_transitions_to_aborted() {
     let id = queue.EnqueueJob(job, &mut sched);
     queue.AbortJob(id, &mut sched);
 
-    assert_eq!(queue.GetRec(id).unwrap().state(), JobState::Aborted);
+    assert_eq!(queue.GetRec(id).unwrap().GetState(), JobState::Aborted);
     assert!(queue.IsEmpty());
 
     sched.remove_signal(sig);
@@ -170,9 +170,9 @@ fn fail_all_running_and_waiting() {
 
     queue.FailAllJobs("shutdown", &mut sched);
 
-    assert_eq!(queue.GetRec(id1).unwrap().state(), JobState::Error);
-    assert_eq!(queue.GetRec(id2).unwrap().state(), JobState::Error);
-    assert_eq!(queue.GetRec(id3).unwrap().state(), JobState::Error);
+    assert_eq!(queue.GetRec(id1).unwrap().GetState(), JobState::Error);
+    assert_eq!(queue.GetRec(id2).unwrap().GetState(), JobState::Error);
+    assert_eq!(queue.GetRec(id3).unwrap().GetState(), JobState::Error);
     assert_eq!(queue.GetRec(id1).unwrap().GetErrorText(), "shutdown");
     assert!(queue.IsEmpty());
 
@@ -229,8 +229,8 @@ fn clear_aborts_all() {
 
     queue.Clear(&mut sched);
 
-    assert_eq!(queue.GetRec(id1).unwrap().state(), JobState::Aborted);
-    assert_eq!(queue.GetRec(id2).unwrap().state(), JobState::Aborted);
+    assert_eq!(queue.GetRec(id1).unwrap().GetState(), JobState::Aborted);
+    assert_eq!(queue.GetRec(id2).unwrap().GetState(), JobState::Aborted);
     assert!(queue.IsEmpty());
 
     sched.remove_signal(sig1);
@@ -242,7 +242,7 @@ fn job_priority_and_signal_accessors() {
     let mut sched = EngineScheduler::new();
     let job = emJob::new(7.5, &mut sched);
     assert_eq!(job.GetPriority(), 7.5);
-    assert_eq!(job.state(), JobState::NotEnqueued);
+    assert_eq!(job.GetState(), JobState::NotEnqueued);
     assert_eq!(job.GetErrorText(), "");
 
     let sig = job.GetStateSignal();

@@ -785,7 +785,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(3);
-            g.Select(1); // button at index 1 is checked
+            g.SetChecked(1); // button at index 1 is checked
         }
 
         // Remove the checked button
@@ -800,7 +800,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(4);
-            g.Select(3); // button at index 3 is checked
+            g.SetChecked(3); // button at index 3 is checked
         }
 
         // Remove button at index 1 (before the checked one)
@@ -816,7 +816,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(4);
-            g.Select(0); // button at index 0 is checked
+            g.SetChecked(0); // button at index 0 is checked
         }
 
         // Remove button at index 2 (after the checked one)
@@ -831,7 +831,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(2);
-            g.Select(0);
+            g.SetChecked(0);
         }
         group.borrow_mut().RemoveByIndex(5);
         assert_eq!(group.borrow().GetCount(), 2);
@@ -846,7 +846,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(3);
-            g.Select(1);
+            g.SetChecked(1);
             g.on_select = Some(Box::new(move |idx| {
                 sig_clone.borrow_mut().push(idx);
             }));
@@ -865,7 +865,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(3);
-            g.Select(1);
+            g.SetChecked(1);
             g.on_select = Some(Box::new(move |idx| {
                 sig_clone.borrow_mut().push(idx);
             }));
@@ -902,7 +902,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(2);
-            g.Select(0);
+            g.SetChecked(0);
         }
 
         // Out of bounds normalizes to None
@@ -918,7 +918,7 @@ mod tests {
         {
             let mut g = group.borrow_mut();
             g.AddAll(3);
-            g.Select(1);
+            g.SetChecked(1);
             g.on_select = Some(Box::new(move |idx| {
                 sig_clone.borrow_mut().push(idx);
             }));
@@ -939,7 +939,7 @@ mod tests {
         let r2 = emRadioButton::new("C", look, group.clone(), 2);
 
         // Select the last button
-        group.borrow_mut().Select(2);
+        group.borrow_mut().SetChecked(2);
         assert!(r2.IsSelected());
         assert_eq!(r2.index(), 2);
 
@@ -964,7 +964,7 @@ mod tests {
         let r1 = emRadioButton::new("B", look.clone(), group.clone(), 1);
         let r2 = emRadioButton::new("C", look, group.clone(), 2);
 
-        group.borrow_mut().Select(1);
+        group.borrow_mut().SetChecked(1);
         assert!(r1.IsSelected());
 
         drop(r1);

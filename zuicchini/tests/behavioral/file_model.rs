@@ -32,9 +32,9 @@ fn update_retries_load_error() {
     let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.Load();
     m.fail_load("network error".to_string());
-    assert!(Match!(m.state(), FileState::LoadError(_)));
+    assert!(matches!(m.GetFileState(), FileState::LoadError(_)));
     m.update();
-    assert!(Match!(m.state(), &FileState::Waiting));
+    assert!(matches!(m.GetFileState(), &FileState::Waiting));
 }
 
 #[test]
@@ -43,7 +43,7 @@ fn update_retries_too_costly() {
     let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.mark_too_costly();
     m.update();
-    assert!(Match!(m.state(), &FileState::Waiting));
+    assert!(matches!(m.GetFileState(), &FileState::Waiting));
 }
 
 #[test]
@@ -55,7 +55,7 @@ fn update_unloads_out_of_date() {
     m.TryFetchDate(1000, 512);
     m.IsOutOfDate(2000, 512); // marks out_of_date = true
     m.update();
-    assert!(Match!(m.state(), &FileState::Waiting));
+    assert!(matches!(m.GetFileState(), &FileState::Waiting));
     assert!(m.GetMap().is_none());
 }
 
@@ -68,7 +68,7 @@ fn update_keeps_loaded_if_fresh() {
     m.TryFetchDate(1000, 512);
     m.IsOutOfDate(1000, 512); // same date, not out of date
     m.update();
-    assert!(Match!(m.state(), &FileState::Loaded));
+    assert!(matches!(m.GetFileState(), &FileState::Loaded));
     assert_eq!(m.GetMap().unwrap(), "data", "loaded data should be preserved after fresh update");
 }
 
@@ -80,7 +80,7 @@ fn reset_data_clears_everything() {
     m.complete_load("data".to_string());
     m.CalcMemoryNeed(500);
     m.reset_data();
-    assert!(Match!(m.state(), &FileState::Waiting));
+    assert!(matches!(m.GetFileState(), &FileState::Waiting));
     assert!(m.GetMap().is_none());
     assert_eq!(m.get_memory_need(), 0);
 }
@@ -371,7 +371,7 @@ fn update_signal_differs_from_change() {
     let change = sched.create_signal();
     let update = sched.create_signal();
     let m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
-    assert_ne!(m.change_signal(), m.AcquireUpdateSignalModel());
+    assert_ne!(m.GetFileStateSignal(), m.AcquireUpdateSignalModel());
 }
 
 #[test]
@@ -408,9 +408,9 @@ fn clear_save_error_transitions_to_unsaved() {
     m.SetUnsavedState();
     m.Save();
     m.fail_save("disk full".to_string());
-    assert!(Match!(m.state(), FileState::SaveError(_)));
+    assert!(matches!(m.GetFileState(), FileState::SaveError(_)));
     m.clear_save_error();
-    assert!(Match!(m.state(), &FileState::Unsaved));
+    assert!(matches!(m.GetFileState(), &FileState::Unsaved));
 }
 
 #[test]
@@ -418,7 +418,7 @@ fn clear_save_error_noop_in_waiting() {
     let (change, update) = make_signals();
     let mut m: emFileModel<String> = emFileModel::new(PathBuf::from("t.dat"), change, update);
     m.clear_save_error();
-    assert!(Match!(m.state(), &FileState::Waiting));
+    assert!(matches!(m.GetFileState(), &FileState::Waiting));
 }
 
 #[test]
@@ -428,5 +428,5 @@ fn clear_save_error_noop_in_loaded() {
     m.Load();
     m.complete_load("data".to_string());
     m.clear_save_error();
-    assert!(Match!(m.state(), &FileState::Loaded));
+    assert!(matches!(m.GetFileState(), &FileState::Loaded));
 }

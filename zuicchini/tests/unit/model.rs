@@ -124,42 +124,42 @@ fn file_model_state_machine() {
     let sig = make_signal();
     let mut fm = emFileModel::<Vec<u8>>::new(PathBuf::from("/tmp/test"), sig, sig);
 
-    assert_eq!(*fm.state(), FileState::Waiting);
+    assert_eq!(*fm.GetFileState(), FileState::Waiting);
     assert_eq!(fm.GetFileProgress(), 0.0);
 
     // Waiting -> Loading
     assert!(fm.Load());
-    assert!(Match!(*fm.state(), FileState::Loading { .. }));
+    assert!(matches!(*fm.GetFileState(), FileState::Loading { .. }));
 
     // Loading -> LoadError
     fm.fail_load("test error".into());
-    assert!(Match!(*fm.state(), FileState::LoadError(_)));
+    assert!(matches!(*fm.GetFileState(), FileState::LoadError(_)));
 
     // LoadError -> Loading (retry)
     assert!(fm.Load());
-    assert!(Match!(*fm.state(), FileState::Loading { .. }));
+    assert!(matches!(*fm.GetFileState(), FileState::Loading { .. }));
 
     // Loading -> Loaded
     fm.complete_load(vec![1, 2, 3]);
-    assert_eq!(*fm.state(), FileState::Loaded);
+    assert_eq!(*fm.GetFileState(), FileState::Loaded);
     assert_eq!(fm.GetMap().unwrap(), &vec![1, 2, 3]);
     assert_eq!(fm.GetFileProgress(), 100.0);
 
     // Loaded -> Unsaved
     fm.SetUnsavedState();
-    assert_eq!(*fm.state(), FileState::Unsaved);
+    assert_eq!(*fm.GetFileState(), FileState::Unsaved);
 
     // Unsaved -> Saving
     assert!(fm.Save());
-    assert_eq!(*fm.state(), FileState::Saving);
+    assert_eq!(*fm.GetFileState(), FileState::Saving);
 
     // Saving -> Loaded (Save complete)
     fm.complete_save();
-    assert_eq!(*fm.state(), FileState::Loaded);
+    assert_eq!(*fm.GetFileState(), FileState::Loaded);
 
     // Reset
     assert!(fm.HardResetFileState());
-    assert_eq!(*fm.state(), FileState::Waiting);
+    assert_eq!(*fm.GetFileState(), FileState::Waiting);
     assert!(fm.GetMap().is_none());
 }
 
@@ -169,11 +169,11 @@ fn file_model_too_costly() {
     let mut fm = emFileModel::<String>::new(PathBuf::from("/tmp/test"), sig, sig);
 
     fm.mark_too_costly();
-    assert_eq!(*fm.state(), FileState::TooCostly);
+    assert_eq!(*fm.GetFileState(), FileState::TooCostly);
 
     // Can retry from TooCostly
     assert!(fm.Load());
-    assert!(Match!(*fm.state(), FileState::Loading { .. }));
+    assert!(matches!(*fm.GetFileState(), FileState::Loading { .. }));
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn rec_file_model_load_roundtrip() {
     let mut m = emRecFileModel::<TestRecord>::new(path);
     m.TryLoad();
 
-    assert_eq!(*m.state(), FileState::Loaded);
+    assert_eq!(*m.GetFileState(), FileState::Loaded);
     assert_eq!(m.GetMap().name, "hello");
     assert_eq!(m.GetMap().GetCount, 42);
 }
@@ -212,7 +212,7 @@ fn rec_file_model_load_error_missing() {
     let path = PathBuf::from("/tmp/zuicchini_rfm_no_such_file_xyz.rec");
     let mut m = emRecFileModel::<TestRecord>::new(path);
     m.TryLoad();
-    assert!(Match!(*m.state(), FileState::LoadError(_)));
+    assert!(matches!(*m.GetFileState(), FileState::LoadError(_)));
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn rec_file_model_load_error_bad_rec() {
 
     let mut m = emRecFileModel::<TestRecord>::new(path);
     m.TryLoad();
-    assert!(Match!(*m.state(), FileState::LoadError(_)));
+    assert!(matches!(*m.GetFileState(), FileState::LoadError(_)));
 }
 
 #[test]
@@ -235,14 +235,14 @@ fn rec_file_model_save_roundtrip() {
 
     let mut m = emRecFileModel::<TestRecord>::new(path.clone());
     m.TryLoad();
-    assert_eq!(*m.state(), FileState::Loaded);
+    assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     m.GetWritableMap().name = "modified".to_string();
     m.GetWritableMap().GetCount = 99;
-    assert_eq!(*m.state(), FileState::Unsaved);
+    assert_eq!(*m.GetFileState(), FileState::Unsaved);
 
     m.Save();
-    assert_eq!(*m.state(), FileState::Loaded);
+    assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     let content = std::fs::read_to_string(&path).unwrap();
     assert!(content.contains("modified"));
@@ -257,14 +257,14 @@ fn rec_file_model_out_of_date() {
 
     let mut m = emRecFileModel::<TestRecord>::new(path.clone());
     m.TryLoad();
-    assert_eq!(*m.state(), FileState::Loaded);
+    assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     // Overwrite with significantly different size to avoid mtime collision
     let big = "x".repeat(4096);
     std::fs::write(&path, big.as_bytes()).unwrap();
 
     m.update();
-    assert_eq!(*m.state(), FileState::Waiting);
+    assert_eq!(*m.GetFileState(), FileState::Waiting);
 }
 
 #[test]
@@ -275,11 +275,11 @@ fn rec_file_model_hard_reset() {
 
     let mut m = emRecFileModel::<TestRecord>::new(path);
     m.TryLoad();
-    assert_eq!(*m.state(), FileState::Loaded);
+    assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     m.hard_reset();
 
-    assert_eq!(*m.state(), FileState::Waiting);
+    assert_eq!(*m.GetFileState(), FileState::Waiting);
     assert!(m.GetMap().IsSetToDefault());
 }
 
@@ -291,11 +291,11 @@ fn rec_file_model_clear_save_error() {
 
     let mut m = emRecFileModel::<TestRecord>::new(path.clone());
     m.TryLoad();
-    assert_eq!(*m.state(), FileState::Loaded);
+    assert_eq!(*m.GetFileState(), FileState::Loaded);
 
     // Mark unsaved via data_mut()
     m.GetWritableMap().GetCount = 5;
-    assert_eq!(*m.state(), FileState::Unsaved);
+    assert_eq!(*m.GetFileState(), FileState::Unsaved);
 
     // Redirect to unwritable path (GetParentContext is a regular file)
     let blocker = dir.join("blocker");
@@ -305,13 +305,13 @@ fn rec_file_model_clear_save_error() {
 
     m.Save();
     assert!(
-        Match!(*m.state(), FileState::SaveError(_)),
+        matches!(*m.GetFileState(), FileState::SaveError(_)),
         "expected SaveError, got {:?}",
-        m.state()
+        m.GetFileState()
     );
 
     m.clear_save_error();
-    assert_eq!(*m.state(), FileState::Unsaved);
+    assert_eq!(*m.GetFileState(), FileState::Unsaved);
 }
 
 #[test]
@@ -324,7 +324,7 @@ fn rec_file_model_memory_limit() {
     m.set_memory_limit(1);
     m.TryLoad();
 
-    assert_eq!(*m.state(), FileState::TooCostly);
+    assert_eq!(*m.GetFileState(), FileState::TooCostly);
 }
 
 #[test]
@@ -338,7 +338,7 @@ fn rec_file_model_protect_file_state() {
 
     // Loading internally guards data mutations with protect_file_state,
     // so the state after a clean TryLoad must be Loaded, not Unsaved.
-    assert_eq!(*m.state(), FileState::Loaded);
+    assert_eq!(*m.GetFileState(), FileState::Loaded);
 }
 
 // ── emFileModel<T> lifecycle tests ─────────────────────────────────────────────
@@ -422,14 +422,14 @@ fn file_model_step_loading() {
     // First step: Waiting → Loading
     let changed = fm.step_loading(&mut ops);
     assert!(changed);
-    assert!(Match!(*fm.state(), FileState::Loading { .. }));
+    assert!(matches!(*fm.GetFileState(), FileState::Loading { .. }));
     assert!(ops.start_called);
     assert!(!ops.continue_called);
 
     // Second step: Loading → Loaded (continue returns Ok(true))
     let changed = fm.step_loading(&mut ops);
     assert!(changed);
-    assert_eq!(*fm.state(), FileState::Loaded);
+    assert_eq!(*fm.GetFileState(), FileState::Loaded);
     assert!(ops.continue_called);
     assert!(ops.quit_loading_called);
 }
@@ -442,22 +442,22 @@ fn file_model_step_saving() {
 
     // Reach Loaded state manually
     fm.complete_load(());
-    assert_eq!(*fm.state(), FileState::Loaded);
+    assert_eq!(*fm.GetFileState(), FileState::Loaded);
     fm.SetUnsavedState();
-    assert_eq!(*fm.state(), FileState::Unsaved);
+    assert_eq!(*fm.GetFileState(), FileState::Unsaved);
 
     let mut ops = MemOps::new();
 
     // First step: Unsaved → Saving
     let changed = fm.step_saving(&mut ops);
     assert!(changed);
-    assert_eq!(*fm.state(), FileState::Saving);
+    assert_eq!(*fm.GetFileState(), FileState::Saving);
     assert!(ops.save_start_called);
 
     // Second step: Saving → Loaded (continue returns Ok(true))
     let changed = fm.step_saving(&mut ops);
     assert!(changed);
-    assert_eq!(*fm.state(), FileState::Loaded);
+    assert_eq!(*fm.GetFileState(), FileState::Loaded);
     assert!(ops.save_continue_called);
     assert!(ops.quit_saving_called);
 }
@@ -468,12 +468,12 @@ fn file_model_hard_reset_file_state() {
     let path = make_temp_file("zuicchini_fm_12");
     let mut fm = emFileModel::<()>::new(path, sig, sig);
     fm.complete_load(());
-    assert_eq!(*fm.state(), FileState::Loaded);
+    assert_eq!(*fm.GetFileState(), FileState::Loaded);
 
     let mut ops = MemOps::new();
     fm.hard_reset_file_state(&mut ops);
 
-    assert_eq!(*fm.state(), FileState::Waiting);
+    assert_eq!(*fm.GetFileState(), FileState::Waiting);
     assert!(ops.reset_called);
 }
 
@@ -486,10 +486,10 @@ fn file_model_set_unsaved_state_aborts_loading() {
 
     // Step once: Waiting → Loading
     fm.step_loading(&mut ops);
-    assert!(Match!(*fm.state(), FileState::Loading { .. }));
+    assert!(matches!(*fm.GetFileState(), FileState::Loading { .. }));
 
     // set_unsaved_state should abort loading and move to Unsaved
     fm.set_unsaved_state(&mut ops);
-    assert_eq!(*fm.state(), FileState::Unsaved);
+    assert_eq!(*fm.GetFileState(), FileState::Unsaved);
     assert!(ops.quit_loading_called);
 }

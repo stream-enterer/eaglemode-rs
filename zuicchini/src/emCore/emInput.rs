@@ -461,10 +461,10 @@ mod tests {
     #[test]
     fn eat_marks_empty() {
         let mut ev = emInputEvent::press(InputKey::Key('A')).with_chars("a");
-        assert!(!ev.is_empty());
+        assert!(!ev.IsEmpty());
         assert!(ev.is_key(InputKey::Key('A')));
         ev.eat();
-        assert!(ev.is_empty());
+        assert!(ev.IsEmpty());
         assert!(!ev.is_key(InputKey::Key('A')));
         assert!(ev.chars.is_empty());
     }

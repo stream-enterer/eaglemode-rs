@@ -33,7 +33,7 @@ fn parent_resize_triggers_child_relayout() {
 
     let parent = h.add_panel_with(root, "parent", Box::new(parent_behavior));
     let child = h.add_panel_with(
-        GetParentContext,
+        parent,
         "child",
         Box::new(RecordingBehavior::new(Rc::clone(&log_child))),
     );
@@ -45,7 +45,7 @@ fn parent_resize_triggers_child_relayout() {
 
     // Resize GetParentContext — GetParentContext gets LAYOUT_CHANGED → LayoutChildren sets child rect
     // → child gets LAYOUT_CHANGED on next deliver_notices
-    h.tree.Layout(GetParentContext, 0.0, 0.0, 0.8, 0.8);
+    h.tree.Layout(parent, 0.0, 0.0, 0.8, 0.8);
     h.tick();
 
     {
@@ -88,7 +88,7 @@ fn nested_layout_cascade() {
         Box::new(RecordingBehavior::new(Rc::clone(&log_parent))),
     );
     let _child = h.add_panel_with(
-        GetParentContext,
+        parent,
         "child",
         Box::new(RecordingBehavior::new(Rc::clone(&log_child))),
     );
@@ -102,7 +102,7 @@ fn nested_layout_cascade() {
 
     // Resize GetParentContext too (simulating the cascade — in a real app, GetParentContext's
     // LayoutChildren would set child rects, which triggers child notices)
-    h.tree.Layout(GetParentContext, 0.0, 0.0, 0.6, 0.6);
+    h.tree.Layout(parent, 0.0, 0.0, 0.6, 0.6);
     h.tree.Layout(_child, 0.0, 0.0, 0.5, 0.5);
 
     h.tick();

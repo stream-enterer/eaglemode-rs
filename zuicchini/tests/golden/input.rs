@@ -144,7 +144,7 @@ fn input_scroll_delta() {
 
     // Clear VIF chain: C++ golden generator uses DoInputToView which bypasses VIF.
     // emMouseZoomScrollVIF would consume the wheel event before it reaches panels.
-    h.vif_chain.Clear();
+    h.vif_chain.clear();
 
     // Wheel event
     h.input_state.set_mouse(200.0, 300.0);

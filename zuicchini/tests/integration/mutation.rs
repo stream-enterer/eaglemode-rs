@@ -33,7 +33,7 @@ fn add_child_during_layout_children() {
     assert_eq!(ids.len(), 2, "Two children should have been created");
     assert!(h.tree.contains(ids[0]));
     assert!(h.tree.contains(ids[1]));
-    assert_eq!(h.tree.child_count(GetParentContext), 2);
+    assert_eq!(h.tree.child_count(parent), 2);
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn remove_sibling_during_layout_children() {
         if let Some(parent) = ctx.GetParentContext() {
             // We can't directly remove a sibling through PanelCtx (it's scoped to self).
             // Instead, we just verify the sibling is reachable.
-            let _ = GetParentContext;
+            let _ = parent;
         }
     }));
 
@@ -146,8 +146,8 @@ fn delete_all_children_during_layout() {
     let _b = h.add_panel(root, "pre_b");
 
     let parent = h.add_panel(root, "parent");
-    let _c1 = h.tree.create_child(GetParentContext, "c1");
-    let _c2 = h.tree.create_child(GetParentContext, "c2");
+    let _c1 = h.tree.create_child(parent, "c1");
+    let _c2 = h.tree.create_child(parent, "c2");
 
     let mut behavior = MutatingBehavior::new();
     behavior.on_layout = Some(Box::new(move |ctx: &mut PanelCtx| {
@@ -156,10 +156,10 @@ fn delete_all_children_during_layout() {
             *deleted_clone.borrow_mut() = true;
         }
     }));
-    h.tree.set_behavior(GetParentContext, Box::new(behavior));
+    h.tree.set_behavior(parent, Box::new(behavior));
 
     h.tick();
 
     assert!(*deleted.borrow(), "delete_all_children should have run");
-    assert_eq!(h.tree.child_count(GetParentContext), 0);
+    assert_eq!(h.tree.child_count(parent), 0);
 }

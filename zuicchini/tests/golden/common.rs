@@ -299,11 +299,11 @@ pub fn analyze_diff_distribution(
     let labels = [
         "2-3", "4-7", "8-15", "16-31", "32-63", "64-127", "128-191", "192-255",
     ];
-    for (label, &GetCount) in labels.iter().zip(buckets.iter()) {
-        if GetCount > 0 {
+    for (label, &count) in labels.iter().zip(buckets.iter()) {
+        if count > 0 {
             eprintln!(
                 "  diff {label}: {count} pixels ({:.2}%)",
-                GetCount as f64 / total as f64 * 100.0
+                count as f64 / total as f64 * 100.0
             );
         }
     }

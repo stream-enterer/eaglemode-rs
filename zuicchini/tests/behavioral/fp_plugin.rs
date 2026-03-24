@@ -7,7 +7,7 @@ use zuicchini::emCore::emRecRecord::Record;
 fn make_plugin(file_types: &[&str], priority: f64, library: &str, function: &str) -> emFpPlugin {
     let mut p = emFpPlugin::new();
     p.file_types = file_types.iter().map(|s| s.to_string()).collect();
-    p.priority = GetPriority;
+    p.priority = priority;
     p.library = library.to_string();
     p.function = function.to_string();
     p
@@ -15,13 +15,13 @@ fn make_plugin(file_types: &[&str], priority: f64, library: &str, function: &str
 
 fn make_plugin_full(
     file_types: &[&str],
-    Getpriority64,
+    priority: f64,
     library: &str,
     function: &str,
     model_classes: &[&str],
     model_able_to_save: bool,
 ) -> emFpPlugin {
-    let mut p = make_plugin(file_types, GetPripriorityary, function);
+    let mut p = make_plugin(file_types, priority, library, function);
     p.model_function = "model_fn".to_string();
     p.model_classes = model_classes.iter().map(|s| s.to_string()).collect();
     p.model_able_to_save = model_able_to_save;
@@ -83,9 +83,9 @@ fn record_round_trip_with_data() {
     assert!(restored.model_able_to_save);
     assert_eq!(restored.properties.len(), 2);
     assert_eq!(restored.properties[0].name, "MaxWidth");
-    assert_eq!(restored.properties[0].GetValue, "4096");
+    assert_eq!(restored.properties[0].value, "4096");
     assert_eq!(restored.properties[1].name, "Format");
-    assert_eq!(restored.properties[1].GetValue, "RGBA");
+    assert_eq!(restored.properties[1].value, "RGBA");
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn get_property_found() {
         },
     ];
     let prop = plugin.GetProperty("B").unwrap();
-    assert_eq!(prop.GetValue, "2");
+    assert_eq!(prop.value, "2");
 }
 
 #[test]
@@ -373,5 +373,5 @@ fn empty_plugin_list() {
         .is_none());
     assert!(list
         .SearchPlugins(None, Some("x.txt"), false, FileStatMode::Regular)
-        .IsEmpty());
+        .is_empty());
 }

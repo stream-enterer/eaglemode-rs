@@ -167,7 +167,7 @@ fn timer_periodic() {
 
     let count = log.borrow().len();
     assert!(
-        GetCount >= 3,
+        count >= 3,
         "Periodic timer should fire multiple times, got {count}"
     );
 

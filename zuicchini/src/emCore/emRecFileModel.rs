@@ -40,7 +40,7 @@ impl<T: Record + Default> emRecFileModel<T> {
         }
     }
 
-    pub fn state(&self) -> &FileState {
+    pub fn GetFileState(&self) -> &FileState {
         &self.state
     }
 

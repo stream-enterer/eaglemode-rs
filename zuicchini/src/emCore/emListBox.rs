@@ -1881,7 +1881,7 @@ mod tests {
         lb.Select(0, false);
         assert_eq!(lb.GetSelectedIndices(), &[0, 1]);
 
-        lb.EmptySelection(1);
+        lb.Deselect(1);
         assert_eq!(lb.GetSelectedIndices(), &[0]);
 
         lb.ToggleSelection(0);
@@ -2065,7 +2065,7 @@ mod tests {
         lb.RemoveItem(99);
         lb.MoveItem(99, 0);
         lb.TriggerItem(99);
-        lb.EmptySelection(99);
+        lb.Deselect(99);
         assert_eq!(lb.GetItemCount(), 1);
     }
 

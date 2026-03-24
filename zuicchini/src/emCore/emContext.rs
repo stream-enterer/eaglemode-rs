@@ -259,7 +259,7 @@ mod tests {
         assert!(!ctx.is_registered::<i32>("other"));
         assert!(!ctx.is_registered::<u32>("answer"));
 
-        let found = ctx.lookup::<i32>("answer").expect("should find model");
+        let found = ctx.Lookup::<i32>("answer").expect("should find model");
         assert_eq!(*found.borrow(), 42);
     }
 
@@ -270,7 +270,7 @@ mod tests {
         assert!(ctx.is_registered::<i32>("x"));
         ctx.unregister_model::<i32>("x");
         assert!(!ctx.is_registered::<i32>("x"));
-        assert!(ctx.lookup::<i32>("x").is_none());
+        assert!(ctx.Lookup::<i32>("x").is_none());
     }
 
     #[test]
@@ -289,12 +289,12 @@ mod tests {
         let child = emContext::NewChild(&root);
         // Not in child, but found via parent.
         let found = child
-            .lookup_inherited::<String>("greeting")
+            .LookupInherited::<String>("greeting")
             .expect("inherited lookup");
         assert_eq!(*found.borrow(), "hello");
 
         // Direct lookup in child should fail.
-        assert!(child.lookup::<String>("greeting").is_none());
+        assert!(child.Lookup::<String>("greeting").is_none());
     }
 
     #[test]
@@ -323,8 +323,8 @@ mod tests {
         ctx.register_model::<i32>("val", Rc::new(RefCell::new(1_i32)));
         ctx.register_model::<u32>("val", Rc::new(RefCell::new(2_u32)));
 
-        assert_eq!(*ctx.lookup::<i32>("val").unwrap().borrow(), 1);
-        assert_eq!(*ctx.lookup::<u32>("val").unwrap().borrow(), 2);
+        assert_eq!(*ctx.Lookup::<i32>("val").unwrap().borrow(), 1);
+        assert_eq!(*ctx.Lookup::<u32>("val").unwrap().borrow(), 2);
     }
 
     #[test]

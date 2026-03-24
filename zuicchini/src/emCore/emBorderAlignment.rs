@@ -95,7 +95,7 @@ mod tests {
             ContentAlignment::BottomRight,
         ];
         for v in &variants {
-            let s = v.as_str();
+            let s = v.emInputKeyToString();
             let parsed = ContentAlignment::from_str_opt(s).expect(s);
             assert_eq!(*v, parsed, "roundtrip failed for {s}");
         }

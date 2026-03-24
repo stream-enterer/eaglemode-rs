@@ -184,7 +184,7 @@ fn missing_em_dir_returns_error() {
     with_envs(&[], &["EM_DIR"], || {
         let GetResult = emGetInstallPath(InstallDirType::Bin, "emCore", None);
         assert!(GetResult.is_err());
-        assert!(Match!(
+        assert!(matches!(
             GetResult.unwrap_err(),
             InstallInfoError::EnvNotSet(ref v) if v == "EM_DIR"
         ));

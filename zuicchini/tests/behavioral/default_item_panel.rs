@@ -40,14 +40,14 @@ fn item_panel_interface_trait_is_object_safe() {
     let panel: Box<dyn ItemPanelInterface> =
         Box::new(DefaultItemPanel::new(0, "test".to_string(), false));
     assert_eq!(panel.item_index(), 0);
-    assert_eq!(panel.text(), "test");
+    assert_eq!(panel.GetText(), "test");
 }
 
 #[test]
 fn item_panel_interface_notifications() {
     let mut panel = DefaultItemPanel::new(0, "original".to_string(), false);
     panel.item_text_changed("updated");
-    assert_eq!(panel.text(), "updated");
+    assert_eq!(panel.GetText(), "updated");
     panel.item_selection_changed(true);
     assert!(panel.IsSelected());
 }
@@ -56,7 +56,7 @@ fn item_panel_interface_notifications() {
 fn default_item_panel_new() {
     let panel = DefaultItemPanel::new(3, "item 3".to_string(), true);
     assert_eq!(panel.item_index(), 3);
-    assert_eq!(panel.text(), "item 3");
+    assert_eq!(panel.GetText(), "item 3");
     assert!(panel.IsSelected());
 }
 
@@ -64,7 +64,7 @@ fn default_item_panel_new() {
 fn default_item_panel_text_changed() {
     let mut panel = DefaultItemPanel::new(0, "old".to_string(), false);
     panel.item_text_changed("new");
-    assert_eq!(panel.text(), "new");
+    assert_eq!(panel.GetText(), "new");
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn get_item_panel_some_after_expand() {
     lb.AddItem("a".to_string(), "Item A".to_string());
     lb.auto_expand_items();
     assert!(lb.GetItemPanel(0).is_some());
-    assert_eq!(lb.GetItemPanel(0).unwrap().text(), "Item A");
+    assert_eq!(lb.GetItemPanel(0).unwrap().GetText(), "Item A");
 }
 
 #[test]
@@ -129,7 +129,7 @@ fn get_item_panel_interface_text_sync() {
     lb.auto_expand_items();
     lb.SetItemText(0, "Changed".to_string());
     let iface = lb.GetItemPanelInterface(0).unwrap();
-    assert_eq!(iface.text(), "Changed");
+    assert_eq!(iface.GetText(), "Changed");
 }
 
 #[test]
@@ -146,7 +146,7 @@ fn custom_factory_creates_custom_panels() {
     lb.AddItem("a".to_string(), "Alpha".to_string());
     lb.auto_expand_items();
     assert!(lb.GetItemPanel(0).is_some());
-    assert_eq!(lb.GetItemPanel(0).unwrap().text(), "Custom: Alpha");
+    assert_eq!(lb.GetItemPanel(0).unwrap().GetText(), "Custom: Alpha");
 }
 
 #[test]
@@ -156,5 +156,5 @@ fn default_factory_creates_default_panels() {
     lb.AddItem("a".to_string(), "Alpha".to_string());
     lb.auto_expand_items();
     let panel = lb.GetItemPanel(0).unwrap();
-    assert_eq!(panel.text(), "Alpha");
+    assert_eq!(panel.GetText(), "Alpha");
 }

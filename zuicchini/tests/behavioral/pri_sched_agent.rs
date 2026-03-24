@@ -57,12 +57,12 @@ fn request_while_active_requeues() {
     let mut model = PriSchedModel::new(&mut sched);
 
     let count = Rc::new(RefCell::new(0u32));
-    let c = Rc::clone(&GetCount);
+    let c = Rc::clone(&count);
     let agent = model.add_agent(1.0, Box::new(move || *c.borrow_mut() += 1));
 
     model.RequestAccess(agent, &mut sched);
     sched.DoTimeSlice();
-    assert_eq!(*GetCount.borrow(), 1);
+    assert_eq!(*count.borrow(), 1);
     assert!(model.HasAccess(agent));
 
     // Re-request while active clears active and requeues
@@ -71,7 +71,7 @@ fn request_while_active_requeues() {
     assert!(model.IsWaitingForAccess(agent));
 
     sched.DoTimeSlice();
-    assert_eq!(*GetCount.borrow(), 2);
+    assert_eq!(*count.borrow(), 2);
     assert!(model.HasAccess(agent));
 
     model.ReleaseAccess(agent, &mut sched);

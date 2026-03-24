@@ -306,16 +306,16 @@ mod tests {
     #[test]
     fn alignment_rec_default() {
         let rec = emAlignmentRec::default();
-        assert_eq!(rec.get(), Alignment::Center);
+        assert_eq!(rec.GetRec(), Alignment::Center);
         assert!(rec.IsSetToDefault());
     }
 
     #[test]
     fn alignment_rec_set_get() {
         let mut rec = emAlignmentRec::new(Alignment::Start);
-        assert_eq!(rec.get(), Alignment::Start);
-        rec.set(Alignment::End);
-        assert_eq!(rec.get(), Alignment::End);
+        assert_eq!(rec.GetRec(), Alignment::Start);
+        rec.Set(Alignment::End);
+        assert_eq!(rec.GetRec(), Alignment::End);
         assert!(!rec.IsSetToDefault());
         rec.SetToDefault();
         assert!(rec.IsSetToDefault());
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn color_rec_default() {
         let rec = emColorRec::default();
-        assert_eq!(rec.get(), emColor::BLACK);
+        assert_eq!(rec.GetRec(), emColor::BLACK);
         assert!(!rec.HaveAlpha());
         assert!(rec.IsSetToDefault());
     }
@@ -346,9 +346,9 @@ mod tests {
     #[test]
     fn color_rec_set_get() {
         let mut rec = emColorRec::new(emColor::RED, false);
-        assert_eq!(rec.get(), emColor::RED);
-        rec.set(emColor::BLUE);
-        assert_eq!(rec.get(), emColor::BLUE);
+        assert_eq!(rec.GetRec(), emColor::RED);
+        rec.Set(emColor::BLUE);
+        assert_eq!(rec.GetRec(), emColor::BLUE);
         assert!(!rec.IsSetToDefault());
         rec.SetToDefault();
         assert!(rec.IsSetToDefault());
@@ -357,15 +357,15 @@ mod tests {
     #[test]
     fn color_rec_opaque_forces_alpha_255() {
         let mut rec = emColorRec::new(emColor::BLACK, false);
-        rec.set(emColor::rgba(100, 200, 50, 128));
-        assert_eq!(rec.get().GetAlpha(), 255);
+        rec.Set(emColor::rgba(100, 200, 50, 128));
+        assert_eq!(rec.GetRec().GetAlpha(), 255);
     }
 
     #[test]
     fn color_rec_with_alpha() {
         let mut rec = emColorRec::new(emColor::TRANSPARENT, true);
-        rec.set(emColor::rgba(100, 200, 50, 128));
-        assert_eq!(rec.get().GetAlpha(), 128);
+        rec.Set(emColor::rgba(100, 200, 50, 128));
+        assert_eq!(rec.GetRec().GetAlpha(), 128);
     }
 
     #[test]
