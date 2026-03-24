@@ -1899,15 +1899,11 @@ impl emVisitingViewAnimator {
         // Rust rel_a = 1/C++relA, so relA = 1/target_a.
         let vw = (hw * hh * hp * target_a / panel_height).sqrt();
         let vh = vw * panel_height / hp;
-        // Compute target viewport position using Rust's rel_x convention.
-        // Rust: vcx = vw_viewport * (0.5 + rel_x), root_vx = vcx - 0.5 * vw_target.
-        // This differs from the C++ formula (vx = hmx - (relX+0.5)*vw) because
-        // Rust rel_x and C++ relX have opposite sign AND zoom-dependent scaling.
-        // The Rust-native formula ensures the animator targets the correct Rust
-        // rel_x position. The dx/dy negation below converts the panel-space
-        // displacement to the correct Rust scroll direction.
-        let vx = hx + hw * (0.5 + target_x) - vw * 0.5;
-        let vy = hy + hh * (0.5 + target_y) - vh * 0.5;
+        // Target panel left edge in viewport pixels.
+        // Rust rel_x is viewport-fraction (not panel-fraction like C++ relX),
+        // so: vcx = hw*(0.5 - target_x), panel_left = vcx - 0.5*vw.
+        let vx = hx + hw * (0.5 - target_x) - vw * 0.5;
+        let vy = hy + hh * (0.5 - target_y) - vh * 0.5;
         let mut bx = (sx - vx) / vw;
         let mut by = (sy - vy) / vw * hp;
         let mut bw = sw / vw;
@@ -1983,13 +1979,9 @@ impl emVisitingViewAnimator {
             dz = -extreme_dist;
         } else {
             let f = (sw + sh) * view.GetZoomFactorLogarithmPerPixel();
-            // Negate: the tree-walk computes displacement in C++ sign convention
-            // (positive = view rect to the right), but Rust raw_scroll_and_zoom
-            // uses opposite rel_x sign convention (positive delta = increase rel_x
-            // = panel moves right = viewport content goes left). Negating aligns
-            // the distance direction with Rust scroll direction.
-            dx = -(bx - ax + (bw - aw) * 0.5) / t * f;
-            dy = -(by - ay + (bh - ah) * 0.5) / t * f;
+            // C++ emViewAnimator.cpp:1568-1578 (no negation).
+            dx = (bx - ax + (bw - aw) * 0.5) / t * f;
+            dy = (by - ay + (bh - ah) * 0.5) / t * f;
             let ratio = (bw + bh) / t;
             if ratio < (-extreme_dist).exp() {
                 dz = extreme_dist;
@@ -3411,4 +3403,5 @@ mod tests {
             "slave should also be deactivated"
         );
     }
+
 }

@@ -552,12 +552,13 @@ impl emView {
             // Fix-point zoom: the screen point (center_x, center_y) must map to
             // the same panel-space point before and after the zoom.
             //
-            // Panel center in viewport: (vw*(0.5+rel_x), vh*(0.5+rel_y)).
+            // Panel center in viewport: vcx = vw*(0.5 - rel_x) (C++ convention:
+            // relX > 0 means panel LEFT of viewport center).
             // Visited panel width scales as sqrt(rel_a), so after zoom the
             // panel grows by inv_ratio = sqrt(new_a)/sqrt(old_a).
             // Solving the fix-point constraint gives:
             //   rel_x_new = anchor_x + (rel_x - anchor_x) * inv_ratio
-            // where anchor_x = center_x/vw - 0.5 (fix point in viewport fraction).
+            // where anchor_x = 0.5 - center_x/vw (fix point in viewport fraction).
             //
             // C++ emView::Zoom divides by ViewedWidth/ViewedHeight; here we
             // work in viewport-fraction space so the panel geometry cancels out.
@@ -566,8 +567,8 @@ impl emView {
             let inv_ratio = sqrt_new / sqrt_old;
             let vw = self.viewport_width.max(1.0);
             let vh = self.viewport_height.max(1.0);
-            let anchor_x = center_x / vw - 0.5;
-            let anchor_y = center_y / vh - 0.5;
+            let anchor_x = 0.5 - center_x / vw;
+            let anchor_y = 0.5 - center_y / vh;
             state.rel_x = anchor_x + (state.rel_x - anchor_x) * inv_ratio;
             state.rel_y = anchor_y + (state.rel_y - anchor_y) * inv_ratio;
             state.rel_a = new_a;
@@ -774,10 +775,10 @@ impl emView {
         };
         let rel_a = rel_a.clamp(0.001, MAX_SVP_SIZE);
 
-        // Center the panel in the viewport
+        // Center the panel in the viewport (C++ emView.cpp:1520)
         let scale = rel_a.sqrt();
-        let rel_x = 0.5 - (px + pw * 0.5) * scale;
-        let rel_y = 0.5 - (py + ph * 0.5) * scale;
+        let rel_x = (px + pw * 0.5) * scale - 0.5;
+        let rel_y = (py + ph * 0.5) * scale - 0.5;
 
         (rel_x, rel_y, rel_a)
     }
@@ -837,8 +838,8 @@ impl emView {
         let rel_a = (scale * scale * (pw * ph).max(MIN_DIMENSION * MIN_DIMENSION))
             .clamp(0.001, MAX_SVP_SIZE);
         let s = rel_a.sqrt();
-        let rel_x = 0.5 - (px + pw * 0.5) * s;
-        let rel_y = 0.5 - (py + ph * 0.5) * s;
+        let rel_x = (px + pw * 0.5) * s - 0.5;
+        let rel_y = (py + ph * 0.5) * s - 0.5;
 
         (rel_x, rel_y, rel_a)
     }
@@ -1114,7 +1115,7 @@ impl emView {
         // But visited_vw = vnw * root_vw and visited_vh = vnh * root_vh
         // => root_vw = visited_vw / vnw, root_vh = visited_vh / vnh
         //
-        // visited center in viewport: (vw * (0.5 + rel_x), vh * (0.5 + rel_y))
+        // visited center in viewport: (vw * (0.5 - rel_x), vh * (0.5 - rel_y))
         // visited center = root_vx + (vnx + vnw/2) * root_vw
 
         let vnw_safe = vnw.max(MIN_DIMENSION);
@@ -1135,8 +1136,9 @@ impl emView {
         let root_vh_center = visited_vh / vnh_safe;
 
         // Visited center in viewport
-        let vcx = vw * (0.5 + visit.rel_x);
-        let vcy = vh * (0.5 + visit.rel_y);
+        // C++ emView.cpp:1537: vx = hmx - (relX+0.5)*vw
+        let vcx = vw * (0.5 - visit.rel_x);
+        let vcy = vh * (0.5 - visit.rel_y);
 
         // Root position (centering uses root_vh_center)
         let root_vx = vcx - (vnx + vnw_safe * 0.5) * root_vw;
