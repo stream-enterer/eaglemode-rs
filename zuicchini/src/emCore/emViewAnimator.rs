@@ -3664,4 +3664,47 @@ mod kani_private_proofs {
         let mut self_val = emSwipingViewAnimator::new(kani::any());
         let _r = self_val.update_busy_state();
     }
+
+    // Layer 3: accelerate_dim monotonically converges toward target
+    // C++ CycleAnimation: velocity moves toward target, never overshoots
+    #[kani::proof]
+    fn l3_accelerate_dim_monotonic() {
+        let v: f64 = kani::any();
+        let target: f64 = kani::any();
+        let accel: f64 = kani::any();
+        let reverse_accel: f64 = kani::any();
+        let friction: f64 = kani::any();
+        let dt: f64 = kani::any();
+        kani::assume(v.is_finite() && target.is_finite());
+        kani::assume(accel.is_finite() && accel >= 0.0);
+        kani::assume(reverse_accel.is_finite() && reverse_accel >= 0.0);
+        kani::assume(friction.is_finite() && friction >= 0.0);
+        kani::assume(dt.is_finite() && dt >= 0.0 && dt <= 1.0);
+
+        let result = accelerate_dim(v, target, accel, reverse_accel, friction, true, dt);
+        if v >= target {
+            assert!(result <= v, "moved away from target");
+            assert!(result >= target, "overshot target");
+        } else {
+            assert!(result >= v, "moved away from target");
+            assert!(result <= target, "overshot target");
+        }
+    }
+
+    // Layer 3: get_direct_dist is non-negative
+    #[kani::proof]
+    fn l3_get_direct_dist_nonneg() {
+        let x: i16 = kani::any();
+        let z: i16 = kani::any();
+        let xf = x as f64 / 100.0;
+        let zf = z as f64 / 100.0;
+        let d = get_direct_dist(xf, zf);
+        assert!(d >= 0.0, "distance must be non-negative");
+    }
+
+    // Layer 3: get_direct_dist is zero at origin
+    #[kani::proof]
+    fn l3_get_direct_dist_zero_at_origin() {
+        assert_eq!(get_direct_dist(0.0, 0.0), 0.0);
+    }
 }

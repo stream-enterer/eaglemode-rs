@@ -959,4 +959,21 @@ mod kani_private_proofs {
         kani::assume(p_a.is_finite());
         let _r = round_abs(p_a);
     }
+
+    // Layer 3: round_abs symmetry — C++ uses (int)(fabs(x) + 0.5)
+    #[kani::proof]
+    fn l3_round_abs_symmetric() {
+        let v: u16 = kani::any();
+        let a = v as f64 / 100.0;
+        assert_eq!(round_abs(a), round_abs(-a), "round_abs not symmetric");
+    }
+
+    // Layer 3: round_abs matches C++ (int)(fabs(x) + 0.5) for non-negative
+    #[kani::proof]
+    fn l3_round_abs_matches_cpp() {
+        let v: u16 = kani::any();
+        let a = v as f64 / 100.0;
+        let cpp = (a.abs() + 0.5) as i32;
+        assert_eq!(round_abs(a), cpp);
+    }
 }
