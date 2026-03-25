@@ -3101,158 +3101,172 @@ impl<'a> emPainter<'a> {
         x2 = x2 * self.state.scale_x + self.state.offset_x;
         y2 = y2 * self.state.scale_y + self.state.offset_y;
 
-        // Ensure y1 <= y2.
+        // Ensure y1 <= y2 (C++ emPainter.cpp:740-744).
         if y1 > y2 {
             std::mem::swap(&mut x1, &mut x2);
             std::mem::swap(&mut y1, &mut y2);
             std::mem::swap(&mut color1, &mut color2);
         }
 
-        if color1.GetAlpha() == 0 || color2.GetAlpha() == 0 {
-            return;
-        }
-
         let dx = x2 - x1;
         let dy = y2 - y1;
         let adx = dx.abs();
 
-        if dy < 0.0001 && adx < 0.0001 {
-            return;
-        }
-
+        // C++ emPainter.cpp:750-753
         let gx = if dy >= 0.0001 { dx / dy } else { 0.0 };
-        let gy = if adx >= 0.0001 { dy / adx } else { 0.0 };
+        // C++ uses gy = dy/dx (signed), NOT dy/adx
+        let gy = if adx >= 0.0001 { dy / dx } else { 0.0 };
 
+        // Clip to viewport (C++ emPainter.cpp:755-790)
         let clip_x1f = self.state.clip.x1;
         let clip_y1f = self.state.clip.y1;
         let clip_x2f = self.state.clip.x2;
         let clip_y2f = self.state.clip.y2;
 
         if y1 < clip_y1f {
-            x1 += gx * (clip_y1f - y1);
+            if y2 <= clip_y1f { return; }
+            x1 += (clip_y1f - y1) * gx;
             y1 = clip_y1f;
         }
         if y2 > clip_y2f {
-            x2 += gx * (clip_y2f - y2);
+            if y1 >= clip_y2f { return; }
+            x2 += (clip_y2f - y2) * gx;
             y2 = clip_y2f;
         }
-        if y1 >= y2 {
-            return;
-        }
 
+        let mut cx1;
+        let mut cx2;
+        let mut sx;
         if dx >= 0.0 {
             if x1 < clip_x1f {
-                y1 += gy * (clip_x1f - x1);
+                if x2 <= clip_x1f { return; }
+                y1 += (clip_x1f - x1) * gy;
                 x1 = clip_x1f;
             }
             if x2 > clip_x2f {
-                y2 += gy * (clip_x2f - x2);
+                if x1 >= clip_x2f { return; }
+                y2 += (clip_x2f - x2) * gy;
                 x2 = clip_x2f;
             }
+            sx = x1 as i32;
+            cx1 = x1;
+            cx2 = x2;
         } else {
             if x2 < clip_x1f {
-                y2 -= gy * (clip_x1f - x2);
+                if x1 <= clip_x1f { return; }
+                y2 += (clip_x1f - x2) * gy;
                 x2 = clip_x1f;
             }
             if x1 > clip_x2f {
-                y1 -= gy * (x1 - clip_x2f);
+                if x2 >= clip_x2f { return; }
+                y1 += (clip_x2f - x1) * gy;
                 x1 = clip_x2f;
             }
+            sx = x1.ceil() as i32 - 1;
+            cx1 = x2;
+            cx2 = x1;
+        }
+        let mut sy = y1 as i32;
+        let mut cy1 = y1;
+        let mut cy2 = y2;
+
+        // C++ emPainter.cpp:800-807: floor/ceil based on slope
+        if adx > dy {
+            cy1 = cy1.floor();
+            cy2 = cy2.ceil();
+        } else {
+            cx1 = cx1.floor();
+            cx2 = cx2.ceil();
         }
 
-        if y1 >= y2 {
+        if color1.IsTotallyTransparent() || color2.IsTotallyTransparent() {
             return;
         }
 
-        let cy1 = y1.floor() as i32;
-        let cy2 = y2.ceil() as i32;
-        let (cx1, cx2) = if dx >= 0.0 {
-            (x1.floor() as i32, x2.ceil() as i32)
-        } else {
-            (x2.floor() as i32, x1.ceil() as i32)
-        };
-
-        let mut sx = if dx >= 0.0 {
-            x1.floor() as i32
-        } else {
-            x1.ceil() as i32 - 1
-        };
-        let mut sy = y1.floor() as i32;
+        // Pre-compute alpha channels (C++ emPainter.cpp:813-814)
+        let ac1 = color1.GetAlpha() as f64 * (1.0 / 255.0);
+        let ac2 = color2.GetAlpha() as f64 * (1.0 / 255.0);
 
         let tw = self.target_width as i32;
         let th = self.target_height as i32;
 
+        // C++ hash tables map (color_channel, alpha) → premultiplied value.
+        // In Rust we compute inline: h[alpha] = (channel * alpha + 127) / 255
+        let h1 = [color1.GetRed(), color1.GetGreen(), color1.GetBlue()];
+        let h2 = [color2.GetRed(), color2.GetGreen(), color2.GetBlue()];
+
         loop {
-            if sy >= cy2 {
-                break;
+            // Pixel cell [px1,px2) x [py1,py2) clipped to coverage area
+            let mut px1 = sx as f64;
+            let mut py1 = sy as f64;
+            let mut px2 = px1 + 1.0;
+            let mut py2 = py1 + 1.0;
+            if px1 < cx1 { px1 = cx1; }
+            if py1 < cy1 { py1 = cy1; }
+            if px2 > cx2 { px2 = cx2; }
+            if py2 > cy2 { py2 = cy2; }
+
+            // Clip line segment to this pixel cell (C++ emPainter.cpp:841-856)
+            let mut qx1 = x1;
+            let mut qy1 = y1;
+            let mut qx2 = x2;
+            let mut qy2 = y2;
+            if qy1 < py1 { qx1 += (py1 - qy1) * gx; qy1 = py1; }
+            if qy2 > py2 { qx2 += (py2 - qy2) * gx; qy2 = py2; }
+            let mut a2;
+            if dx >= 0.0 {
+                if qx1 < px1 { qy1 += (px1 - qx1) * gy; qx1 = px1; }
+                if qx2 > px2 { qy2 += (px2 - qx2) * gy; qx2 = px2; }
+                a2 = py2 - qy2;
+            } else {
+                if qx2 < px1 { qy2 += (px1 - qx2) * gy; qx2 = px1; }
+                if qx1 > px2 { qy1 += (px2 - qx1) * gy; qx1 = px2; }
+                a2 = qy1 - py1;
             }
-            if sx < cx1 || sx >= cx2 || sy < cy1 {
-                sy += 1;
-                continue;
-            }
 
-            if sx >= 0 && sx < tw && sy >= 0 && sy < th {
-                let px_left = sx as f64;
-                let px_right = (sx + 1) as f64;
-                let ey_top = (sy as f64).max(y1);
-                let ey_bot = ((sy + 1) as f64).min(y2);
+            // Exact trapezoid area (C++ emPainter.cpp:857-862)
+            a2 = a2 * (px2 - px1) + (qy2 - qy1) * ((qx1 + qx2) * 0.5 - px1);
+            let mut a1 = (py2 - py1) * (px2 - px1) - a2;
+            a1 *= ac1;
+            a2 *= ac2;
 
-                if ey_top < ey_bot {
-                    let ex_top = x1 + gx * (ey_top - y1);
-                    let ex_bot = x1 + gx * (ey_bot - y1);
-                    let edge_x_min = ex_top.min(ex_bot).max(px_left);
-                    let edge_x_max = ex_top.max(ex_bot).min(px_right);
-                    let edge_y_span = ey_bot - ey_top;
-                    let mid_x = (edge_x_min + edge_x_max) * 0.5;
-                    let a1 = ((mid_x - px_left) * edge_y_span).clamp(0.0, 1.0);
-                    let a2 = ((px_right - mid_x) * edge_y_span).clamp(0.0, 1.0);
+            if a1 >= 0.001 && a2 >= 0.001 {
+                let t = 255.0 / ((1.0 - a1) * (1.0 - a2));
+                let alpha1 = (a1 * a2 * (1.0 - a2) * t) as i32;
+                let alpha2 = (a1 * a2 * a2 * t) as i32;
+                let alpha3 = ((1.0 - a1 - a2) * t) as i32;
 
-                    if a1 >= 0.001 && a2 >= 0.001 {
-                        let inv = 1.0 / ((1.0 - a1) * (1.0 - a2));
-                        let t = (255.0 * (1.0 - inv.min(1.0))).max(0.0);
-                        let alpha3 = (t * a1 * a2) as i32;
-
-                        if alpha3 > 0 {
-                            let total_a = a1 + a2;
-                            let w1 = a1 / total_a;
-                            let w2 = a2 / total_a;
-                            let cr =
-                                (color1.GetRed() as f64 * w1 + color2.GetRed() as f64 * w2).round() as u8;
-                            let cg =
-                                (color1.GetGreen() as f64 * w1 + color2.GetGreen() as f64 * w2).round() as u8;
-                            let cb =
-                                (color1.GetBlue() as f64 * w1 + color2.GetBlue() as f64 * w2).round() as u8;
-                            let ca = alpha3.min(255) as u8;
-                            let correction = emColor::rgba(cr, cg, cb, ca);
-                            self.blend_pixel(proof, sx, sy, correction);
-                        }
+                if sx >= 0 && sx < tw && sy >= 0 && sy < th {
+                    let bg = self.read_pixel(proof, sx as u32, sy as u32);
+                    let out = self.GetImage(proof).SetPixel(sx as u32, sy as u32);
+                    // C++ PEC_TEMPLATE: pixel = bg * alpha3/255 + h1[alpha1] + h2[alpha2]
+                    for ch in 0..3 {
+                        let bg_term = if alpha3 > 0 {
+                            (bg[ch] as i32 * alpha3 + 127) / 255
+                        } else {
+                            0
+                        };
+                        let c1_term = (h1[ch] as i32 * alpha1 + 127) / 255;
+                        let c2_term = (h2[ch] as i32 * alpha2 + 127) / 255;
+                        out[ch] = (bg_term + c1_term + c2_term).clamp(0, 255) as u8;
                     }
                 }
             }
 
+            // Step to next pixel cell (C++ emPainter.cpp:897-921)
             if dx >= 0.0 {
                 if (sy as f64 + 1.0 - y1) * dx > (sx as f64 + 1.0 - x1) * dy {
                     sx += 1;
-                    if sx >= cx2 {
-                        break;
-                    }
-                } else {
-                    sy += 1;
-                    if sy >= cy2 {
-                        break;
-                    }
+                    if (sx as f64) < cx2 { continue; }
+                    break;
                 }
             } else if (sy as f64 + 1.0 - y1) * dx < (sx as f64 - x1) * dy {
                 sx -= 1;
-                if sx < cx1 {
-                    break;
-                }
-            } else {
-                sy += 1;
-                if sy >= cy2 {
-                    break;
-                }
+                if sx as f64 + 1.0 > cx1 { continue; }
+                break;
             }
+            sy += 1;
+            if sy as f64 >= cy2 { break; }
         }
     }
 
