@@ -80,6 +80,7 @@ fn notice_active_changed() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_active_changed",
         &actual,
         &expected,
         &["root", "child1", "child2"],
@@ -131,6 +132,7 @@ fn notice_focus_changed() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_focus_changed",
         &actual,
         &expected,
         &["root", "child1", "child2"],
@@ -180,6 +182,7 @@ fn notice_layout_changed() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_layout_changed",
         &actual,
         &expected,
         &["root", "child1", "child2"],
@@ -229,6 +232,7 @@ fn notice_children_changed() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_children_changed",
         &actual,
         &expected,
         &["root", "child1", "child2"],
@@ -275,7 +279,7 @@ fn notice_window_focus_gained() {
 
     let actual = vec![acc_root.borrow().bits(), acc_child1.borrow().bits()];
     // Use full mask — Rust explicitly queues UPDATE_PRIORITY_CHANGED in set_window_focused
-    compare_notices(&actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
+    compare_notices("notice_window_focus_gained", &actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
 }
 
 // ─── Test 6: notice_window_focus_lost ───────────────────────────
@@ -315,7 +319,7 @@ fn notice_window_focus_lost() {
     settle(&mut tree, &mut view);
 
     let actual = vec![acc_root.borrow().bits(), acc_child1.borrow().bits()];
-    compare_notices(&actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
+    compare_notices("notice_window_focus_lost", &actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
 }
 
 // ─── Test 7: notice_window_resize ───────────────────────────────
@@ -361,6 +365,7 @@ fn notice_window_resize() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_window_resize",
         &actual,
         &expected,
         &["root", "child1", "child2"],
@@ -412,6 +417,7 @@ fn notice_recursive_enable() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_recursive_enable",
         &actual,
         &expected,
         &["root", "child1", "gc", "child2"],
@@ -473,6 +479,7 @@ fn notice_re_enable() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_re_enable",
         &actual,
         &expected,
         &["root", "child1", "gc", "child2"],
@@ -513,7 +520,7 @@ fn notice_remove_child() {
     settle(&mut tree, &mut view);
 
     let actual = vec![acc_root.borrow().bits(), acc_child1.borrow().bits()];
-    compare_notices(&actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
+    compare_notices("notice_remove_child", &actual, &expected, &["root", "child1"], NOTICE_FULL_MASK).unwrap();
 }
 
 // ─── Phase 6: notice_focus_and_layout ────────────────────────────
@@ -556,6 +563,7 @@ fn notice_focus_and_layout() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_focus_and_layout",
         &actual,
         &expected,
         &["root", "child1", "child2"],
@@ -602,6 +610,7 @@ fn notice_add_and_activate() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_add_and_activate",
         &actual,
         &expected,
         &["root", "child1", "child2"],
@@ -651,6 +660,7 @@ fn notice_enable_changed() {
         acc_child2.borrow().bits(),
     ];
     compare_notices(
+        "notice_enable_changed",
         &actual,
         &expected,
         &["root", "child1", "child2"],

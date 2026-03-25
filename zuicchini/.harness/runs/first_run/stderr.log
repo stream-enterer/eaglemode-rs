@@ -1,0 +1,28 @@
+warning: unexpected `cfg` condition name: `kani`
+  --> zuicchini/src/emCore/mod.rs:99:7
+   |
+99 | #[cfg(kani)]
+   |       ^^^^
+   |
+   = help: expected names are: `docsrs`, `feature`, and `test` and 31 more
+   = help: consider using a Cargo feature instead
+   = help: or consider adding in `Cargo.toml` the `check-cfg` lint config for the lint:
+            [lints.rust]
+            unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+   = help: or consider adding `println!("cargo::rustc-check-cfg=cfg(kani)");` to the top of the `build.rs`
+   = note: see <https://doc.rust-lang.org/nightly/rustc/check-cfg/cargo-specifics.html> for more information about checking conditional configuration
+   = note: `#[warn(unexpected_cfgs)]` on by default
+
+warning: `zuicchini` (lib) generated 1 warning
+   Compiling zuicchini v0.1.0 (/home/a0/projects/sosumi-7/zuicchini)
+warning: unused variable: `i`
+   --> zuicchini/tests/golden/common.rs:423:10
+    |
+423 |     for (i, ((a_active, a_path), e)) in actual.iter().zip(expected.iter()).enumerate() {
+    |          ^ help: if this is intentional, prefix it with an underscore: `_i`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `zuicchini` (test "golden") generated 1 warning (run `cargo fix --test "golden" -p zuicchini` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.03s
+     Running tests/golden/main.rs (/home/a0/projects/sosumi-7/target/debug/deps/golden-6300061f3fa8f7ba)

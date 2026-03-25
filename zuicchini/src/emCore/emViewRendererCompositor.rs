@@ -1,3 +1,4 @@
+// SPLIT: Split from emViewRenderer.h — compositor extracted
 use super::emViewRendererTileCache::{Tile, TILE_SIZE};
 
 /// Per-tile GPU data.

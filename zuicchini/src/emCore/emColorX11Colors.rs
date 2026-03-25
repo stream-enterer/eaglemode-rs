@@ -1,3 +1,4 @@
+// SPLIT: Split from emColor.h — X11 color table extracted
 /// Sorted table of X11 named colors (lowercase, no spaces) mapped to RGB values.
 ///
 /// All names are lowercase with no spaces. The table is sorted

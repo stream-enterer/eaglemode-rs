@@ -49,7 +49,7 @@ fn interaction_activate_click() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("activate_click", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Test 2: activate_path ─────────────────────────────────────
@@ -78,7 +78,7 @@ fn interaction_activate_path() {
         panel_state(&tree, gc),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "gc", "child2"]).unwrap();
+    compare_behavioral("activate_path", &actual, &expected, &["root", "child1", "gc", "child2"]).unwrap();
 }
 
 // ─── Test 3: activate_switch ───────────────────────────────────
@@ -96,7 +96,7 @@ fn interaction_activate_switch() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("activate_switch", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Test 4: focus_click ───────────────────────────────────────
@@ -114,7 +114,7 @@ fn interaction_focus_click() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("focus_click", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Test 5: activate_remove ──────────────────────────────────
@@ -128,7 +128,7 @@ fn interaction_activate_remove() {
     view.remove_panel(&mut tree, child1);
 
     let actual = vec![panel_state(&tree, root), panel_state(&tree, child2)];
-    compare_behavioral(&actual, &expected, &["root", "child2"]).unwrap();
+    compare_behavioral("activate_remove", &actual, &expected, &["root", "child2"]).unwrap();
 }
 
 // ─── Test 6: activate_nonfocusable ─────────────────────────────
@@ -146,7 +146,7 @@ fn interaction_activate_nonfocusable() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("activate_nonfocusable", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Test 7: focus_tab_forward ────────────────────────────────
@@ -165,7 +165,7 @@ fn interaction_focus_tab_forward() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("focus_tab_forward", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Test 8: focus_tab_backward ───────────────────────────────
@@ -184,7 +184,7 @@ fn interaction_focus_tab_backward() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("focus_tab_backward", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Test 9: focus_unfocusable_skip ───────────────────────────
@@ -217,7 +217,7 @@ fn interaction_focus_unfocusable_skip() {
         panel_state(&tree, child2),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
+    compare_behavioral("focus_unfocusable_skip", &actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
 }
 
 // ─── Test 10: focus_nested ────────────────────────────────────
@@ -249,7 +249,7 @@ fn interaction_focus_nested() {
         panel_state(&tree, gc),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "gc", "child2"]).unwrap();
+    compare_behavioral("focus_nested", &actual, &expected, &["root", "child1", "gc", "child2"]).unwrap();
 }
 
 // ─── Test 10b: focus_visit_out ──────────────────────────────────
@@ -281,7 +281,7 @@ fn interaction_focus_visit_out() {
         panel_state(&tree, gc),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "gc", "child2"]).unwrap();
+    compare_behavioral("focus_visit_out", &actual, &expected, &["root", "child1", "gc", "child2"]).unwrap();
 }
 
 // ─── Test 10c: focus_tab_wrap ───────────────────────────────────
@@ -300,7 +300,7 @@ fn interaction_focus_tab_wrap() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("focus_tab_wrap", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Phase 1: focus_visit_first ──────────────────────────────
@@ -332,7 +332,7 @@ fn interaction_focus_visit_first() {
         panel_state(&tree, child2),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
+    compare_behavioral("focus_visit_first", &actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
 }
 
 // ─── Phase 1: focus_visit_last ───────────────────────────────
@@ -364,7 +364,7 @@ fn interaction_focus_visit_last() {
         panel_state(&tree, child2),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
+    compare_behavioral("focus_visit_last", &actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
 }
 
 // ─── Phase 1: focus_visit_left ───────────────────────────────
@@ -396,7 +396,7 @@ fn interaction_focus_visit_left() {
         panel_state(&tree, child2),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
+    compare_behavioral("focus_visit_left", &actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
 }
 
 // ─── Phase 1: focus_visit_right ──────────────────────────────
@@ -428,7 +428,7 @@ fn interaction_focus_visit_right() {
         panel_state(&tree, child2),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
+    compare_behavioral("focus_visit_right", &actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
 }
 
 // ─── Phase 1: focus_visit_down ───────────────────────────────
@@ -460,7 +460,7 @@ fn interaction_focus_visit_down() {
         panel_state(&tree, child2),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
+    compare_behavioral("focus_visit_down", &actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
 }
 
 // ─── Phase 1: focus_visit_up ─────────────────────────────────
@@ -492,7 +492,7 @@ fn interaction_focus_visit_up() {
         panel_state(&tree, child2),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
+    compare_behavioral("focus_visit_up", &actual, &expected, &["root", "child1", "child2", "child3"]).unwrap();
 }
 
 // ─── Phase 2: focus_disabled_panel ───────────────────────────
@@ -511,7 +511,7 @@ fn interaction_focus_disabled_panel() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("focus_disabled_panel", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Phase 3: activate_remove_middle ─────────────────────────
@@ -542,7 +542,7 @@ fn interaction_activate_remove_middle() {
         panel_state(&tree, child1),
         panel_state(&tree, child3),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child3"]).unwrap();
+    compare_behavioral("activate_remove_middle", &actual, &expected, &["root", "child1", "child3"]).unwrap();
 }
 
 // ─── Phase 3: activate_remove_in_path ────────────────────────
@@ -569,7 +569,7 @@ fn interaction_activate_remove_in_path() {
     view.remove_panel(&mut tree, child1);
 
     let actual = vec![panel_state(&tree, root), panel_state(&tree, child2)];
-    compare_behavioral(&actual, &expected, &["root", "child2"]).unwrap();
+    compare_behavioral("activate_remove_in_path", &actual, &expected, &["root", "child2"]).unwrap();
 }
 
 // ─── Phase 4: focus_tab_deep ─────────────────────────────────
@@ -605,6 +605,7 @@ fn interaction_focus_tab_deep() {
         panel_state(&tree, child2),
     ];
     compare_behavioral(
+        "focus_tab_deep",
         &actual,
         &expected,
         &["root", "child1", "gc1", "gc2", "child2"],
@@ -641,7 +642,7 @@ fn interaction_focus_tab_ascend() {
         panel_state(&tree, gc1),
         panel_state(&tree, gc2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "gc1", "gc2"]).unwrap();
+    compare_behavioral("focus_tab_ascend", &actual, &expected, &["root", "child1", "gc1", "gc2"]).unwrap();
 }
 
 // ─── Phase 4: focus_visit_out_to_root ────────────────────────
@@ -660,7 +661,7 @@ fn interaction_focus_visit_out_to_root() {
         panel_state(&tree, child1),
         panel_state(&tree, child2),
     ];
-    compare_behavioral(&actual, &expected, &["root", "child1", "child2"]).unwrap();
+    compare_behavioral("focus_visit_out_to_root", &actual, &expected, &["root", "child1", "child2"]).unwrap();
 }
 
 // ─── Test 11: focus_remove_focused ────────────────────────────
@@ -675,5 +676,5 @@ fn interaction_focus_remove_focused() {
     view.remove_panel(&mut tree, child1);
 
     let actual = vec![panel_state(&tree, root), panel_state(&tree, child2)];
-    compare_behavioral(&actual, &expected, &["root", "child2"]).unwrap();
+    compare_behavioral("focus_remove_focused", &actual, &expected, &["root", "child2"]).unwrap();
 }

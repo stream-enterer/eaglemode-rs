@@ -1,0 +1,402 @@
+[
+  {
+    "id": "a1-01",
+    "proposition": "The frozen oracle model (C++ executed once to produce golden files, Rust compared later) must verify input identity rather than merely assume it, because the temporal decoupling means 'same input' is no longer guaranteed by construction.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.80,
+      "robustness": 0.85,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Directly grounded in Vouk Section 2's foundational axiom that all programs are tested with the same input data. The temporal decoupling argument is logically sound: if inputs are reconstructed independently in two codebases, drift is possible.",
+      "specificity": "Identifies the problem (input drift) and suggests solutions (encode input in golden file or share input spec), but does not prescribe a single concrete implementation.",
+      "robustness": "The concern is real and hard to dismiss -- independently hardcoded inputs in C++ generator and Rust tests are fragile. However, an adversary could argue that version-controlled test code makes drift detectable via code review.",
+      "compatibility": "Could conflict with practical concerns about golden file format complexity. Encoding full input configuration in golden files adds overhead that a harness designer might resist."
+    }
+  },
+  {
+    "id": "a1-02",
+    "proposition": "Every output channel the C++ produces (pixels, layout rects, behavioral state, notice flags, trajectory data) must have a corresponding golden comparison; comparing only a subset of output channels violates Vouk's exhaustive pair comparison requirement.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.85,
+      "robustness": 0.70,
+      "compatibility": 0.65
+    },
+    "reasoning": {
+      "defensibility": "Faithfully derived from Vouk Section 3 on comparing outputs of all possible program pair combinations, extended to all output variables per Vouk Figure 6.",
+      "specificity": "Enumerates the specific output channels that must be compared, making the requirement actionable.",
+      "robustness": "Vulnerable to the argument that some output channels may be impractical to capture from C++ (e.g., internal state not exposed via public API), creating an impossible mandate.",
+      "compatibility": "Likely to conflict with practical harness design constraints. Capturing all intermediate state from C++ requires instrumentation that may not exist or be feasible to add."
+    }
+  },
+  {
+    "id": "a1-03",
+    "proposition": "Thorough investigation of disagreements is a process requirement, not merely a diagnostic output requirement; the harness must support classifying each disagreement as (a) port fault, (b) oracle fault, (c) specification ambiguity, or (d) acceptable implementation difference.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.75,
+      "robustness": 0.65,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Vouk Section 4.1 explicitly requires 'thorough investigation' of disagreements, which logically implies classification beyond raw diagnostic data.",
+      "specificity": "Provides a concrete four-category classification scheme, but does not specify how the harness should enforce or track this classification.",
+      "robustness": "An adversary could argue that classification is a human process that cannot be automated into a harness, making this an organizational requirement rather than a harness requirement.",
+      "compatibility": "Partially conflicts with fully automated testing aspirations -- human classification creates bottlenecks. Also tensions with M9's full automation requirement."
+    }
+  },
+  {
+    "id": "a1-04",
+    "proposition": "In a manual C++-to-Rust port, failure independence is systematically violated because the port author reads and translates the C++ code, making misunderstandings faithfully reproducible in Rust -- this is the worst case for Vouk's detection probability model.",
+    "scores": {
+      "defensibility": 0.93,
+      "specificity": 0.70,
+      "robustness": 0.90,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Logically airtight: Vouk's model requires failure independence (Section 3), and a manual port from source code maximally violates this by construction. The same developer reading the same algorithm will reproduce the same misunderstandings.",
+      "specificity": "Identifies the mechanism (shared understanding from reading source) but does not prescribe specific mitigations beyond generated inputs.",
+      "robustness": "Very hard to counter -- the correlation between source-reading and translation errors is well-established in N-version programming literature.",
+      "compatibility": "Compatible with most other propositions; strengthens the case for M4 (generated inputs) and V7 (inspection). Might tension with claims that the golden test suite provides high assurance."
+    }
+  },
+  {
+    "id": "a1-05",
+    "proposition": "Generated test inputs are essential to differential testing, not merely complementary to hand-written tests; McKeeman argues they are the primary mechanism for discovering unexpected disagreements because hand-written tests share cognitive biases with the code.",
+    "scores": {
+      "defensibility": 0.87,
+      "specificity": 0.65,
+      "robustness": 0.75,
+      "compatibility": 0.60
+    },
+    "reasoning": {
+      "defensibility": "McKeeman Section 2 explicitly argues for random testing as the way to make testing more complete. The cognitive bias argument is well-supported in testing literature.",
+      "specificity": "States a principle but does not define what generated inputs look like for a UI framework port, how many to generate, or what input domains to cover.",
+      "robustness": "An adversary could argue that for pixel-exact rendering, generated inputs produce so many false positives from tolerance issues that they are impractical. Also, generating valid UI tree configurations is non-trivial.",
+      "compatibility": "Tensions with practical harness constraints -- generated inputs require the C++ oracle to be executable for each new input, which conflicts with the frozen oracle model (Gap 4). This is a significant internal tension."
+    }
+  },
+  {
+    "id": "a1-06",
+    "proposition": "The harness must not have a mechanism to mark a failing golden test as 'expected failure' without explicit documentation of why it fails and what investigation was performed; a blanket #[ignore] annotation violates Vouk's V3 and V8.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.88,
+      "robustness": 0.80,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Directly supported by Vouk Section 4.1 requiring inspection of all conflict warnings. Suppressing disagreements without documentation defeats the purpose of differential testing.",
+      "specificity": "Very concrete -- names the specific anti-pattern (#[ignore]) and the specific requirement (documentation of why and what investigation was done).",
+      "robustness": "Could be challenged on the grounds that during active development, temporary ignores are necessary for CI stability. However, the proposition only forbids undocumented suppression, not all suppression.",
+      "compatibility": "May conflict with practical CI/CD workflows where failing tests block all development. A harness designer might argue for a documented-ignore mechanism, which this proposition actually allows."
+    }
+  },
+  {
+    "id": "a1-07",
+    "proposition": "The 'even within tolerance' clause in requirement V8 is not supported by Vouk's text; Vouk assumes exact comparison, so the correct requirement is that every disagreement exceeding the comparison threshold must be inspected, while sub-tolerance treatment is a design choice the sources do not address.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.55
+    },
+    "reasoning": {
+      "defensibility": "A careful textual reading -- Vouk's model does assume exact comparison and does not discuss tolerance. The correction is faithful to the source.",
+      "specificity": "Precisely identifies the over-extension and provides a corrected formulation.",
+      "robustness": "An adversary could argue that the spirit of Vouk's requirement (inspect everything suspicious) naturally extends to near-threshold values, especially when tolerance itself is an approximation.",
+      "compatibility": "Creates significant tension with proposition a1-13 (MEASURE_DIVERGENCE should be always-on) and with the general purist stance of maximizing detection. Weakening V8 opens a gap that practical concerns will exploit."
+    }
+  },
+  {
+    "id": "a1-08",
+    "proposition": "Vouk's stopping criterion is reliability-based (statistical estimation of remaining faults), not coverage-based; simply defining 'all golden tests pass' as a stopping criterion does not satisfy Vouk's requirement because passing tests says nothing about faults in untested paths.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.72,
+      "robustness": 0.60,
+      "compatibility": 0.55
+    },
+    "reasoning": {
+      "defensibility": "Vouk Section 4.3 does discuss reliability estimation as the stopping criterion basis. The logical gap between 'all tests pass' and 'reliability target met' is real.",
+      "specificity": "Identifies the deficiency but does not explain how to implement reliability-based stopping for a UI framework port, which may not have a meaningful fault detection model.",
+      "robustness": "Vulnerable to the argument that reliability estimation requires fault injection or operational profile data that simply does not exist for this project, making the requirement theoretically correct but practically impossible.",
+      "compatibility": "Tensions with any practical stopping criterion. If reliability-based stopping is the only valid approach but is impractical, the project has no valid stopping criterion at all, which is an unhelpful conclusion."
+    }
+  },
+  {
+    "id": "a1-09",
+    "proposition": "The frozen oracle permanently bakes in any coincident failures present at capture time; unlike live back-to-back testing where new inputs might expose different manifestations, the golden data is fixed and no amount of Rust-side testing will find coincident failures.",
+    "scores": {
+      "defensibility": 0.91,
+      "specificity": 0.78,
+      "robustness": 0.88,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Logically follows from the combination of Vouk V6 (coincident failures undetectable) and the frozen oracle constraint (golden data never changes unless manually regenerated).",
+      "specificity": "Clearly states the problem and its permanence, but does not prescribe a concrete mitigation beyond acknowledging the gap.",
+      "robustness": "Very difficult to counter -- the permanence of baked-in failures is a structural property of frozen oracles. An adversary can only argue that the risk is acceptable, not that it doesn't exist.",
+      "compatibility": "Compatible with most propositions. Strengthens the case for V7 (inspection of uncovered code) and M4 (generated inputs). Tensions slightly with practical acceptance of the frozen oracle model."
+    }
+  },
+  {
+    "id": "a1-10",
+    "proposition": "If the harness allows 'blessing' Rust output as golden data, it is no longer characterizing C++ behavior but testing Rust against itself, which provides zero fault detection power; save_trajectory_golden is methodologically dangerous.",
+    "scores": {
+      "defensibility": 0.94,
+      "specificity": 0.90,
+      "robustness": 0.85,
+      "compatibility": 0.65
+    },
+    "reasoning": {
+      "defensibility": "Directly follows from Feathers F3: characterization data must be captured from the existing system, not the new one. Testing a system against its own output is tautological.",
+      "specificity": "Names the specific function (save_trajectory_golden) and the specific methodological violation, making this highly actionable.",
+      "robustness": "An adversary could argue that when C++ infrastructure is unavailable, blessing Rust output after independent verification is better than having no test at all. The proposition acknowledges this edge case but restricts it.",
+      "compatibility": "Conflicts with practical reality that C++ build infrastructure may become unavailable (Gap 4). Also tensions with the need to extend test coverage over time as new Rust code is written."
+    }
+  },
+  {
+    "id": "a1-11",
+    "proposition": "The harness must record the exact C++ compiler version, flags, and source revision used to generate golden data, and the exact Rust compiler version and flags used to execute the port, because without this the golden data cannot be traced back to the build that produced it.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.90,
+      "robustness": 0.82,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Vouk Section 2 discusses configuration management as important to back-to-back testing. Traceability of golden data to its source build is a standard software engineering practice.",
+      "specificity": "Lists exactly what must be recorded (compiler version, flags, source revision for both C++ and Rust), making this immediately implementable.",
+      "robustness": "Hard to argue against -- metadata recording is low-cost and high-value. An adversary could only argue it is low priority, not that it is wrong.",
+      "compatibility": "Highly compatible with other propositions. Supports Gap 3 (oracle staleness detection) and V1 (input identity verification)."
+    }
+  },
+  {
+    "id": "a1-12",
+    "proposition": "The harness must produce quantitative disagreement metrics (percentage of pixels differing, maximum channel difference, distribution of differences), not merely binary pass/fail outcomes, because Vouk's detection model is inherently quantitative.",
+    "scores": {
+      "defensibility": 0.83,
+      "specificity": 0.85,
+      "robustness": 0.78,
+      "compatibility": 0.82
+    },
+    "reasoning": {
+      "defensibility": "Vouk Section 3 reasons about detection probabilities, not pass/fail. Quantitative metrics provide strictly more information than binary outcomes.",
+      "specificity": "Lists specific metrics (pixel percentage, max channel diff, distribution), making implementation straightforward.",
+      "robustness": "An adversary might argue that MEASURE_DIVERGENCE already provides this and the requirement is already met. The proposition's value depends on whether existing implementation is sufficient.",
+      "compatibility": "Compatible with most propositions. Supports V3 (thorough investigation) and the general principle of maximum diagnostic information."
+    }
+  },
+  {
+    "id": "a1-13",
+    "proposition": "MEASURE_DIVERGENCE reporting must be always-on for methodology compliance, not opt-in via environment variable, because any tolerance-based comparison introduces a gap and all measured disagreements should be reported regardless of whether they exceed the threshold.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.88,
+      "robustness": 0.60,
+      "compatibility": 0.50
+    },
+    "reasoning": {
+      "defensibility": "The argument that tolerance introduces a gap is sound, but a1-07 already established that sub-tolerance treatment is a design choice the sources do not address. This creates internal tension.",
+      "specificity": "Very specific -- names the exact mechanism (MEASURE_DIVERGENCE), the exact current behavior (env var opt-in), and the required change (always-on).",
+      "robustness": "Vulnerable to performance and noise arguments: always-on divergence reporting could slow tests and generate voluminous output that developers ignore, achieving the opposite of its intent.",
+      "compatibility": "Tensions with a1-07 (which says sub-tolerance treatment is not addressed by sources) and with practical CI concerns about test output volume and performance."
+    }
+  },
+  {
+    "id": "a1-14",
+    "proposition": "The full generate-execute-compare cycle must be automated without human intervention; a harness requiring manual steps (manually running the C++ generator, then manually running Rust tests, then manually comparing) violates McKeeman's method.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.75,
+      "robustness": 0.55,
+      "compatibility": 0.50
+    },
+    "reasoning": {
+      "defensibility": "McKeeman Section 3 is predicated on automation of the entire generate-execute-compare cycle. The requirement is textually supported.",
+      "specificity": "Identifies the three manual steps that should be automated, but does not address the practical challenge of requiring C++ compilation in an automated pipeline.",
+      "robustness": "Directly conflicts with the frozen oracle model, which by design decouples generation from comparison. Full automation requires the C++ environment to be available in CI, which may be impractical or impossible.",
+      "compatibility": "Strong tension with the frozen oracle adaptation (Gap 3, Gap 4). If the C++ generator cannot run in CI, full automation is impossible, making this requirement impractical for the chosen architecture."
+    }
+  },
+  {
+    "id": "a1-15",
+    "proposition": "Golden tests must test observable behavior, not implementation artifacts; a test that depends on Rust-specific implementation details (e.g., HashMap iteration order) rather than behavioral output violates Feathers's principle that characterization tests survive refactoring.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.80,
+      "robustness": 0.85,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "Feathers Chapter 13 explicitly designs characterization tests to survive refactoring by testing behavior not structure. This is a core principle of the approach.",
+      "specificity": "Gives a concrete example (HashMap iteration order) and a clear principle (observable behavior only).",
+      "robustness": "Hard to argue against in principle. An adversary could only note that the boundary between 'observable behavior' and 'implementation artifact' is sometimes blurry.",
+      "compatibility": "Highly compatible -- testing observable behavior is a widely accepted principle that aligns with all three source methodologies."
+    }
+  },
+  {
+    "id": "a1-16",
+    "proposition": "The asymmetric oracle relationship (C++ is oracle, Rust is subject) is a project decision, not a methodological requirement of differential testing; McKeeman's original formulation treats all systems as peers and flags any disagreement for investigation.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.82,
+      "robustness": 0.80,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "McKeeman Section 1 does treat comparable systems symmetrically. The asymmetric adaptation is indeed a project choice that should be documented.",
+      "specificity": "Clearly distinguishes methodological requirement from project decision and identifies the specific adaptation.",
+      "robustness": "An adversary could argue that in a porting context, asymmetry is the only sensible interpretation -- the original system is by definition more trusted. But the proposition correctly notes this is pragmatic, not methodological.",
+      "compatibility": "Tensions with F8 (deployed-system bug policy) which implicitly assumes C++ is authoritative. Also tensions with Gap 1 which discusses what happens when this asymmetry is wrong."
+    }
+  },
+  {
+    "id": "a1-17",
+    "proposition": "When oracle regeneration is required, it is a manual step outside the normal test cycle; the harness must detect staleness -- if golden data was generated from a different version of the C++ source than what is currently checked in, the comparison is unsound.",
+    "scores": {
+      "defensibility": 0.86,
+      "specificity": 0.82,
+      "robustness": 0.72,
+      "compatibility": 0.78
+    },
+    "reasoning": {
+      "defensibility": "Follows logically from Vouk V4 (regression after correction) and the frozen oracle constraint. If golden data is stale relative to the C++ source, comparisons are against an outdated oracle.",
+      "specificity": "Names the specific problem (staleness) and a detection mechanism (comparing C++ source revision in golden data vs. checked-in source).",
+      "robustness": "An adversary could note that C++ source changes may not affect all golden tests, so staleness detection needs to be granular, not binary. A blanket 'stale' flag would cause unnecessary regeneration.",
+      "compatibility": "Compatible with a1-11 (configuration management) -- recording source revision enables staleness detection. Tensions slightly with practical reality that C++ source may not change at all once the port is complete."
+    }
+  },
+  {
+    "id": "a1-18",
+    "proposition": "Each golden test should be specific enough that only the correct implementation satisfies it; large tolerances in pixel comparison weaken branch path uniqueness and allow wrong implementations to pass.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.78,
+      "robustness": 0.68,
+      "compatibility": 0.60
+    },
+    "reasoning": {
+      "defensibility": "Feathers Chapter 13 p.190 explicitly asks whether there is any other way a test could pass aside from executing the correct branch. Large tolerances directly undermine this.",
+      "specificity": "States the principle clearly and gives the concrete example (pixel comparison tolerance), but does not define what tolerance is 'too large.'",
+      "robustness": "Vulnerable to the argument that some tolerance is necessary due to legitimate platform differences (floating-point rounding, font rendering). Zero tolerance may be unachievable, so the question is where to draw the line.",
+      "compatibility": "Tensions with practical necessity of tolerances in pixel comparison. Also tensions with a1-07 which acknowledges tolerance as a design choice not addressed by sources."
+    }
+  },
+  {
+    "id": "a1-19",
+    "proposition": "Where practicality forces a deviation from published methodology, the deviation must be documented at the exact point where it occurs, with the specific methodological requirement it violates and the rationale for accepting the gap.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.80,
+      "robustness": 0.88,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "A meta-requirement that is self-consistent: if you must deviate, documenting the deviation is strictly better than not documenting it. This is standard engineering practice.",
+      "specificity": "Specifies where documentation must occur (at the point of deviation) and what it must contain (requirement violated + rationale), making it actionable.",
+      "robustness": "Hard to argue against in principle. An adversary could only argue that the overhead of documenting every deviation is high, but this is about methodology deviations, not code changes.",
+      "compatibility": "Highly compatible with all propositions -- it is the escape valve that allows methodological purity to coexist with practical necessity."
+    }
+  },
+  {
+    "id": "a1-20",
+    "proposition": "The harness must identify which Rust code paths are exercised by golden comparisons and which are not, so that inspection effort per Vouk V7 can be directed at uncovered code; if 40% of code paths have no golden coverage, the harness must report this.",
+    "scores": {
+      "defensibility": 0.87,
+      "specificity": 0.83,
+      "robustness": 0.78,
+      "compatibility": 0.82
+    },
+    "reasoning": {
+      "defensibility": "Vouk Section 5 states back-to-back testing must be combined with inspection, and McKeeman Section 4 identifies statement coverage as the simplest completeness measure. Both support this requirement.",
+      "specificity": "Gives a concrete threshold example (40%) and a concrete action (report uncovered paths), though the 40% is illustrative rather than prescriptive.",
+      "robustness": "An adversary might argue that code coverage measurement is standard practice and already done, making this a non-controversial requirement. That actually strengthens the proposition.",
+      "compatibility": "Compatible with all other propositions. Supports the general theme of knowing the limits of the test suite."
+    }
+  },
+  {
+    "id": "a1-21",
+    "proposition": "The harness must distinguish regressions (newly-introduced failures) from pre-existing failures, which requires either a known-failure list or a mechanism to compare current results against previous results.",
+    "scores": {
+      "defensibility": 0.84,
+      "specificity": 0.82,
+      "robustness": 0.75,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Vouk Section 4.2 states regression testing is used to check applied corrections. Distinguishing new failures from old is essential to this purpose.",
+      "specificity": "Identifies two concrete implementation approaches (known-failure list or result comparison), making the requirement implementable.",
+      "robustness": "An adversary could argue that in a CI pipeline, any failure is a blocker regardless of whether it is new or pre-existing, so the distinction is academic. But during active porting, pre-existing failures are expected.",
+      "compatibility": "Compatible with a1-06 (no undocumented suppression) -- a known-failure list is documented suppression. Also compatible with practical CI needs."
+    }
+  },
+  {
+    "id": "a1-22",
+    "proposition": "The six missing requirements (V11 configuration management, V12 quantitative metrics, M9 full automation, M10 input domain characterization, F9 intermediate sensing variables, F10 behavior-not-structure testing) are directly supported by the source texts and are not merely nice-to-haves.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.60,
+      "robustness": 0.55,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Each individual missing requirement is traced to a specific section of a source text. However, 'directly supported' is a strong claim -- some (like M10) are more implied than explicit.",
+      "specificity": "Lists the six requirements but as a bundle; each would need separate analysis for actionability. As a meta-claim about completeness, it is somewhat abstract.",
+      "robustness": "Vulnerable to prioritization arguments: even if all six are supported by sources, implementing all of them may be infeasible. An adversary can accept them in theory while arguing they are lower priority than other work.",
+      "compatibility": "Some internal tension: M9 (full automation) conflicts with the frozen oracle model that other propositions accept as valid."
+    }
+  },
+  {
+    "id": "a1-23",
+    "proposition": "The frozen oracle is a valid practical adaptation of Vouk's live back-to-back model, but none of the three source texts describe or endorse it, so every gap it introduces is a deviation from published methodology that must be justified on its own terms.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.72,
+      "robustness": 0.82,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Factually accurate: none of the three sources discuss frozen oracles. The conclusion that deviations must be justified follows from standard methodological rigor.",
+      "specificity": "States the general principle but relies on the five specific gaps (identified elsewhere) for concreteness.",
+      "robustness": "An adversary could argue that practical adaptations are ubiquitous and that insisting on justification for every gap is pedantic. But in a methodology purist analysis, this is exactly the right stance.",
+      "compatibility": "Creates productive tension: it accepts the frozen oracle (compatible with practical concerns) while insisting on documentation (compatible with methodological purity)."
+    }
+  },
+  {
+    "id": "a1-24",
+    "proposition": "In the porting context where all code is being changed, Feathers's 'coverage guided by change' principle means the harness must prioritize golden test coverage for code paths most likely to diverge in translation (integer arithmetic, pointer semantics, memory layout) rather than aiming for uniform coverage.",
+    "scores": {
+      "defensibility": 0.83,
+      "specificity": 0.78,
+      "robustness": 0.72,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "A reasonable extension of Feathers Chapter 13 p.189 to the porting context. The specific divergence-prone areas (integer arithmetic, pointer semantics) are well-known C++-to-Rust translation hazards.",
+      "specificity": "Names specific high-risk areas (integer arithmetic, pointer semantics, memory layout), giving developers concrete guidance on where to focus.",
+      "robustness": "An adversary could argue that all code paths are equally at risk in a full port, so prioritization is misguided. But empirically, certain translation patterns (signed/unsigned, pointer aliasing) are more error-prone.",
+      "compatibility": "Compatible with F6 (conversion boundaries) and the general principle of risk-based testing. Slightly tensions with V2/V10 (exhaustive comparison of all channels) by implying some areas matter more."
+    }
+  },
+  {
+    "id": "a1-25",
+    "proposition": "If the C++ build environment becomes unavailable, the ability to extend the golden test suite is permanently lost; the harness must document this dependency and the consequences of losing it.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.80,
+      "robustness": 0.85,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Logically follows from the frozen oracle model: golden data requires C++ execution, and C++ build environments degrade over time. This is a well-known problem in software preservation.",
+      "specificity": "Identifies the specific risk (C++ build env loss) and the specific consequence (inability to extend tests), with a concrete mitigation (documentation).",
+      "robustness": "Very hard to counter -- build environment bitrot is a known and common problem. An adversary can only argue about timing and likelihood, not the structural risk.",
+      "compatibility": "Tensions with a1-05 (generated inputs as essential) -- if the C++ build env is lost, generated inputs become impossible, making the essential requirement unachievable. This is a productive tension."
+    }
+  }
+]

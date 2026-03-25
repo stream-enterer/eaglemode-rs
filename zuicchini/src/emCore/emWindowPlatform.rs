@@ -1,3 +1,4 @@
+// SPLIT: Split from emWindow.h — platform abstraction extracted
 // Platform-specific implementations for system beep (libcanberra) and
 // screensaver inhibition (D-Bus). Gracefully degrade when APIs are unavailable.
 //

@@ -1,3 +1,4 @@
+// SPLIT: Split from emInput.h — hotkey types extracted
 use std::fmt;
 
 use crate::emCore::emInput::InputKey;

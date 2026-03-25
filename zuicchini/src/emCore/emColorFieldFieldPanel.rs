@@ -1,3 +1,4 @@
+// SPLIT: Split from emColorField.h — inner panel type extracted
 use std::rc::Rc;
 
 use crate::emCore::emCursor::emCursor;

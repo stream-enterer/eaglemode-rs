@@ -73,30 +73,43 @@ impl emColor {
     // DIVERGED: SetHSVA — renamed to SetHSVA constructor (not mutator); alpha omitted
     // (use .SetAlpha() to set it); s/v take [0,1] not [0,100] percent
     /// Create a color from HSV values. `h` in [0, 360), `s` and `v` in [0, 1].
+    ///
+    /// Uses the exact C++ integer algorithm (emColor.cpp:868-918):
+    ///   cmax = (int)(v*255+0.5); cmin = cmax - (int)(cmax*s+0.5);
+    ///   cunit = cmax-cmin; chue = (int)(cunit*h/60+0.5);
+    ///   then sextant dispatch on chue vs cunit boundaries.
     pub fn SetHSVA(h: f32, s: f32, v: f32) -> Self {
         let s = s.clamp(0.0, 1.0);
         let v = v.clamp(0.0, 1.0);
-        let h = ((h % 360.0) + 360.0) % 360.0;
+        let h = if h < 0.0 { (h % 360.0) + 360.0 } else if h >= 360.0 { h % 360.0 } else { h };
 
-        let c = v * s;
-        let h_prime = h / 60.0;
-        let x = c * (1.0 - (h_prime % 2.0 - 1.0).abs());
-        let m = v - c;
+        // Replicate C++ expression order exactly to match FP rounding.
+        // C++ val/sat are [0,100]; ours are [0,1], so multiply by 100 first.
+        // Use f64 for the conversion to avoid f32 precision loss.
+        let v_pct = v as f64 * 100.0;
+        let s_pct = s as f64 * 100.0;
+        let cmax = (v_pct * 2.55 + 0.5) as i32;
+        let cmin = cmax - (cmax as f64 * s_pct * 0.01 + 0.5) as i32;
+        let cunit = cmax - cmin;
+        let chue = (cunit as f64 * h as f64 * (1.0 / 60.0) + 0.5) as i32;
 
-        let (r1, g1, b1) = match h_prime as u32 {
-            0 => (c, x, 0.0),
-            1 => (x, c, 0.0),
-            2 => (0.0, c, x),
-            3 => (0.0, x, c),
-            4 => (x, 0.0, c),
-            _ => (c, 0.0, x),
+        let (r, g, b) = if chue <= cunit * 3 {
+            if chue <= cunit {
+                (cmax, cmin + chue, cmin)
+            } else if chue <= cunit * 2 {
+                (cmin + 2 * cunit - chue, cmax, cmin)
+            } else {
+                (cmin, cmax, cmin + chue - 2 * cunit)
+            }
+        } else if chue <= cunit * 4 {
+            (cmin, cmin + 4 * cunit - chue, cmax)
+        } else if chue <= cunit * 5 {
+            (cmin + chue - 4 * cunit, cmin, cmax)
+        } else {
+            (cmax, cmin, cmin + 6 * cunit - chue)
         };
 
-        Self::rgb(
-            ((r1 + m) * 255.0 + 0.5) as u8,
-            ((g1 + m) * 255.0 + 0.5) as u8,
-            ((b1 + m) * 255.0 + 0.5) as u8,
-        )
+        Self::rgb(r as u8, g as u8, b as u8)
     }
 
     // DIVERGED: GetHue/GetSat/GetVal — combined into GetHSV returning (h, s, v) tuple;
@@ -368,15 +381,24 @@ impl emColor {
 
     /// Scale alpha by `amount` in \[-100, 100\].
     /// Positive values make more transparent, negative values make more opaque.
+    ///
+    /// C++ formula (emColor.cpp:945-959):
+    ///   tp = amount * 0.01;
+    ///   if tp >= 0: a = Alpha*(1-tp)+0.5
+    ///   if tp < 0:  a = Alpha*(1+tp) - 255*tp + 0.5
     pub fn GetTransparented(self, amount: f64) -> emColor {
-        let amount = amount.clamp(-100.0, 100.0);
+        let tp = amount.clamp(-100.0, 100.0) * 0.01;
         let a = self.GetAlpha() as f64;
-        let new_a = if amount >= 0.0 {
-            a * (1.0 - amount / 100.0)
+        let new_a = if tp >= 1.0 {
+            0.0
+        } else if tp >= 0.0 {
+            a * (1.0 - tp) + 0.5
+        } else if tp <= -1.0 {
+            255.0
         } else {
-            a + (255.0 - a) * (-amount / 100.0)
+            a * (1.0 + tp) - 255.0 * tp + 0.5
         };
-        self.SetAlpha((new_a + 0.5) as u8)
+        self.SetAlpha(new_a as u8)
     }
 }
 

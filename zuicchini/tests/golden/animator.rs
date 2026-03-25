@@ -76,7 +76,7 @@ fn animator_kinetic_fling_x() {
     let actual =
         run_kinetic_velocity_trajectory(&mut tree, &mut view, 100.0, 0.0, 0.0, 2.0, true, 60);
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_kinetic_fling_x", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_kinetic_fling_x: {e}"));
 }
 
@@ -88,7 +88,7 @@ fn animator_kinetic_fling_xy() {
     let actual =
         run_kinetic_velocity_trajectory(&mut tree, &mut view, 100.0, 50.0, 0.0, 2.0, true, 60);
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_kinetic_fling_xy", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_kinetic_fling_xy: {e}"));
 }
 
@@ -100,7 +100,7 @@ fn animator_kinetic_zoom() {
     let actual =
         run_kinetic_velocity_trajectory(&mut tree, &mut view, 0.0, 0.0, 5.0, 2.0, true, 60);
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_kinetic_zoom", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_kinetic_zoom: {e}"));
 }
 
@@ -130,7 +130,7 @@ fn animator_speeding_ramp() {
         });
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_speeding_ramp", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_speeding_ramp: {e}"));
 }
 
@@ -159,7 +159,7 @@ fn animator_speeding_reverse() {
         });
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_speeding_reverse", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_speeding_reverse: {e}"));
 }
 
@@ -190,7 +190,7 @@ fn animator_speeding_release() {
         });
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_speeding_release", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_speeding_release: {e}"));
 }
 
@@ -222,7 +222,7 @@ fn animator_swiping_grip() {
         });
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_swiping_grip", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_swiping_grip: {e}"));
 }
 
@@ -255,7 +255,7 @@ fn animator_swiping_release() {
         });
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("animator_swiping_release", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("animator_swiping_release: {e}"));
 }
 
@@ -314,7 +314,7 @@ fn animator_visiting_short() {
     }
     // Rust rel_x now uses panel-fraction convention matching C++ relX.
     // Trajectory matches C++ to machine epsilon (~1e-12).
-    compare_trajectory(&actual, &golden, 1e-10)
+    compare_trajectory("animator_visiting_short", &actual, &golden, 1e-10)
         .unwrap_or_else(|e| panic!("animator_visiting_short: {e}"));
 }
 
@@ -347,7 +347,7 @@ fn animator_visiting_square_panel() {
         save_trajectory_golden("animator_visiting_square_panel", &actual);
     }
     let golden = load_trajectory_golden("animator_visiting_square_panel");
-    compare_trajectory(&actual, &golden, 1e-4)
+    compare_trajectory("animator_visiting_square_panel", &actual, &golden, 1e-4)
         .unwrap_or_else(|e| panic!("animator_visiting_square_panel: {e}"));
 }
 
@@ -358,7 +358,7 @@ fn animator_visiting_zoom() {
     let (mut tree, mut view) = setup_anim_view();
     let actual = run_visiting_trajectory(&mut tree, &mut view, 0.0, 0.0, 16.0, 60);
 
-    compare_trajectory(&actual, &golden, 1e-4)
+    compare_trajectory("animator_visiting_zoom", &actual, &golden, 1e-4)
         .unwrap_or_else(|e| panic!("animator_visiting_zoom: {e}"));
 }
 
@@ -418,6 +418,6 @@ fn animator_magnetic_approach() {
     let golden = load_trajectory_golden("animator_magnetic_approach");
     let actual = run_magnetic_trajectory(60);
 
-    compare_trajectory(&actual, &golden, 1e-2)
+    compare_trajectory("animator_magnetic_approach", &actual, &golden, 1e-2)
         .unwrap_or_else(|e| panic!("animator_magnetic_approach: {e}"));
 }

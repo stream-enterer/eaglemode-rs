@@ -1,3 +1,4 @@
+// SPLIT: Split from emPainter.h — scanline tool functions extracted
 use crate::emCore::emColor::emColor;
 
 /// C++ MaxInterpolationBytesAtOnce = 1024.

@@ -1,3 +1,4 @@
+// SPLIT: Split from emPanel.h — panel tree management extracted
 use std::collections::HashMap;
 
 use bitflags::bitflags;

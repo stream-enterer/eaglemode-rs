@@ -1,0 +1,1222 @@
+{
+  "total_parameterized": 195,
+  "generated": 119,
+  "skipped": 76,
+  "harnesses": [
+    {
+      "name": "new",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 38
+    },
+    {
+      "name": "translate",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 50
+    },
+    {
+      "name": "scale",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 67
+    },
+    {
+      "name": "scale_around",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 84
+    },
+    {
+      "name": "rotate",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 114
+    },
+    {
+      "name": "rotate_around",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 137
+    },
+    {
+      "name": "shear",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 167
+    },
+    {
+      "name": "shear_around",
+      "impl_type": "AffineMatrix",
+      "module": "emATMatrix",
+      "file": "emATMatrix.rs",
+      "line": 184
+    },
+    {
+      "name": "from_rect",
+      "impl_type": "ClipRects",
+      "module": "emClipRects",
+      "file": "emClipRects.rs",
+      "line": 241
+    },
+    {
+      "name": "rgba",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 38
+    },
+    {
+      "name": "rgb",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 43
+    },
+    {
+      "name": "GetRed",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 48
+    },
+    {
+      "name": "GetGreen",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 53
+    },
+    {
+      "name": "GetBlue",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 58
+    },
+    {
+      "name": "GetAlpha",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 63
+    },
+    {
+      "name": "GetPacked",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 69
+    },
+    {
+      "name": "SetHSVA",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 76
+    },
+    {
+      "name": "GetHSV",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 105
+    },
+    {
+      "name": "lighten",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 132
+    },
+    {
+      "name": "darken",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 138
+    },
+    {
+      "name": "blend",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 145
+    },
+    {
+      "name": "SetAlpha",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 158
+    },
+    {
+      "name": "GetBlended",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 168
+    },
+    {
+      "name": "canvas_blend",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 186
+    },
+    {
+      "name": "SetRed",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 204
+    },
+    {
+      "name": "SetGreen",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 211
+    },
+    {
+      "name": "SetBlue",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 218
+    },
+    {
+      "name": "IsTotallyTransparent",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 224
+    },
+    {
+      "name": "IsOpaque",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 230
+    },
+    {
+      "name": "IsGrey",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 236
+    },
+    {
+      "name": "GetGrey",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 242
+    },
+    {
+      "name": "SetGrey",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 249
+    },
+    {
+      "name": "SetHue",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 255
+    },
+    {
+      "name": "SetSat",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 262
+    },
+    {
+      "name": "SetVal",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 269
+    },
+    {
+      "name": "GetTransparented",
+      "impl_type": "emColor",
+      "module": "emColor",
+      "file": "emColor.rs",
+      "line": 371
+    },
+    {
+      "name": "new",
+      "impl_type": "emImage",
+      "module": "emImage",
+      "file": "emImage.rs",
+      "line": 123
+    },
+    {
+      "name": "is_channel_count_paintable",
+      "impl_type": "emImage",
+      "module": "emImage",
+      "file": "emImage.rs",
+      "line": 1216
+    },
+    {
+      "name": "adaptive",
+      "impl_type": "emLinearLayout",
+      "module": "emLinearLayout",
+      "file": "emLinearLayout.rs",
+      "line": 48
+    },
+    {
+      "name": "border_tint",
+      "impl_type": "emLook",
+      "module": "emLook",
+      "file": "emLook.rs",
+      "line": 27
+    },
+    {
+      "name": "focus_tint",
+      "impl_type": "emLook",
+      "module": "emLook",
+      "file": "emLook.rs",
+      "line": 32
+    },
+    {
+      "name": "disabled_fg",
+      "impl_type": "emLook",
+      "module": "emLook",
+      "file": "emLook.rs",
+      "line": 37
+    },
+    {
+      "name": "button_hover",
+      "impl_type": "emLook",
+      "module": "emLook",
+      "file": "emLook.rs",
+      "line": 42
+    },
+    {
+      "name": "button_pressed",
+      "impl_type": "emLook",
+      "module": "emLook",
+      "file": "emLook.rs",
+      "line": 47
+    },
+    {
+      "name": "contains",
+      "impl_type": "StartFlags",
+      "module": "emProcess",
+      "file": "emProcess.rs",
+      "line": 100
+    },
+    {
+      "name": "new",
+      "impl_type": "emColorRec",
+      "module": "emRecRecTypes",
+      "file": "emRecRecTypes.rs",
+      "line": 157
+    },
+    {
+      "name": "GetRec",
+      "impl_type": "emColorRec",
+      "module": "emRecRecTypes",
+      "file": "emRecRecTypes.rs",
+      "line": 170
+    },
+    {
+      "name": "Set",
+      "impl_type": "emColorRec",
+      "module": "emRecRecTypes",
+      "file": "emRecRecTypes.rs",
+      "line": 174
+    },
+    {
+      "name": "SetToDefault",
+      "impl_type": "emColorRec",
+      "module": "emRecRecTypes",
+      "file": "emRecRecTypes.rs",
+      "line": 182
+    },
+    {
+      "name": "IsSetToDefault",
+      "impl_type": "emColorRec",
+      "module": "emRecRecTypes",
+      "file": "emRecRecTypes.rs",
+      "line": 186
+    },
+    {
+      "name": "HaveAlpha",
+      "impl_type": "emColorRec",
+      "module": "emRecRecTypes",
+      "file": "emRecRecTypes.rs",
+      "line": 190
+    },
+    {
+      "name": "ToRecStruct",
+      "impl_type": "emColorRec",
+      "module": "emRecRecTypes",
+      "file": "emRecRecTypes.rs",
+      "line": 217
+    },
+    {
+      "name": "new",
+      "impl_type": "emRenderThreadPool",
+      "module": "emRenderThreadPool",
+      "file": "emRenderThreadPool.rs",
+      "line": 22
+    },
+    {
+      "name": "GetThreadCount",
+      "impl_type": "emRenderThreadPool",
+      "module": "emRenderThreadPool",
+      "file": "emRenderThreadPool.rs",
+      "line": 47
+    },
+    {
+      "name": "UpdateThreadCount",
+      "impl_type": "emRenderThreadPool",
+      "module": "emRenderThreadPool",
+      "file": "emRenderThreadPool.rs",
+      "line": 52
+    },
+    {
+      "name": "emEnableDLog",
+      "impl_type": null,
+      "module": "emStd1",
+      "file": "emStd1.rs",
+      "line": 22
+    },
+    {
+      "name": "emSetFatalErrorGraphical",
+      "impl_type": null,
+      "module": "emStd1",
+      "file": "emStd1.rs",
+      "line": 116
+    },
+    {
+      "name": "new",
+      "impl_type": "emStroke",
+      "module": "emStroke",
+      "file": "emStroke.rs",
+      "line": 83
+    },
+    {
+      "name": "GetColor",
+      "impl_type": "emTexture",
+      "module": "emTexture",
+      "file": "emTexture.rs",
+      "line": 97
+    },
+    {
+      "name": "uniform",
+      "impl_type": "Spacing",
+      "module": "emTiling",
+      "file": "emTiling.rs",
+      "line": 180
+    },
+    {
+      "name": "clamped",
+      "impl_type": "Spacing",
+      "module": "emTiling",
+      "file": "emTiling.rs",
+      "line": 199
+    },
+    {
+      "name": "new",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 155
+    },
+    {
+      "name": "SetVelocity",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 172
+    },
+    {
+      "name": "GetVelocity",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 179
+    },
+    {
+      "name": "GetAbsVelocity",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 184
+    },
+    {
+      "name": "SetFrictionEnabled",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 191
+    },
+    {
+      "name": "IsFrictionEnabled",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 195
+    },
+    {
+      "name": "SetFriction",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 199
+    },
+    {
+      "name": "GetFriction",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 203
+    },
+    {
+      "name": "extract_kinetic_state",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 208
+    },
+    {
+      "name": "inject_kinetic_state",
+      "impl_type": "emKineticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 220
+    },
+    {
+      "name": "new",
+      "impl_type": "emSpeedingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 451
+    },
+    {
+      "name": "SetTargetVelocity",
+      "impl_type": "emSpeedingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 463
+    },
+    {
+      "name": "release",
+      "impl_type": "emSpeedingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 470
+    },
+    {
+      "name": "SetAcceleration",
+      "impl_type": "emSpeedingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 476
+    },
+    {
+      "name": "SetReverseAcceleration",
+      "impl_type": "emSpeedingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 480
+    },
+    {
+      "name": "inner",
+      "impl_type": "emSpeedingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 484
+    },
+    {
+      "name": "inner_mut",
+      "impl_type": "emSpeedingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 488
+    },
+    {
+      "name": "new",
+      "impl_type": "emVisitingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 679
+    },
+    {
+      "name": "new",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2184
+    },
+    {
+      "name": "SetGripped",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2197
+    },
+    {
+      "name": "IsGripped",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2209
+    },
+    {
+      "name": "MoveGrip",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2214
+    },
+    {
+      "name": "SetSpringConstant",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2222
+    },
+    {
+      "name": "GetAbsSpringExtension",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2227
+    },
+    {
+      "name": "inner",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2235
+    },
+    {
+      "name": "inner_mut",
+      "impl_type": "emSwipingViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2240
+    },
+    {
+      "name": "new",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2357
+    },
+    {
+      "name": "set_snap_target",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2375
+    },
+    {
+      "name": "SetSpringConstant",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2382
+    },
+    {
+      "name": "set_damping",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2387
+    },
+    {
+      "name": "GetVelocity",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2392
+    },
+    {
+      "name": "GetAbsVelocity",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2397
+    },
+    {
+      "name": "set_radius_factor",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2404
+    },
+    {
+      "name": "set_speed_factor",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2408
+    },
+    {
+      "name": "is_magnetism_active",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2412
+    },
+    {
+      "name": "update_magnetism",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2420
+    },
+    {
+      "name": "hill_rolling_physics",
+      "impl_type": "emMagneticViewAnimator",
+      "module": "emViewAnimator",
+      "file": "emViewAnimator.rs",
+      "line": 2469
+    },
+    {
+      "name": "new",
+      "impl_type": "SoftwareCompositor",
+      "module": "emViewRenderer",
+      "file": "emViewRenderer.rs",
+      "line": 15
+    },
+    {
+      "name": "new",
+      "impl_type": "TileCache",
+      "module": "emViewRendererTileCache",
+      "file": "emViewRendererTileCache.rs",
+      "line": 49
+    },
+    {
+      "name": "uninhibit_screensaver",
+      "impl_type": null,
+      "module": "emWindowPlatform",
+      "file": "emWindowPlatform.rs",
+      "line": 131
+    },
+    {
+      "name": "uninhibit_screensaver",
+      "impl_type": null,
+      "module": "emWindowPlatform",
+      "file": "emWindowPlatform.rs",
+      "line": 157
+    },
+    {
+      "name": "from_raw",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 17
+    },
+    {
+      "name": "raw",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 22
+    },
+    {
+      "name": "from_f64",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 27
+    },
+    {
+      "name": "from_i32",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 32
+    },
+    {
+      "name": "to_f64",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 37
+    },
+    {
+      "name": "to_i32",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 43
+    },
+    {
+      "name": "frac",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 49
+    },
+    {
+      "name": "floor",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 54
+    },
+    {
+      "name": "ceil",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 59
+    },
+    {
+      "name": "round",
+      "impl_type": "Fixed12",
+      "module": "fixed",
+      "file": "fixed.rs",
+      "line": 64
+    },
+    {
+      "name": "new",
+      "impl_type": "Rect",
+      "module": "rect",
+      "file": "rect.rs",
+      "line": 11
+    },
+    {
+      "name": "intersects",
+      "impl_type": "Rect",
+      "module": "rect",
+      "file": "rect.rs",
+      "line": 15
+    },
+    {
+      "name": "intersection",
+      "impl_type": "Rect",
+      "module": "rect",
+      "file": "rect.rs",
+      "line": 22
+    },
+    {
+      "name": "contains_point",
+      "impl_type": "Rect",
+      "module": "rect",
+      "file": "rect.rs",
+      "line": 39
+    },
+    {
+      "name": "area",
+      "impl_type": "Rect",
+      "module": "rect",
+      "file": "rect.rs",
+      "line": 43
+    },
+    {
+      "name": "new",
+      "impl_type": "PixelRect",
+      "module": "rect",
+      "file": "rect.rs",
+      "line": 58
+    },
+    {
+      "name": "check_mouse_round_rect",
+      "impl_type": null,
+      "module": "widget_utils",
+      "file": "widget_utils.rs",
+      "line": 19
+    }
+  ],
+  "skipped_detail": [
+    {
+      "name": "approx_eq",
+      "module": "emATMatrix",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "new",
+      "module": "emClipRects",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "clamp_f64",
+      "module": "emCoreConfig",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "clamp_i32",
+      "module": "emCoreConfig",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "to_rec",
+      "module": "emCoreConfig",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "SetToDefault",
+      "module": "emCoreConfig",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "IsSetToDefault",
+      "module": "emCoreConfig",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "factor_val_to_cfg",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "factor_cfg_to_val",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "factor_text_of_value",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "mem_cfg_to_val",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "mem_val_to_cfg",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "mem_text_of_value",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "downscale_text",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "upscale_text",
+      "module": "emCoreConfigPanel",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "GetChar",
+      "module": "emFontCache",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "setup_tree",
+      "module": "emLinearLayout",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "rate_cell",
+      "module": "emPackLayout",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "setup",
+      "module": "emPackLayout",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "new",
+      "module": "emPainter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "cut_arrow",
+      "module": "emPainter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "cut_triangle",
+      "module": "emPainter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "cut_square",
+      "module": "emPainter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "cut_circle",
+      "module": "emPainter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "cut_diamond",
+      "module": "emPainter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "adaptive_circle_segments",
+      "module": "emPainter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "rational_inv",
+      "module": "emPainterInterpolation",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "interpolate_four_values_adaptive",
+      "module": "emPainterInterpolation",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "lanczos_sinc",
+      "module": "emPainterInterpolation",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "channel_diff",
+      "module": "emPainterInterpolation",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "make_area_xfm",
+      "module": "emPainterInterpolation",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "full_sec",
+      "module": "emPainterInterpolation",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "round_abs",
+      "module": "emPainterScanline",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "make_poly_span",
+      "module": "emPainterScanline",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "make_edge_span",
+      "module": "emPainterScanline",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "rect_vertices",
+      "module": "emPainterScanline",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "new",
+      "module": "emPainterScanlineTool",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "from_state",
+      "module": "emPainterScanlineTool",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "make_dest",
+      "module": "emPainterScanlineTool",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "kill",
+      "module": "emProcess",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "setup",
+      "module": "emRasterLayout",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "format_double",
+      "module": "emRec",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "compute_count",
+      "module": "emRenderThreadPool",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "make_tga_header",
+      "module": "emResTga",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "default_text_of_value",
+      "module": "emScalarField",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "is_word_char",
+      "module": "emTextField",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "char_press",
+      "module": "emTextField",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "ctrl_char",
+      "module": "emTextField",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "compute_arrow_vertices",
+      "module": "emView",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "compute_arrow_count",
+      "module": "emView",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "update_busy_state",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "is_active",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "stop",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "as_any",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "accelerate_dim",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "is_active",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "stop",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "as_any",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "get_curve_point",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "get_curve_pos_dist",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "get_direct_dist",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "get_direct_point",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "update_busy_state",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "is_active",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "stop",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "as_any",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "is_active",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "stop",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "as_any",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "setup_scrolled",
+      "module": "emViewAnimator",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "speeding_step",
+      "module": "emViewInputFilter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "setup_two_finger_tracker",
+      "module": "emViewInputFilter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "input_state_at",
+      "module": "emViewInputFilter",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "to_rec",
+      "module": "emWindowStateSaver",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "SetToDefault",
+      "module": "emWindowStateSaver",
+      "reason": "private or test-only function"
+    },
+    {
+      "name": "IsSetToDefault",
+      "module": "emWindowStateSaver",
+      "reason": "private or test-only function"
+    }
+  ]
+}

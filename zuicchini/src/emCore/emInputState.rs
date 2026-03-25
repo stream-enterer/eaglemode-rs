@@ -1,3 +1,4 @@
+// SPLIT: Split from emInput.h — input state types extracted
 use std::collections::HashSet;
 
 use crate::emCore::emInput::InputKey;

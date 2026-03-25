@@ -1,0 +1,370 @@
+[
+  {
+    "id": "a2-01",
+    "proposition": "The verification harness should be composed of shell scripts, JSON schemas, and Rust integration tests that compose via Unix pipes and shared file conventions, rather than being a framework.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.75,
+      "robustness": 0.65,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Unix composability is well-proven for CI/build tooling and avoids framework lock-in. However, shell scripts can be fragile and harder to test than library code.",
+      "specificity": "Identifies concrete implementation approach (shell scripts + JSON + Rust tests + pipes) but leaves many details to each component.",
+      "robustness": "Shell scripts are prone to quoting bugs, platform differences, and subtle failures. The approach lacks type safety across component boundaries.",
+      "compatibility": "Aligns well with the project's existing CLI-first approach (cargo test, pre-commit hooks, coverage scripts already in shell)."
+    }
+  },
+  {
+    "id": "a2-02",
+    "proposition": "A single JSON contract registry file (contract.json) should enumerate every golden test case, its category, oracle relationship, and tolerance parameters, serving as the single source of truth.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.92,
+      "robustness": 0.75,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Centralizing test metadata in a structured file makes auditing, tooling, and cross-referencing straightforward. Well-established pattern in CI systems.",
+      "specificity": "Very concrete: specifies JSON format, field names, file path, and exactly what the file must contain. The schema is given inline.",
+      "robustness": "A single file becomes a merge-conflict hotspot when multiple developers add tests. Also, 214 entries in one file can become unwieldy. Schema validation partially mitigates corruption.",
+      "compatibility": "The existing golden test infrastructure uses per-file conventions, not a centralized registry. Retrofitting all 214 cases into one JSON file is a significant migration effort that could conflict with other work."
+    }
+  },
+  {
+    "id": "a2-03",
+    "proposition": "The harness must refuse to run if any golden data file on disk is not present in the contract, or if any contract entry lacks a corresponding golden file.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.95,
+      "robustness": 0.85,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Bidirectional completeness checking is a strong invariant that prevents orphaned tests and phantom entries. Logically sound.",
+      "specificity": "Extremely concrete: two clearly falsifiable conditions with exact enforcement semantics.",
+      "robustness": "Robust against silent test skipping and untracked oracles. Could cause friction during development when adding new tests (must update both file and contract atomically).",
+      "compatibility": "Adds a hard gate that may slow down iterative development. Could conflict with workflows where golden data is regenerated before contract is updated."
+    }
+  },
+  {
+    "id": "a2-04",
+    "proposition": "Tolerance parameters should only be allowed to decrease (tighten); increasing (relaxing) them requires a separate script with a mandatory --reason flag that writes a JSONL audit entry.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.90,
+      "robustness": 0.70,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Preventing silent tolerance relaxation is a strong defense against gradual quality erosion. The audit trail provides accountability.",
+      "specificity": "Specifies the exact mechanism: a separate script, a --reason flag, and a JSONL audit file. Very actionable.",
+      "robustness": "Can be circumvented by editing contract.json directly if pre-commit checks are bypassed. The JSONL file could grow indefinitely without pruning policy.",
+      "compatibility": "May conflict with legitimate tolerance changes during active porting (e.g., discovering C++ behavior that requires wider tolerance). Adds ceremony to routine work."
+    }
+  },
+  {
+    "id": "a2-05",
+    "proposition": "A test case is classified as 'suspicious' if it passes but its failure percentage exceeds 50% of the category's max_failure_pct threshold, or its max_diff exceeds 75% of channel_tolerance.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.95,
+      "robustness": 0.60,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Early warning for drift toward failure is valuable. The thresholds (50%, 75%) are reasonable but somewhat arbitrary without empirical calibration.",
+      "specificity": "Extremely concrete: exact numeric thresholds and exact conditions. Directly implementable.",
+      "robustness": "The fixed thresholds may produce false positives for tests that naturally sit near boundaries, or miss slow drift that stays just below 50%. No mechanism for tuning per-test.",
+      "compatibility": "Integrates cleanly with the existing JSONL divergence output. Does not conflict with other harness components."
+    }
+  },
+  {
+    "id": "a2-06",
+    "proposition": "The divergence ledger should cross-reference reported test cases against the contract registry, flagging any missing cases as 'unreported' and exiting non-zero to catch silently skipped tests.",
+    "scores": {
+      "defensibility": 0.93,
+      "specificity": 0.88,
+      "robustness": 0.85,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Silent test skipping is a well-known failure mode in test suites. Cross-referencing against a known-complete registry is the correct mitigation.",
+      "specificity": "Clear mechanism: compare reported set vs. contract set, flag gaps, exit non-zero.",
+      "robustness": "Robust against the specific failure mode it targets. Could produce false alarms if a test legitimately cannot run in certain environments (e.g., missing C++ libraries).",
+      "compatibility": "Depends on the contract registry (a2-02) existing and being complete. Compatible with the rest of the pipeline."
+    }
+  },
+  {
+    "id": "a2-07",
+    "proposition": "The correspondence auditor should enforce that every C++ header has exactly one of a .rs file or a .no_rust_equivalent marker, and every non-mod .rs file has a matching C++ header, a .rust_only marker, or a SPLIT: comment.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.93,
+      "robustness": 0.80,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "Directly enforces the project's File and Name Correspondence rules as stated in CLAUDE.md. Structurally verifiable.",
+      "specificity": "Very concrete: exact filesystem conventions, exact markers, exact comment format. Already partially implemented in the codebase.",
+      "robustness": "Filesystem-based markers are simple and hard to break. The SPLIT: comment check (head -5 | grep) is slightly fragile if formatting changes.",
+      "compatibility": "Perfectly aligned with existing project conventions documented in CLAUDE.md. This is codifying existing rules rather than introducing new ones."
+    }
+  },
+  {
+    "id": "a2-08",
+    "proposition": "The regression gate should compare each harness run's classification against the previous run (via a 'latest' symlink), flagging any test that moved from pass to fail/suspicious as a regression.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.88,
+      "robustness": 0.65,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Regression detection by comparing consecutive runs is standard practice. Using a symlink for state relay is simple and transparent.",
+      "specificity": "Concrete mechanism: symlink, JSON comparison, specific transition rules (pass->fail = regression, suspicious->worse = drift).",
+      "robustness": "The 'latest' symlink is fragile: it can be deleted, point to stale data, or be corrupted by concurrent runs. Only compares against the immediately previous run, so gradual drift over many runs can go undetected.",
+      "compatibility": "Works well with the filesystem-based state protocol. The symlink approach is Unix-idiomatic."
+    }
+  },
+  {
+    "id": "a2-09",
+    "proposition": "Convergence should be defined as: zero regressions, zero failures, zero unreported cases, and suspicious count non-increasing across the last 3 runs.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.90,
+      "robustness": 0.60,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "The criteria are reasonable but the 3-run window is arbitrary. True convergence should perhaps consider the suspicious count decreasing, not just non-increasing.",
+      "specificity": "Very concrete and directly implementable: four boolean conditions, specific window size.",
+      "robustness": "Requires exactly 3 historical runs to be available, which may not hold early in the project. Does not account for flaky tests or environmental variation between runs.",
+      "compatibility": "Depends on the regression gate's run history tracking. May conflict with workflows where suspicious count legitimately fluctuates (e.g., during active porting)."
+    }
+  },
+  {
+    "id": "a2-10",
+    "proposition": "Test independence should be verified by running golden tests in both sequential (--test-threads=1) and parallel (--test-threads=4) modes and comparing JSONL output; differing results indicate an independence violation.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.92,
+      "robustness": 0.55,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Running tests in different orderings is a well-known technique for detecting order-dependent tests. Sound principle.",
+      "specificity": "Very concrete: exact thread counts, exact comparison method (sort + diff JSONL).",
+      "robustness": "Doubles the test execution time. Parallel execution may produce non-deterministic floating-point results due to thread scheduling, leading to false positives. Only catches ordering bugs exposed by this specific parallelism level.",
+      "compatibility": "The parallel run adds significant time to harness_full.sh. May conflict with CI time budgets."
+    }
+  },
+  {
+    "id": "a2-11",
+    "proposition": "The harness should wrap golden test execution with a global 120-second timeout to detect hangs, classifying exit code 124 as HANG and exit codes >128 as CRASH with signal extraction.",
+    "scores": {
+      "defensibility": 0.82,
+      "specificity": 0.93,
+      "robustness": 0.70,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Timeout-based hang detection is standard practice. Signal-based crash classification is correct Unix semantics.",
+      "specificity": "Very concrete: exact timeout value, exact exit code interpretation, exact JSONL output format.",
+      "robustness": "A global 120s timeout for all 214 tests is coarse. A single slow test could consume the entire budget. No per-test granularity. The timeout value may need tuning for different hardware.",
+      "compatibility": "Compatible with the existing cargo test infrastructure. The timeout command is standard on Linux."
+    }
+  },
+  {
+    "id": "a2-12",
+    "proposition": "The self-conformance verifier must run before all other harness phases, and if it fails, the entire harness must abort without running any further checks.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.85,
+      "robustness": 0.80,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Fail-fast on meta-level violations is sound: if the harness itself is broken, its results cannot be trusted.",
+      "specificity": "Clear ordering requirement with gate semantics. The phase numbering (Phase 0) makes it concrete.",
+      "robustness": "Self-conformance checks that invoke cargo test (e.g., SC-4) add overhead and could themselves hang or fail for environmental reasons, blocking all other checks.",
+      "compatibility": "Aligns with the phased pipeline architecture. No conflicts with other components."
+    }
+  },
+  {
+    "id": "a2-13",
+    "proposition": "The self-conformance verifier should check that no #[ignore] attributes exist on golden tests and no tolerance overrides exist without a diverged=true flag and reason, to prevent silent result suppression.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.93,
+      "robustness": 0.80,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Preventing #[ignore] and undocumented tolerance overrides directly addresses the risk of silent suppression. Logically sound and important.",
+      "specificity": "Exact grep pattern for #[ignore], exact jq query for tolerance_override without diverged=true. Directly implementable.",
+      "robustness": "Could be circumvented by using #[cfg(not(...))] instead of #[ignore], or by using conditional compilation to skip tests. The grep check is syntactic, not semantic.",
+      "compatibility": "Aligns with CLAUDE.md's prohibition on #[allow(...)] suppression. Compatible with the diverged-case mechanism in a2-16."
+    }
+  },
+  {
+    "id": "a2-14",
+    "proposition": "When multiple tests fail in the same category with similar max_diff values (within 2x of each other), they should be flagged as coincident failures suggesting a shared root cause.",
+    "scores": {
+      "defensibility": 0.75,
+      "specificity": 0.85,
+      "robustness": 0.55,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Coincident failure detection is useful for diagnosis, but the 2x heuristic is arbitrary and may not reflect actual causal relationships.",
+      "specificity": "Concrete threshold (2x ratio) and trigger condition (>3 tests in one category). Actionable.",
+      "robustness": "The 2x heuristic could miss correlated failures with varying magnitudes or flag unrelated failures that happen to have similar diffs. No mechanism to validate the heuristic.",
+      "compatibility": "Purely informational (annotates, does not suppress). Low risk of interfering with other components."
+    }
+  },
+  {
+    "id": "a2-15",
+    "proposition": "The harness should support change-guided coverage via a --changed-files flag that restricts golden test runs to only tests whose contract entries reference modified Rust files, using git diff to determine changes.",
+    "scores": {
+      "defensibility": 0.78,
+      "specificity": 0.85,
+      "robustness": 0.55,
+      "compatibility": 0.70
+    },
+    "reasoning": {
+      "defensibility": "Change-guided testing reduces feedback loop time and is a standard optimization. However, it can miss failures caused by transitive dependencies.",
+      "specificity": "Concrete mechanism: git diff, contract cross-reference, filtered cargo test invocation.",
+      "robustness": "The contract must map tests to source files accurately, which requires maintaining an additional mapping. Changes to shared code (e.g., color math used by all painters) would need to trigger all dependent tests, which this simple mapping may miss.",
+      "compatibility": "Could conflict with the exhaustiveness check (a2-06) if the partial run is treated as a complete run. Needs clear separation between partial and full run modes."
+    }
+  },
+  {
+    "id": "a2-16",
+    "proposition": "When a golden test failure is determined to be an intentional divergence from C++ behavior (e.g., fixing a C++ bug), the contract should record this with diverged=true, a reason string, and a tolerance_override, and the classifier should distinguish these from regressions.",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.90,
+      "robustness": 0.75,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Distinguishing intentional divergence from accidental regression is essential for a port project. The documentation requirement provides accountability.",
+      "specificity": "Concrete schema: diverged boolean, reason string, tolerance_override object. Clear classifier behavior.",
+      "robustness": "Could be abused to mark genuine regressions as 'intentional'. The reason string has no validation beyond existence. However, the audit trail in the contract makes this visible in code review.",
+      "compatibility": "Works with the tolerance enforcement (a2-04) since overrides require diverged=true. Aligns with the DIVERGED: comment convention in CLAUDE.md."
+    }
+  },
+  {
+    "id": "a2-17",
+    "proposition": "The harness must verify 8 distinct output domains (painter, compositor, layout, behavioral, trajectory, widget_state, notice, input) with tolerance regimes varying from exact-match to per-channel pixel tolerance to floating-point epsilon.",
+    "scores": {
+      "defensibility": 0.90,
+      "specificity": 0.88,
+      "robustness": 0.80,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "The 8 categories directly reflect the project's actual golden test categories as described in CLAUDE.md. Well-grounded in project reality.",
+      "specificity": "Enumerates all 8 categories by name and characterizes their tolerance regimes. Concrete and verifiable.",
+      "robustness": "Adding a 9th category would require updating the contract schema, all self-conformance checks, and the classifier. Somewhat rigid but that rigidity is intentional.",
+      "compatibility": "Directly reflects the existing golden test infrastructure. High compatibility with current codebase."
+    }
+  },
+  {
+    "id": "a2-18",
+    "proposition": "The golden data files are binary snapshots of C++ execution output generated by gen_golden.cpp linked against libemCore.so, satisfying the requirement that oracles capture actual behavior rather than specified behavior.",
+    "scores": {
+      "defensibility": 0.92,
+      "specificity": 0.85,
+      "robustness": 0.75,
+      "compatibility": 0.90
+    },
+    "reasoning": {
+      "defensibility": "Using actual C++ execution output as the oracle is the correct approach for a behavioral equivalence port. Eliminates specification ambiguity.",
+      "specificity": "Identifies the exact mechanism: gen_golden.cpp, libemCore.so linkage, binary snapshots.",
+      "robustness": "Depends on the C++ code being available and compilable. If the C++ library changes or becomes unavailable, the oracle becomes stale. Also, C++ bugs become the 'correct' behavior unless marked as diverged.",
+      "compatibility": "Aligns with the existing golden test generation infrastructure (Makefile, gen directory). Consistent with CLAUDE.md's Port Fidelity rules."
+    }
+  },
+  {
+    "id": "a2-19",
+    "proposition": "The full harness run should be a sequential 7-phase pipeline (self-conformance, contract validation, correspondence audit, divergence measurement, independence verification, classification, summary) where each phase gates the next.",
+    "scores": {
+      "defensibility": 0.85,
+      "specificity": 0.90,
+      "robustness": 0.70,
+      "compatibility": 0.80
+    },
+    "reasoning": {
+      "defensibility": "Phased execution with gating is a standard pattern for verification pipelines. Each phase has clear preconditions.",
+      "specificity": "All 7 phases named in order with clear gate semantics. Directly maps to harness_full.sh.",
+      "robustness": "A failure in an early phase blocks all subsequent phases, including potentially useful diagnostics. The independence verification phase (running tests twice) significantly increases total execution time.",
+      "compatibility": "Aligns with CLAUDE.md's instruction that plans should be phased and gated. The pipeline structure is consistent with existing project tooling patterns."
+    }
+  },
+  {
+    "id": "a2-20",
+    "proposition": "Each harness component should include its own self-test mode that verifies correct behavior on synthetic inputs (e.g., the contract checker tests rejection of missing entries, the classifier tests detection of known regressions).",
+    "scores": {
+      "defensibility": 0.88,
+      "specificity": 0.80,
+      "robustness": 0.70,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Testing the test infrastructure is a well-known best practice. Self-tests prevent the harness from silently becoming ineffective.",
+      "specificity": "Gives concrete examples of self-tests but does not exhaustively enumerate them. The principle is clear and implementable.",
+      "robustness": "Self-tests on synthetic inputs may not cover real-world edge cases. The synthetic inputs must be maintained alongside the scripts.",
+      "compatibility": "Aligns with the self-conformance philosophy. Adds maintenance burden but provides proportional safety."
+    }
+  },
+  {
+    "id": "a2-21",
+    "proposition": "The harness state protocol should be filesystem-based, using target/harness/ as the output directory with timestamped subdirectories and a 'latest' symlink, enabling stateful tracking across Claude Code sessions without in-memory state.",
+    "scores": {
+      "defensibility": 0.83,
+      "specificity": 0.88,
+      "robustness": 0.65,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Filesystem-based state is transparent, inspectable, and survives process restarts. Good fit for a CLI-first workflow.",
+      "specificity": "Concrete directory structure, naming convention (timestamps), symlink mechanics.",
+      "robustness": "Symlinks can be stale or broken. Timestamped directories accumulate without cleanup policy. Concurrent runs could race on the 'latest' symlink. The target/ directory is typically gitignored, so state does not survive clean builds.",
+      "compatibility": "target/ is the standard Rust build output directory. Using it for harness state follows convention. Compatible with the existing coverage scripts that also write to target/."
+    }
+  },
+  {
+    "id": "a2-22",
+    "proposition": "The contract registry must enumerate all 214 golden data files across 8 categories (42 painter + 61 compositor + 31 layout + 25 behavioral + 20 trajectory + 16 widget_state + 13 notice + 6 input), each mapping a golden file name to a Rust test function name.",
+    "scores": {
+      "defensibility": 0.80,
+      "specificity": 0.95,
+      "robustness": 0.60,
+      "compatibility": 0.75
+    },
+    "reasoning": {
+      "defensibility": "Explicit enumeration ensures completeness, but the specific counts (214 total) become stale as tests are added or removed.",
+      "specificity": "Extremely concrete: exact counts per category, exact field mapping (name -> rust_test).",
+      "robustness": "Hardcoding the count (214) in the design document creates a maintenance burden. As the port progresses, these numbers will change, requiring document updates. The actual enforcement should be dynamic, not based on hardcoded counts.",
+      "compatibility": "Consistent with the bidirectional completeness check (a2-03) but the specific numbers may already be outdated given the project's active development."
+    }
+  },
+  {
+    "id": "a2-23",
+    "proposition": "The self-conformance verifier should run all checks and report all failures at once (not fail-fast within the self-check phase), while the overall harness should abort if any self-conformance check fails.",
+    "scores": {
+      "defensibility": 0.87,
+      "specificity": 0.85,
+      "robustness": 0.80,
+      "compatibility": 0.85
+    },
+    "reasoning": {
+      "defensibility": "Collecting all self-conformance failures before aborting gives the developer a complete picture, reducing fix-retry cycles. Sound UX decision.",
+      "specificity": "Clear behavioral distinction: non-fail-fast within self-check, fail-fast at the harness level.",
+      "robustness": "If a self-conformance check itself hangs or crashes, it could block reporting of other check results. But this is an unlikely edge case.",
+      "compatibility": "Consistent with the phased pipeline design. No conflicts with other components."
+    }
+  }
+]

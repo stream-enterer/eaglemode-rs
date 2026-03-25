@@ -1,3 +1,4 @@
+// SPLIT: Split from emRec.h — record type definitions extracted
 use std::path::Path;
 
 use crate::emCore::emRec::{parse_rec, parse_rec_with_format, write_rec, write_rec_with_format, RecError, RecStruct, RecValue};

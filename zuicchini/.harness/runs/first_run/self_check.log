@@ -1,0 +1,13 @@
+Self-conformance checks:
+  OK: SC-1: contract.json exists and is valid JSON
+  OK: SC-2: all 8 categories defined
+  OK: SC-3: all categories have oracle relationship defined
+  OK: SC-4: C++ golden generator source exists
+  OK: SC-5: no #[ignore] on golden tests
+  OK: SC-6: all tolerance overrides have diverged=true with reason
+  OK: SC-7: all test names unique
+  OK: SC-8: all harness scripts present and executable
+  OK: SC-9: golden data directory exists with 214 files
+  OK: SC-10: coverage.sh exists
+
+SELF-CONFORMANCE PASSED: 10 of 10 checks passed.

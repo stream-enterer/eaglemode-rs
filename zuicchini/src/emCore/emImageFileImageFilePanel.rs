@@ -1,3 +1,4 @@
+// SPLIT: Split from emImageFile.h — panel type extracted
 use crate::emCore::emColor::emColor;
 use crate::emCore::emImage::emImage;
 use crate::emCore::emPanel::{PanelBehavior, PanelState};

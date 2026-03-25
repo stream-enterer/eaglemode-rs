@@ -1,3 +1,4 @@
+// SPLIT: Split from emPainter.h — scanline rendering extracted
 use crate::emCore::fixed::Fixed12;
 
 /// Winding rule for polygon fill.

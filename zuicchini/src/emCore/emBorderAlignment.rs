@@ -1,3 +1,4 @@
+// SPLIT: Split from emBorder.h — alignment types extracted to separate file
 /// Nine-position content alignment.
 ///
 /// Matches C++ emAlignment (EM_ALIGN_TOP_LEFT, etc.) for positioning

@@ -1,3 +1,4 @@
+// SPLIT: Split from emViewRenderer.h — tile cache extracted
 use crate::emCore::emImage::emImage;
 
 /// Size of each tile in pixels.

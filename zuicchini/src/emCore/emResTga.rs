@@ -1,3 +1,4 @@
+// SPLIT: Split from emRes.h — TGA resource loader extracted
 use super::emImage::emImage;
 use std::fmt;
 

@@ -2,6 +2,25 @@ use std::fmt;
 use std::io::Write;
 use std::path::PathBuf;
 
+/// Emit a JSONL divergence record to stderr and/or DIVERGENCE_LOG.
+/// Called by all compare_* functions to provide uniform structured output.
+fn emit_divergence(line: &str) {
+    let measure = std::env::var("MEASURE_DIVERGENCE").map_or(false, |v| v == "1");
+    let log_path = std::env::var("DIVERGENCE_LOG").ok();
+    if measure {
+        eprintln!("{line}");
+    }
+    if let Some(ref path) = log_path {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
+            let _ = writeln!(f, "{line}");
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct CompareError {
     pub message: String,
@@ -133,27 +152,10 @@ pub fn compare_images(
     }
 
     let fail_pct = fail_count as f64 / total as f64 * 100.0;
-    let measure = std::env::var("MEASURE_DIVERGENCE").map_or(false, |v| v == "1");
-    let log_path = std::env::var("DIVERGENCE_LOG").ok();
-    if measure || log_path.is_some() {
-        let pass = fail_pct <= max_failure_pct;
-        let line = format!(
-            r#"{{"test":{name:?},"tol":{channel_tolerance},"fail":{fail_count},"total":{total},"pct":{fail_pct:.4},"max_diff":{max_diff},"pass":{pass}}}"#
-        );
-        if measure {
-            eprintln!("{line}");
-        }
-        if let Some(ref path) = log_path {
-            use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(path)
-            {
-                let _ = writeln!(f, "{line}");
-            }
-        }
-    }
+    let pass = fail_pct <= max_failure_pct;
+    emit_divergence(&format!(
+        r#"{{"test":{name:?},"tol":{channel_tolerance},"fail":{fail_count},"total":{total},"pct":{fail_pct:.4},"max_diff":{max_diff},"pass":{pass}}}"#
+    ));
     if fail_pct > max_failure_pct {
         let mut msg = format!(
             "emImage mismatch: {fail_count}/{total} pixels ({fail_pct:.2}%) exceed tolerance \
@@ -399,30 +401,49 @@ pub fn load_behavioral_golden(name: &str) -> Vec<GoldenPanelState> {
 
 /// Compare behavioral state against golden. Panel order must match DFS traversal.
 pub fn compare_behavioral(
+    test_name: &str,
     actual: &[(bool, bool)],
     expected: &[GoldenPanelState],
     panel_names: &[&str],
 ) -> Result<(), CompareError> {
     if actual.len() != expected.len() {
-        return Err(CompareError {
-            message: format!(
-                "Panel count mismatch: actual={} expected={}",
-                actual.len(),
-                expected.len()
-            ),
-        });
+        let msg = format!(
+            "Panel count mismatch: actual={} expected={}",
+            actual.len(),
+            expected.len()
+        );
+        emit_divergence(&format!(
+            r#"{{"test":{test_name:?},"type":"behavioral","panels":{0},"expected":{1},"pass":false}}"#,
+            actual.len(),
+            expected.len()
+        ));
+        return Err(CompareError { message: msg });
     }
+    let mut mismatches = 0;
     for (i, ((a_active, a_path), e)) in actual.iter().zip(expected.iter()).enumerate() {
-        let name = panel_names.get(i).copied().unwrap_or("?");
         if *a_active != e.is_active || *a_path != e.in_active_path {
-            return Err(CompareError {
-                message: format!(
-                    "Panel {i} ({name}) mismatch:\n  \
-                     actual =(active={a_active}, in_path={a_path})\n  \
-                     expected=(active={}, in_path={})",
-                    e.is_active, e.in_active_path
-                ),
-            });
+            mismatches += 1;
+        }
+    }
+    let pass = mismatches == 0;
+    emit_divergence(&format!(
+        r#"{{"test":{test_name:?},"type":"behavioral","panels":{},"mismatches":{mismatches},"pass":{pass}}}"#,
+        actual.len()
+    ));
+    if !pass {
+        // Find first mismatch for error message
+        for (i, ((a_active, a_path), e)) in actual.iter().zip(expected.iter()).enumerate() {
+            let pname = panel_names.get(i).copied().unwrap_or("?");
+            if *a_active != e.is_active || *a_path != e.in_active_path {
+                return Err(CompareError {
+                    message: format!(
+                        "Panel {i} ({pname}) mismatch:\n  \
+                         actual =(active={a_active}, in_path={a_path})\n  \
+                         expected=(active={}, in_path={})",
+                        e.is_active, e.in_active_path
+                    ),
+                });
+            }
         }
     }
     Ok(())
@@ -519,12 +540,18 @@ pub const NOTICE_FULL_MASK: u32 = 0x0FFF;
 /// Compare actual Rust NoticeFlags against C++ golden notice data.
 /// `mask` GetFilters which bits are compared (use NOTICE_ACTION_MASK or NOTICE_FULL_MASK).
 pub fn compare_notices(
+    test_name: &str,
     actual: &[u32],
     expected: &[GoldenNoticeState],
     panel_names: &[&str],
     mask: u32,
 ) -> Result<(), CompareError> {
     if actual.len() != expected.len() {
+        emit_divergence(&format!(
+            r#"{{"test":{test_name:?},"type":"notice","panels":{0},"expected":{1},"pass":false}}"#,
+            actual.len(),
+            expected.len()
+        ));
         return Err(CompareError {
             message: format!(
                 "Panel count mismatch: actual={} expected={}",
@@ -533,22 +560,35 @@ pub fn compare_notices(
             ),
         });
     }
+    let mut mismatches = 0;
+    let mut first_err: Option<CompareError> = None;
     for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
         let name = panel_names.get(i).copied().unwrap_or("?");
         let translated = translate_cpp_notice_flags(e.cpp_flags) & mask;
         let masked_actual = *a & mask;
         if masked_actual != translated {
-            return Err(CompareError {
-                message: format!(
-                    "Panel {i} ({name}) notice mismatch (mask=0x{mask:04x}):\n  \
-                     actual  =0x{masked_actual:04x} (rust bits, masked)\n  \
-                     expected=0x{translated:04x} (translated from C++ 0x{:04x}, masked)",
-                    e.cpp_flags
-                ),
-            });
+            mismatches += 1;
+            if first_err.is_none() {
+                first_err = Some(CompareError {
+                    message: format!(
+                        "Panel {i} ({name}) notice mismatch (mask=0x{mask:04x}):\n  \
+                         actual  =0x{masked_actual:04x} (rust bits, masked)\n  \
+                         expected=0x{translated:04x} (translated from C++ 0x{:04x}, masked)",
+                        e.cpp_flags
+                    ),
+                });
+            }
         }
     }
-    Ok(())
+    let pass = mismatches == 0;
+    emit_divergence(&format!(
+        r#"{{"test":{test_name:?},"type":"notice","panels":{},"mismatches":{mismatches},"pass":{pass}}}"#,
+        actual.len()
+    ));
+    match first_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 // ────────────────────── Input golden files ──────────────────────
@@ -595,12 +635,18 @@ pub fn load_input_golden(name: &str) -> Vec<GoldenInputState> {
 /// Compare Input/activation state against golden.
 /// `check_received`: if true, also compare whether the panel received Input.
 pub fn compare_input(
+    test_name: &str,
     actual: &[(bool, bool, bool)],
     expected: &[GoldenInputState],
     panel_names: &[&str],
     check_received: bool,
 ) -> Result<(), CompareError> {
     if actual.len() != expected.len() {
+        emit_divergence(&format!(
+            r#"{{"test":{test_name:?},"type":"input","panels":{0},"expected":{1},"pass":false}}"#,
+            actual.len(),
+            expected.len()
+        ));
         return Err(CompareError {
             message: format!(
                 "Panel count mismatch: actual={} expected={}",
@@ -609,21 +655,34 @@ pub fn compare_input(
             ),
         });
     }
+    let mut mismatches = 0;
+    let mut first_err: Option<CompareError> = None;
     for (i, ((a_recv, a_active, a_path), e)) in actual.iter().zip(expected.iter()).enumerate() {
         let name = panel_names.get(i).copied().unwrap_or("?");
         let recv_mismatch = check_received && *a_recv != e.received_input;
         if recv_mismatch || *a_active != e.is_active || *a_path != e.in_active_path {
-            return Err(CompareError {
-                message: format!(
-                    "Panel {i} ({name}) Input mismatch:\n  \
-                     actual  =(recv={a_recv}, active={a_active}, path={a_path})\n  \
-                     expected=(recv={}, active={}, path={})",
-                    e.received_input, e.is_active, e.in_active_path
-                ),
-            });
+            mismatches += 1;
+            if first_err.is_none() {
+                first_err = Some(CompareError {
+                    message: format!(
+                        "Panel {i} ({name}) Input mismatch:\n  \
+                         actual  =(recv={a_recv}, active={a_active}, path={a_path})\n  \
+                         expected=(recv={}, active={}, path={})",
+                        e.received_input, e.is_active, e.in_active_path
+                    ),
+                });
+            }
         }
     }
-    Ok(())
+    let pass = mismatches == 0;
+    emit_divergence(&format!(
+        r#"{{"test":{test_name:?},"type":"input","panels":{},"mismatches":{mismatches},"pass":{pass}}}"#,
+        actual.len()
+    ));
+    match first_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 // ────────────────────── Trajectory golden files ──────────────────
@@ -690,11 +749,17 @@ pub fn save_trajectory_golden(name: &str, steps: &[TrajectoryStep]) {
 
 /// Compare trajectory against golden data. Returns error with details on first mismatch.
 pub fn compare_trajectory(
+    test_name: &str,
     actual: &[TrajectoryStep],
     expected: &[TrajectoryStep],
     tolerance: f64,
 ) -> Result<(), CompareError> {
     if actual.len() != expected.len() {
+        emit_divergence(&format!(
+            r#"{{"test":{test_name:?},"type":"trajectory","steps":{0},"expected":{1},"tol":{tolerance:.2e},"pass":false}}"#,
+            actual.len(),
+            expected.len()
+        ));
         return Err(CompareError {
             message: format!(
                 "Trajectory length mismatch: actual={} expected={}",
@@ -703,23 +768,39 @@ pub fn compare_trajectory(
             ),
         });
     }
+    let mut max_diff: f64 = 0.0;
+    let mut fail_steps = 0;
+    let mut first_err: Option<CompareError> = None;
     for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
         let dx = (a.vel_x - e.vel_x).abs();
         let dy = (a.vel_y - e.vel_y).abs();
         let dz = (a.vel_z - e.vel_z).abs();
+        let step_max = dx.max(dy).max(dz);
+        max_diff = max_diff.max(step_max);
         if dx > tolerance || dy > tolerance || dz > tolerance {
-            return Err(CompareError {
-                message: format!(
-                    "Trajectory step {i} mismatch (tol={tolerance:.2e}):\n  \
-                     actual  =({:.10e}, {:.10e}, {:.10e})\n  \
-                     expected=({:.10e}, {:.10e}, {:.10e})\n  \
-                     diff    =({dx:.2e}, {dy:.2e}, {dz:.2e})",
-                    a.vel_x, a.vel_y, a.vel_z, e.vel_x, e.vel_y, e.vel_z
-                ),
-            });
+            fail_steps += 1;
+            if first_err.is_none() {
+                first_err = Some(CompareError {
+                    message: format!(
+                        "Trajectory step {i} mismatch (tol={tolerance:.2e}):\n  \
+                         actual  =({:.10e}, {:.10e}, {:.10e})\n  \
+                         expected=({:.10e}, {:.10e}, {:.10e})\n  \
+                         diff    =({dx:.2e}, {dy:.2e}, {dz:.2e})",
+                        a.vel_x, a.vel_y, a.vel_z, e.vel_x, e.vel_y, e.vel_z
+                    ),
+                });
+            }
         }
     }
-    Ok(())
+    let pass = fail_steps == 0;
+    emit_divergence(&format!(
+        r#"{{"test":{test_name:?},"type":"trajectory","steps":{},"fail":{fail_steps},"tol":{tolerance:.2e},"max_diff":{max_diff:.6e},"pass":{pass}}}"#,
+        actual.len()
+    ));
+    match first_err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }
 
 // ────────────────────── Rect comparison ──────────────────────────

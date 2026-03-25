@@ -1,3 +1,4 @@
+// SPLIT: Split from emPanel.h — panel context types extracted
 use crate::emCore::emPanel::PanelBehavior;
 use super::emPanelTree::{PanelId, PanelTree};
 use crate::emCore::emColor::emColor;

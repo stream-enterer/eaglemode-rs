@@ -1,3 +1,4 @@
+// SPLIT: Split from emRec.h — record types extracted
 pub use crate::emCore::emRec::RecError;
 use crate::emCore::emRec::RecStruct;
 

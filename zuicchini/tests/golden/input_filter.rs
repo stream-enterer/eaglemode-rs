@@ -103,7 +103,7 @@ fn filter_wheel_zoom_in() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("filter_wheel_zoom_in", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("filter_wheel_zoom_in: {e}"));
 }
 
@@ -126,7 +126,7 @@ fn filter_wheel_zoom_out() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("filter_wheel_zoom_out", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("filter_wheel_zoom_out: {e}"));
 }
 
@@ -153,7 +153,7 @@ fn filter_wheel_acceleration() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("filter_wheel_acceleration", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("filter_wheel_acceleration: {e}"));
 }
 
@@ -192,7 +192,7 @@ fn filter_middle_pan() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-6).unwrap_or_else(|e| panic!("filter_middle_pan: {e}"));
+    compare_trajectory("filter_middle_pan", &actual, &golden, 1e-6).unwrap_or_else(|e| panic!("filter_middle_pan: {e}"));
 }
 
 #[test]
@@ -236,7 +236,7 @@ fn filter_middle_fling() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("filter_middle_fling", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("filter_middle_fling: {e}"));
 }
 
@@ -265,7 +265,7 @@ fn filter_keyboard_scroll() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-6)
+    compare_trajectory("filter_keyboard_scroll", &actual, &golden, 1e-6)
         .unwrap_or_else(|e| panic!("filter_keyboard_scroll: {e}"));
 }
 
@@ -292,7 +292,7 @@ fn filter_keyboard_zoom() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-4)
+    compare_trajectory("filter_keyboard_zoom", &actual, &golden, 1e-4)
         .unwrap_or_else(|e| panic!("filter_keyboard_zoom: {e}"));
 }
 
@@ -328,6 +328,6 @@ fn filter_keyboard_release() {
         actual.push(read_view_state(&view));
     }
 
-    compare_trajectory(&actual, &golden, 1e-4)
+    compare_trajectory("filter_keyboard_release", &actual, &golden, 1e-4)
         .unwrap_or_else(|e| panic!("filter_keyboard_release: {e}"));
 }

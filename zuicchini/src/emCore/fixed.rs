@@ -57,12 +57,16 @@ impl Fixed12 {
 
     #[inline]
     pub fn ceil(self) -> Self {
-        Self((self.0 + FRAC_MASK) & !FRAC_MASK)
+        // wrapping_add matches C++ signed overflow behavior (two's complement wrap on x86).
+        // Overflow requires raw > i32::MAX - 4095, i.e. coordinates > 524,287 pixels.
+        Self(self.0.wrapping_add(FRAC_MASK) & !FRAC_MASK)
     }
 
     #[inline]
     pub fn round(self) -> Self {
-        Self((self.0 + (SCALE >> 1)) & !FRAC_MASK)
+        // wrapping_add matches C++ signed overflow behavior (two's complement wrap on x86).
+        // Overflow requires raw > i32::MAX - 2048, i.e. coordinates > 524,287 pixels.
+        Self(self.0.wrapping_add(SCALE >> 1) & !FRAC_MASK)
     }
 }
 

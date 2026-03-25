@@ -1,3 +1,4 @@
+// SPLIT: Split from emPainter.h — AVX2 scanline blend extracted
 //! AVX2-accelerated scanline blend functions.
 //!
 //! Processes 4 RGBA pixels per iteration using 256-bit SIMD.
