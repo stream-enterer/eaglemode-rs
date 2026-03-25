@@ -169,6 +169,10 @@ struct SubPixelEdges {
 
 impl SubPixelEdges {
     /// Compute sub-pixel edges from pixel-space float coordinates.
+    // DIVERGED: C++ uses i32 subtraction for `fx2 - fx1`, `fy2 - fy1`, and
+    // `0x1000 - frac` which are signed overflow UB for coordinates that produce
+    // Fixed12 values spanning the full i32 range. Rust uses i64 promotion for
+    // the raw differences. In practice coordinates are bounded by viewport pixels.
     fn new(dx_px: f64, dy_px: f64, dw_px: f64, dh_px: f64) -> Self {
         let fx1 = Fixed12::from_f64(dx_px);
         let fy1 = Fixed12::from_f64(dy_px);
@@ -179,12 +183,12 @@ impl SubPixelEdges {
             iy1: fy1.to_i32(),
             ix2: fx2.ceil().to_i32(),
             iy2: fy2.ceil().to_i32(),
-            frac_left: 0x1000 - fx1.frac(),
+            frac_left: 0x1000i32.saturating_sub(fx1.frac()),
             frac_right: fx2.frac(),
-            frac_top: 0x1000 - fy1.frac(),
+            frac_top: 0x1000i32.saturating_sub(fy1.frac()),
             frac_bottom: fy2.frac(),
-            raw_w: (fx2 - fx1).raw(),
-            raw_h: (fy2 - fy1).raw(),
+            raw_w: (fx2.raw() as i64 - fx1.raw() as i64) as i32,
+            raw_h: (fy2.raw() as i64 - fy1.raw() as i64) as i32,
         }
     }
 

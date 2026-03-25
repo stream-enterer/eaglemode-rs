@@ -90,11 +90,14 @@ fn round_abs(a: f64) -> i32 {
 }
 
 /// Build a Span from polynomial coverage values (in 0-4096 scale).
+// DIVERGED: C++ uses `x + w` (signed i32 addition) which is overflow UB for
+// x near i32::MAX. Rust uses saturating_add so extreme coordinates clamp
+// instead of wrapping. In practice x and w are bounded by viewport pixels.
 fn make_poly_span(x: i32, w: i32, alpha: i32, alpha2: i32, alpha3: i32) -> Span {
     if w == 1 {
         Span {
             x_start: x,
-            x_end: x + 1,
+            x_end: x.saturating_add(1),
             opacity_beg: alpha,
             opacity_mid: alpha,
             opacity_end: alpha,
@@ -102,7 +105,7 @@ fn make_poly_span(x: i32, w: i32, alpha: i32, alpha2: i32, alpha3: i32) -> Span 
     } else if w == 2 {
         Span {
             x_start: x,
-            x_end: x + 2,
+            x_end: x.saturating_add(2),
             opacity_beg: alpha,
             opacity_mid: alpha,
             opacity_end: alpha2,
@@ -110,7 +113,7 @@ fn make_poly_span(x: i32, w: i32, alpha: i32, alpha2: i32, alpha3: i32) -> Span 
     } else {
         Span {
             x_start: x,
-            x_end: x + w,
+            x_end: x.saturating_add(w),
             opacity_beg: alpha,
             opacity_mid: alpha2,
             opacity_end: alpha3,
@@ -636,6 +639,10 @@ fn generate_spans_edge_crossing(aet: &[Edge], clip_x_start: i32, clip_x_end: i32
 }
 
 /// Create a span from fixed-point enter/exit x coordinates with AA coverage.
+// DIVERGED: C++ uses i32 subtraction for `x_exit.raw() - x_enter.raw()` and
+// `px_end - px_start` which are signed overflow UB for extreme Fixed12 values.
+// Rust uses i64 promotion for the coverage difference and saturating_sub for
+// span width. In practice coordinates are bounded by viewport pixels.
 fn make_edge_span(
     x_enter: Fixed12,
     x_exit: Fixed12,
@@ -669,8 +676,8 @@ fn make_edge_span(
         0x1000
     };
 
-    if px_end - px_start == 1 {
-        let coverage = (x_exit.raw() - x_enter.raw()).max(0);
+    if px_end.saturating_sub(px_start) == 1 {
+        let coverage = (x_exit.raw() as i64 - x_enter.raw() as i64).max(0) as i32;
         return Some(Span {
             x_start: px_start,
             x_end: px_end,

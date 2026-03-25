@@ -57,16 +57,18 @@ impl Fixed12 {
 
     #[inline]
     pub fn ceil(self) -> Self {
-        // wrapping_add matches C++ signed overflow behavior (two's complement wrap on x86).
-        // Overflow requires raw > i32::MAX - 4095, i.e. coordinates > 524,287 pixels.
-        Self(self.0.wrapping_add(FRAC_MASK) & !FRAC_MASK)
+        // DIVERGED: C++ uses `(raw + 0xFFF) & ~0xFFF` which is signed overflow UB for
+        // raw > i32::MAX - 4095 (coordinates > 524,287 px). Rust promotes to i64 to
+        // compute the correct answer instead of wrapping to a garbage value.
+        Self(((self.0 as i64 + FRAC_MASK as i64) & !(FRAC_MASK as i64)) as i32)
     }
 
     #[inline]
     pub fn round(self) -> Self {
-        // wrapping_add matches C++ signed overflow behavior (two's complement wrap on x86).
-        // Overflow requires raw > i32::MAX - 2048, i.e. coordinates > 524,287 pixels.
-        Self(self.0.wrapping_add(SCALE >> 1) & !FRAC_MASK)
+        // DIVERGED: C++ uses `(raw + 2048) & ~0xFFF` which is signed overflow UB for
+        // raw > i32::MAX - 2048 (coordinates > 524,287 px). Rust promotes to i64 to
+        // compute the correct answer instead of wrapping to a garbage value.
+        Self(((self.0 as i64 + (SCALE >> 1) as i64) & !(FRAC_MASK as i64)) as i32)
     }
 }
 

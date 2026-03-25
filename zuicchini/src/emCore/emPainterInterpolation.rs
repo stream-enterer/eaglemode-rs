@@ -701,10 +701,14 @@ fn adaptive_factors() -> &'static [[i32; 4]; 257] {
 /// Adaptive 4-value interpolation with anti-ringing slope/peak adaptation.
 /// Matches C++ `InterpolateFourValuesAdaptive` optimized branch exactly.
 /// Returns interpolated value at scale 1024.
+// DIVERGED: C++ uses i32 subtraction for slope differences (v1-v0, v2-v1, v2-v3)
+// which is signed overflow UB when pixel values span the full i32 range. Rust uses
+// saturating subtraction so extreme inputs clamp instead of wrapping. In practice
+// pixel values are 0-255 so this never triggers and the output is identical to C++.
 fn interpolate_four_values_adaptive(v0: i32, mut v1: i32, mut v2: i32, v3: i32, o: u32) -> i64 {
-    let s01 = v1 - v0;
-    let s12 = v2 - v1;
-    let s32 = v2 - v3;
+    let s01 = v1.saturating_sub(v0);
+    let s12 = v2.saturating_sub(v1);
+    let s32 = v2.saturating_sub(v3);
 
     let mut s1: i32 = 0;
     let mut s2: i32 = 0;
