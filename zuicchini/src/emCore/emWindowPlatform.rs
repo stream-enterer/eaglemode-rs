@@ -5,7 +5,7 @@
 // Manual verification only — these require a running display server, audio
 // daemon, and D-Bus session bus respectively.
 
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", not(kani)))]
 mod inner {
     use std::cell::OnceCell;
     use std::ffi::c_void;
@@ -148,7 +148,7 @@ mod inner {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(any(not(target_os = "linux"), kani))]
 mod inner {
     pub(crate) fn system_beep() {}
     pub(crate) fn InhibitScreensaver() -> Option<u32> {
