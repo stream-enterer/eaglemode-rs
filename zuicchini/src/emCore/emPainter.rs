@@ -6423,3 +6423,129 @@ mod tests {
         p.pop_state();
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_adaptive_circle_segments() {
+        let mut p_rx: f64 = kani::any::<f64>();
+        kani::assume(p_rx.is_finite());
+        let mut p_ry: f64 = kani::any::<f64>();
+        kani::assume(p_ry.is_finite());
+        let mut p_scale_x: f64 = kani::any::<f64>();
+        kani::assume(p_scale_x.is_finite());
+        let mut p_scale_y: f64 = kani::any::<f64>();
+        kani::assume(p_scale_y.is_finite());
+        let _r = adaptive_circle_segments(p_rx, p_ry, p_scale_x, p_scale_y);
+    }
+
+    #[kani::proof]
+    fn kani_private_emPainter_cut_arrow() {
+        let mut p_x1: f64 = kani::any::<f64>();
+        kani::assume(p_x1.is_finite());
+        let mut p_y1: f64 = kani::any::<f64>();
+        kani::assume(p_y1.is_finite());
+        let mut p_x2: f64 = kani::any::<f64>();
+        kani::assume(p_x2.is_finite());
+        let mut p_y2: f64 = kani::any::<f64>();
+        kani::assume(p_y2.is_finite());
+        let mut p_r: f64 = kani::any::<f64>();
+        kani::assume(p_r.is_finite());
+        let mut p_l: f64 = kani::any::<f64>();
+        kani::assume(p_l.is_finite());
+        let _r = emPainter::cut_arrow(p_x1, p_y1, p_x2, p_y2, p_r, p_l);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_emPainter_cut_circle() {
+        let mut p_x1: f64 = kani::any::<f64>();
+        kani::assume(p_x1.is_finite());
+        let mut p_y1: f64 = kani::any::<f64>();
+        kani::assume(p_y1.is_finite());
+        let mut p_x2: f64 = kani::any::<f64>();
+        kani::assume(p_x2.is_finite());
+        let mut p_y2: f64 = kani::any::<f64>();
+        kani::assume(p_y2.is_finite());
+        let mut p_r: f64 = kani::any::<f64>();
+        kani::assume(p_r.is_finite());
+        let mut p_l: f64 = kani::any::<f64>();
+        kani::assume(p_l.is_finite());
+        let mut p_s: f64 = kani::any::<f64>();
+        kani::assume(p_s.is_finite());
+        let mut p_semi: bool = kani::any::<bool>();
+        let _r = emPainter::cut_circle(p_x1, p_y1, p_x2, p_y2, p_r, p_l, p_s, p_semi);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_emPainter_cut_diamond() {
+        let mut p_x1: f64 = kani::any::<f64>();
+        kani::assume(p_x1.is_finite());
+        let mut p_y1: f64 = kani::any::<f64>();
+        kani::assume(p_y1.is_finite());
+        let mut p_x2: f64 = kani::any::<f64>();
+        kani::assume(p_x2.is_finite());
+        let mut p_y2: f64 = kani::any::<f64>();
+        kani::assume(p_y2.is_finite());
+        let mut p_r: f64 = kani::any::<f64>();
+        kani::assume(p_r.is_finite());
+        let mut p_l: f64 = kani::any::<f64>();
+        kani::assume(p_l.is_finite());
+        let mut p_semi: bool = kani::any::<bool>();
+        let _r = emPainter::cut_diamond(p_x1, p_y1, p_x2, p_y2, p_r, p_l, p_semi);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_emPainter_cut_square() {
+        let mut p_x1: f64 = kani::any::<f64>();
+        kani::assume(p_x1.is_finite());
+        let mut p_y1: f64 = kani::any::<f64>();
+        kani::assume(p_y1.is_finite());
+        let mut p_x2: f64 = kani::any::<f64>();
+        kani::assume(p_x2.is_finite());
+        let mut p_y2: f64 = kani::any::<f64>();
+        kani::assume(p_y2.is_finite());
+        let mut p_r: f64 = kani::any::<f64>();
+        kani::assume(p_r.is_finite());
+        let mut p_l: f64 = kani::any::<f64>();
+        kani::assume(p_l.is_finite());
+        let _r = emPainter::cut_square(p_x1, p_y1, p_x2, p_y2, p_r, p_l);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_emPainter_cut_triangle() {
+        let mut p_x1: f64 = kani::any::<f64>();
+        kani::assume(p_x1.is_finite());
+        let mut p_y1: f64 = kani::any::<f64>();
+        kani::assume(p_y1.is_finite());
+        let mut p_x2: f64 = kani::any::<f64>();
+        kani::assume(p_x2.is_finite());
+        let mut p_y2: f64 = kani::any::<f64>();
+        kani::assume(p_y2.is_finite());
+        let mut p_r: f64 = kani::any::<f64>();
+        kani::assume(p_r.is_finite());
+        let mut p_l: f64 = kani::any::<f64>();
+        kani::assume(p_l.is_finite());
+        let _r = emPainter::cut_triangle(p_x1, p_y1, p_x2, p_y2, p_r, p_l);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_SubPixelEdges_new() {
+        let mut p_dx_px: f64 = kani::any::<f64>();
+        kani::assume(p_dx_px.is_finite());
+        let mut p_dy_px: f64 = kani::any::<f64>();
+        kani::assume(p_dy_px.is_finite());
+        let mut p_dw_px: f64 = kani::any::<f64>();
+        kani::assume(p_dw_px.is_finite());
+        let mut p_dh_px: f64 = kani::any::<f64>();
+        kani::assume(p_dh_px.is_finite());
+        let _r = SubPixelEdges::new(p_dx_px, p_dy_px, p_dw_px, p_dh_px);
+    }
+}

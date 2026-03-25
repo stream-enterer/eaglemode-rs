@@ -1690,3 +1690,47 @@ mod tests {
         }
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_factor_cfg_to_val() {
+        let mut p_d: f64 = kani::any::<f64>();
+        kani::assume(p_d.is_finite());
+        let mut p_cfg_min: f64 = kani::any::<f64>();
+        kani::assume(p_cfg_min.is_finite());
+        let mut p_cfg_max: f64 = kani::any::<f64>();
+        kani::assume(p_cfg_max.is_finite());
+        let _r = factor_cfg_to_val(p_d, p_cfg_min, p_cfg_max);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_factor_val_to_cfg() {
+        let mut p_value: f64 = kani::any::<f64>();
+        kani::assume(p_value.is_finite());
+        let mut p_cfg_min: f64 = kani::any::<f64>();
+        kani::assume(p_cfg_min.is_finite());
+        let mut p_cfg_max: f64 = kani::any::<f64>();
+        kani::assume(p_cfg_max.is_finite());
+        let _r = factor_val_to_cfg(p_value, p_cfg_min, p_cfg_max);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_mem_cfg_to_val() {
+        let mut p_mb: i32 = kani::any::<i32>();
+        let _r = mem_cfg_to_val(p_mb);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_mem_val_to_cfg() {
+        let mut p_val: f64 = kani::any::<f64>();
+        kani::assume(p_val.is_finite());
+        let _r = mem_val_to_cfg(p_val);
+    }
+}

@@ -3728,3 +3728,15 @@ mod tests {
         let _ = hit;
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_emTextField_is_word_char() {
+        let mut p_ch: char = kani::any::<char>();
+        let _r = emTextField::is_word_char(p_ch);
+    }
+}

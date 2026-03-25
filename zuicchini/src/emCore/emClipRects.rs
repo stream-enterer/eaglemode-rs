@@ -548,3 +548,22 @@ mod tests {
         assert!(!b.IsSubsetOf(&a));
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_ClipRect_new() {
+        let mut p_x1: f64 = kani::any::<f64>();
+        kani::assume(p_x1.is_finite());
+        let mut p_y1: f64 = kani::any::<f64>();
+        kani::assume(p_y1.is_finite());
+        let mut p_x2: f64 = kani::any::<f64>();
+        kani::assume(p_x2.is_finite());
+        let mut p_y2: f64 = kani::any::<f64>();
+        kani::assume(p_y2.is_finite());
+        let _r = ClipRect::new(p_x1, p_y1, p_x2, p_y2);
+    }
+}

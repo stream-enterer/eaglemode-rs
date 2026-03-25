@@ -3543,3 +3543,125 @@ mod tests {
         );
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_accelerate_dim() {
+        let mut p_v: f64 = kani::any::<f64>();
+        kani::assume(p_v.is_finite());
+        let mut p_target: f64 = kani::any::<f64>();
+        kani::assume(p_target.is_finite());
+        let mut p_accel: f64 = kani::any::<f64>();
+        kani::assume(p_accel.is_finite());
+        let mut p_reverse_accel: f64 = kani::any::<f64>();
+        kani::assume(p_reverse_accel.is_finite());
+        let mut p_friction: f64 = kani::any::<f64>();
+        kani::assume(p_friction.is_finite());
+        let mut p_friction_enabled: bool = kani::any::<bool>();
+        let mut p_dt: f64 = kani::any::<f64>();
+        kani::assume(p_dt.is_finite());
+        let _r = accelerate_dim(p_v, p_target, p_accel, p_reverse_accel, p_friction, p_friction_enabled, p_dt);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_get_curve_point() {
+        let mut p_d: f64 = kani::any::<f64>();
+        kani::assume(p_d.is_finite());
+        let _r = get_curve_point(p_d);
+    }
+
+    #[kani::proof]
+    fn kani_private_get_curve_pos_dist() {
+        let mut p_x: f64 = kani::any::<f64>();
+        kani::assume(p_x.is_finite());
+        let mut p_z: f64 = kani::any::<f64>();
+        kani::assume(p_z.is_finite());
+        let _r = get_curve_pos_dist(p_x, p_z);
+    }
+
+    #[kani::proof]
+    fn kani_private_get_direct_dist() {
+        let mut p_x: f64 = kani::any::<f64>();
+        kani::assume(p_x.is_finite());
+        let mut p_z: f64 = kani::any::<f64>();
+        kani::assume(p_z.is_finite());
+        let _r = get_direct_dist(p_x, p_z);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_get_direct_point() {
+        let mut p_x: f64 = kani::any::<f64>();
+        kani::assume(p_x.is_finite());
+        let mut p_z: f64 = kani::any::<f64>();
+        kani::assume(p_z.is_finite());
+        let mut p_d: f64 = kani::any::<f64>();
+        kani::assume(p_d.is_finite());
+        let _r = get_direct_point(p_x, p_z, p_d);
+    }
+
+    #[kani::proof]
+    fn kani_private_emKineticViewAnimator_is_active() {
+        let mut self_val = emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+        let _r = self_val.is_active();
+    }
+
+    #[kani::proof]
+    fn kani_private_emSpeedingViewAnimator_is_active() {
+        let mut self_val = emSpeedingViewAnimator::new(kani::any());
+        let _r = self_val.is_active();
+    }
+
+    #[kani::proof]
+    fn kani_private_emSwipingViewAnimator_is_active() {
+        let mut self_val = emSwipingViewAnimator::new(kani::any());
+        let _r = self_val.is_active();
+    }
+
+    #[kani::proof]
+    fn kani_private_emMagneticViewAnimator_is_active() {
+        let mut self_val = emMagneticViewAnimator::new(kani::any());
+        let _r = self_val.is_active();
+    }
+
+    #[kani::proof]
+    fn kani_private_emKineticViewAnimator_stop() {
+        let mut self_val = emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+        let _r = self_val.stop();
+    }
+
+    #[kani::proof]
+    fn kani_private_emSpeedingViewAnimator_stop() {
+        let mut self_val = emSpeedingViewAnimator::new(kani::any());
+        let _r = self_val.stop();
+    }
+
+    #[kani::proof]
+    fn kani_private_emSwipingViewAnimator_stop() {
+        let mut self_val = emSwipingViewAnimator::new(kani::any());
+        let _r = self_val.stop();
+    }
+
+    #[kani::proof]
+    fn kani_private_emMagneticViewAnimator_stop() {
+        let mut self_val = emMagneticViewAnimator::new(kani::any());
+        let _r = self_val.stop();
+    }
+
+    #[kani::proof]
+    fn kani_private_emKineticViewAnimator_update_busy_state() {
+        let mut self_val = emKineticViewAnimator::new(kani::any(), kani::any(), kani::any(), kani::any());
+        let _r = self_val.update_busy_state();
+    }
+
+    #[kani::proof]
+    fn kani_private_emSwipingViewAnimator_update_busy_state() {
+        let mut self_val = emSwipingViewAnimator::new(kani::any());
+        let _r = self_val.update_busy_state();
+    }
+}

@@ -97,3 +97,15 @@ impl emRenderThreadPool {
         });
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_emRenderThreadPool_compute_count() {
+        let mut p_max_render_threads: i32 = kani::any::<i32>();
+        let _r = emRenderThreadPool::compute_count(p_max_render_threads);
+    }
+}

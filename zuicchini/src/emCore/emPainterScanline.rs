@@ -921,3 +921,35 @@ mod tests {
         assert!(last_width > first_width);
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_make_edge_span() {
+        let mut p_x_enter = crate::emCore::fixed::Fixed12::from_raw(kani::any());
+        let mut p_x_exit = crate::emCore::fixed::Fixed12::from_raw(kani::any());
+        let mut p_clip_x_start: i32 = kani::any::<i32>();
+        let mut p_clip_x_end: i32 = kani::any::<i32>();
+        let _r = make_edge_span(p_x_enter, p_x_exit, p_clip_x_start, p_clip_x_end);
+    }
+
+    #[kani::proof]
+    fn kani_private_make_poly_span() {
+        let mut p_x: i32 = kani::any::<i32>();
+        let mut p_w: i32 = kani::any::<i32>();
+        let mut p_alpha: i32 = kani::any::<i32>();
+        let mut p_alpha2: i32 = kani::any::<i32>();
+        let mut p_alpha3: i32 = kani::any::<i32>();
+        let _r = make_poly_span(p_x, p_w, p_alpha, p_alpha2, p_alpha3);
+    }
+
+    #[kani::proof]
+    fn kani_private_round_abs() {
+        let mut p_a: f64 = kani::any::<f64>();
+        kani::assume(p_a.is_finite());
+        let _r = round_abs(p_a);
+    }
+}

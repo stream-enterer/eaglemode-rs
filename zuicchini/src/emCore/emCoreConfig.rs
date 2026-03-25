@@ -233,3 +233,41 @@ impl emCoreConfig {
         })
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_emCoreConfig_IsSetToDefault() {
+        let mut self_val = emCoreConfig { stick_mouse_when_navigating: kani::any::<bool>(), emulate_middle_button: kani::any::<bool>(), pan_function: kani::any::<bool>(), mouse_zoom_speed: kani::any::<f64>(), mouse_scroll_speed: kani::any::<f64>(), mouse_wheel_zoom_speed: kani::any::<f64>(), mouse_wheel_zoom_acceleration: kani::any::<f64>(), keyboard_zoom_speed: kani::any::<f64>(), keyboard_scroll_speed: kani::any::<f64>(), kinetic_zooming_and_scrolling: kani::any::<f64>(), magnetism_radius: kani::any::<f64>(), magnetism_speed: kani::any::<f64>(), visit_speed: kani::any::<f64>(), max_megabytes_per_view: kani::any::<i32>(), max_render_threads: kani::any::<i32>(), allow_simd: kani::any::<bool>(), downscale_quality: kani::any::<i32>(), upscale_quality: kani::any::<i32>() };
+        let _r = self_val.IsSetToDefault();
+    }
+
+    #[kani::proof]
+    fn kani_private_emCoreConfig_SetToDefault() {
+        let mut self_val = emCoreConfig { stick_mouse_when_navigating: kani::any::<bool>(), emulate_middle_button: kani::any::<bool>(), pan_function: kani::any::<bool>(), mouse_zoom_speed: kani::any::<f64>(), mouse_scroll_speed: kani::any::<f64>(), mouse_wheel_zoom_speed: kani::any::<f64>(), mouse_wheel_zoom_acceleration: kani::any::<f64>(), keyboard_zoom_speed: kani::any::<f64>(), keyboard_scroll_speed: kani::any::<f64>(), kinetic_zooming_and_scrolling: kani::any::<f64>(), magnetism_radius: kani::any::<f64>(), magnetism_speed: kani::any::<f64>(), visit_speed: kani::any::<f64>(), max_megabytes_per_view: kani::any::<i32>(), max_render_threads: kani::any::<i32>(), allow_simd: kani::any::<bool>(), downscale_quality: kani::any::<i32>(), upscale_quality: kani::any::<i32>() };
+        let _r = self_val.SetToDefault();
+    }
+
+    #[kani::proof]
+    fn kani_private_clamp_f64() {
+        let mut p_val: f64 = kani::any::<f64>();
+        kani::assume(p_val.is_finite());
+        let mut p_min: f64 = kani::any::<f64>();
+        kani::assume(p_min.is_finite());
+        let mut p_max: f64 = kani::any::<f64>();
+        kani::assume(p_max.is_finite());
+        let _r = clamp_f64(p_val, p_min, p_max);
+        assert!(_r.is_finite());
+    }
+
+    #[kani::proof]
+    fn kani_private_clamp_i32() {
+        let mut p_val: i32 = kani::any::<i32>();
+        let mut p_min: i32 = kani::any::<i32>();
+        let mut p_max: i32 = kani::any::<i32>();
+        let _r = clamp_i32(p_val, p_min, p_max);
+    }
+}

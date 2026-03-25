@@ -170,3 +170,21 @@ impl emWindowStateSaver {
         &self.model
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_WindowGeometry_IsSetToDefault() {
+        let mut self_val = WindowGeometry { x: kani::any::<i32>(), y: kani::any::<i32>(), width: kani::any::<u32>(), height: kani::any::<u32>(), maximized: kani::any::<bool>(), fullscreen: kani::any::<bool>() };
+        let _r = self_val.IsSetToDefault();
+    }
+
+    #[kani::proof]
+    fn kani_private_WindowGeometry_SetToDefault() {
+        let mut self_val = WindowGeometry { x: kani::any::<i32>(), y: kani::any::<i32>(), width: kani::any::<u32>(), height: kani::any::<u32>(), maximized: kani::any::<bool>(), fullscreen: kani::any::<bool>() };
+        let _r = self_val.SetToDefault();
+    }
+}

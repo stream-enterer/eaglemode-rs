@@ -866,3 +866,22 @@ mod tests {
         assert_eq!(dest, dest_copy, "zero coverage should not modify dest");
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_BlendMode_from_state() {
+        let mut p_canvas_color = crate::emCore::emColor::emColor::rgba(kani::any(), kani::any(), kani::any(), kani::any());
+        let mut p_alpha: u8 = kani::any::<u8>();
+        let _r = BlendMode::from_state(p_canvas_color, p_alpha);
+    }
+
+    #[kani::proof]
+    fn kani_private_InterpolationBuffer_new() {
+        let mut p_ch: u8 = kani::any::<u8>();
+        let _r = InterpolationBuffer::new(p_ch);
+    }
+}

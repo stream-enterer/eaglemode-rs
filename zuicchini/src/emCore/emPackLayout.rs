@@ -824,3 +824,21 @@ mod tests {
         }
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_rate_cell() {
+        let mut p_w: f64 = kani::any::<f64>();
+        kani::assume(p_w.is_finite());
+        let mut p_h: f64 = kani::any::<f64>();
+        kani::assume(p_h.is_finite());
+        let mut p_pct: f64 = kani::any::<f64>();
+        kani::assume(p_pct.is_finite());
+        let _r = rate_cell(p_w, p_h, p_pct);
+        assert!(_r.is_finite());
+    }
+}

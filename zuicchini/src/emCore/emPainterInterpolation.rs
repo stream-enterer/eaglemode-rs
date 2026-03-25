@@ -1942,3 +1942,32 @@ mod tests {
         assert_eq!(buf.pixel_rgba(0), [0, 0, 0, 0]);
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_channel_diff() {
+        let mut p_a = kani::any::<[u8; 4]>();
+        let mut p_b = kani::any::<[u8; 4]>();
+        let _r = channel_diff(&p_a, &p_b);
+    }
+
+    #[kani::proof]
+    fn kani_private_interpolate_four_values_adaptive() {
+        let mut p_v0: i32 = kani::any::<i32>();
+        let mut p_v1: i32 = kani::any::<i32>();
+        let mut p_v2: i32 = kani::any::<i32>();
+        let mut p_v3: i32 = kani::any::<i32>();
+        let mut p_o: u32 = kani::any::<u32>();
+        let _r = interpolate_four_values_adaptive(p_v0, p_v1, p_v2, p_v3, p_o);
+    }
+
+    #[kani::proof]
+    fn kani_private_rational_inv() {
+        let mut p_span: i64 = kani::any::<i64>();
+        let _r = rational_inv(p_span);
+    }
+}

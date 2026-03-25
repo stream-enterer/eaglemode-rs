@@ -3687,3 +3687,28 @@ mod tests {
         assert!(vif.magnetism_avoidance());
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_speeding_step() {
+        let mut p_v: f64 = kani::any::<f64>();
+        kani::assume(p_v.is_finite());
+        let mut p_target: f64 = kani::any::<f64>();
+        kani::assume(p_target.is_finite());
+        let mut p_accel: f64 = kani::any::<f64>();
+        kani::assume(p_accel.is_finite());
+        let mut p_reverse_accel: f64 = kani::any::<f64>();
+        kani::assume(p_reverse_accel.is_finite());
+        let mut p_friction: f64 = kani::any::<f64>();
+        kani::assume(p_friction.is_finite());
+        let mut p_friction_enabled: bool = kani::any::<bool>();
+        let mut p_dt: f64 = kani::any::<f64>();
+        kani::assume(p_dt.is_finite());
+        let _r = speeding_step(p_v, p_target, p_accel, p_reverse_accel, p_friction, p_friction_enabled, p_dt);
+        assert!(_r.is_finite());
+    }
+}

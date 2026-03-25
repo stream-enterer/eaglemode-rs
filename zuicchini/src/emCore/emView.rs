@@ -3563,3 +3563,18 @@ mod tests {
         }
     }
 }
+
+
+#[cfg(kani)]
+mod kani_private_proofs {
+    use super::*;
+
+    #[kani::proof]
+    fn kani_private_compute_arrow_count() {
+        let mut p_len: f64 = kani::any::<f64>();
+        kani::assume(p_len.is_finite());
+        let mut p_arrow_distance: f64 = kani::any::<f64>();
+        kani::assume(p_arrow_distance.is_finite());
+        let _r = compute_arrow_count(p_len, p_arrow_distance);
+    }
+}

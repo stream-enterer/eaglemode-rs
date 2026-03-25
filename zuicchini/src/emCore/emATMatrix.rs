@@ -566,3 +566,4 @@ mod tests {
         assert!(matrices_approx_eq(&actual, &expected));
     }
 }
+
