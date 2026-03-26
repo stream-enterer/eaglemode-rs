@@ -545,19 +545,18 @@ impl emView {
         self.needs_animator_abort = true;
         if let Some(state) = self.visit_stack.last_mut() {
             let old_a = state.rel_a;
-            let new_a = (old_a * factor).clamp(0.001, MAX_SVP_SIZE);
-            if (new_a - old_a).abs() < 1e-15 {
-                return;
-            }
-            // C++ emView::Zoom (emView.cpp:794-796):
+            // C++ emView::Zoom (emView.cpp:793-796):
             //   reFac = 1/factor
             //   rx += (fixX - hmx) * (1 - reFac) / pvw
             //   ry += (fixY - hmy) * (1 - reFac) / pvh
-            //   ra *= reFac^2
+            //   ra *= reFac^2            i.e. ra *= 1/factor^2
             //
-            // Rust rel_a = 1/ra, new_a = old_a * factor, so
-            // reFac = 1/sqrt(factor) (since ra *= reFac^2 ↔ rel_a /= reFac^2).
-            let re_fac = 1.0 / factor.sqrt();
+            // Rust rel_a = 1/ra, so rel_a_new = factor^2 * rel_a_old.
+            let new_a = (old_a * factor * factor).clamp(0.001, MAX_SVP_SIZE);
+            if (new_a - old_a).abs() < 1e-15 {
+                return;
+            }
+            let re_fac = 1.0 / factor;
             let vw = self.viewport_width.max(1.0);
             let vh = self.viewport_height.max(1.0);
             let pvw = self.visited_vw.max(1.0);
@@ -2825,8 +2824,8 @@ mod tests {
         view.Zoom(2.0, 400.0, 300.0);
         let after = view.current_visit().clone();
 
-        // rel_a should have doubled
-        assert!((after.rel_a - before.rel_a * 2.0).abs() < 0.01);
+        // C++ Zoom(factor=2): ra *= reFac^2 = 1/4, so rel_a *= 4
+        assert!((after.rel_a - before.rel_a * 4.0).abs() < 0.01);
     }
 
     #[test]

@@ -117,13 +117,12 @@ impl PipelineTestHarness {
         // zoom_out_rel_a and calls update_viewing internally).
         self.view.RawZoomOut(&mut self.tree);
 
-        // Step 2: apply the magnification factor. zoom() multiplies rel_a by
-        // the given factor. Since viewed_width ~ sqrt(rel_a), multiplying
-        // rel_a by level^2 gives level-x linear magnification.
-        // Centering at viewport center keeps rel_x = rel_y = 0.
+        // Step 2: apply the magnification factor. Zoom(factor) squares
+        // internally (ra *= 1/factor^2), so passing `level` directly gives
+        // level-x linear magnification.
         if (level - 1.0).abs() > 1e-12 {
             let (vw, vh) = self.view.viewport_size();
-            self.view.Zoom(level * level, vw * 0.5, vh * 0.5);
+            self.view.Zoom(level, vw * 0.5, vh * 0.5);
         }
 
         // Step 3: refresh viewed Restore for all panels.

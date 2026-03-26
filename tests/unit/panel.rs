@@ -179,7 +179,8 @@ fn view_zoom_and_scroll() {
     assert!((view.current_visit().rel_y - expected_y).abs() < 0.001);
 
     view.Zoom(2.0, 400.0, 300.0);
-    assert!((view.current_visit().rel_a - 2.0).abs() < 0.01);
+    // C++ Zoom(factor=2): ra *= 1/4, rel_a *= 4
+    assert!((view.current_visit().rel_a - 4.0).abs() < 0.01);
 }
 
 #[test]

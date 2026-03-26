@@ -27,8 +27,8 @@ fn setup_vif_view() -> (PanelTree, emView) {
     let mut view = emView::new(root, 800.0, 600.0);
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
-    // C++ Zoom(400,300,100.0) -> ra = ra/(100^2) -> rel_a = 100^2 = 10000
-    view.Zoom(10000.0, 400.0, 300.0);
+    // C++ Zoom(400,300,100.0) -> ra *= 1/100^2 -> rel_a *= 100^2 = 10000
+    view.Zoom(100.0, 400.0, 300.0);
     view.Update(&mut tree);
     view.SetFocused(&mut tree, true);
     (tree, view)

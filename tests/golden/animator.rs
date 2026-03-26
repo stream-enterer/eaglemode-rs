@@ -28,9 +28,9 @@ fn setup_anim_view() -> (PanelTree, emView) {
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
 
-    // Moderate zoom in: rel_a ≈ 4. Gives room to scroll (sqrt(4)=2x panel size)
-    // and room for 60 zoom-in steps at vz=5 (max rel_a ≈ 4 * exp(5/60*60) ≈ 593).
-    view.Zoom(4.0, 400.0, 300.0);
+    // Moderate zoom in: factor=2 matches C++ VisitAnimViewSetup Zoom(400,300,2.0).
+    // rel_a ≈ 4 (ra *= 1/4). Gives room to scroll and zoom further in.
+    view.Zoom(2.0, 400.0, 300.0);
     view.Update(&mut tree);
 
     (tree, view)
@@ -330,7 +330,7 @@ fn setup_anim_view_square_panel() -> (PanelTree, emView) {
     view.flags.insert(ViewFlags::ROOT_SAME_TALLNESS);
     view.Update(&mut tree);
 
-    view.Zoom(4.0, 400.0, 300.0);
+    view.Zoom(2.0, 400.0, 300.0);
     view.Update(&mut tree);
 
     (tree, view)

@@ -3460,9 +3460,11 @@ mod tests {
                     state.rel_y,
                     after.rel_y
                 );
+                // Tolerance scales with rel_a magnitude (higher zoom = larger absolute drift).
+                let a_tol = 1e-10 * state.rel_a.max(1.0);
                 assert!(
-                    (after.rel_a - state.rel_a).abs() < 1e-10,
-                    "factor={factor} step={step}: rel_a moved from {:.15e} to {:.15e}",
+                    (after.rel_a - state.rel_a).abs() < a_tol,
+                    "factor={factor} step={step}: rel_a moved from {:.15e} to {:.15e} (tol={a_tol:.3e})",
                     state.rel_a,
                     after.rel_a
                 );
