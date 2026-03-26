@@ -88,8 +88,17 @@ mod linux {
     use std::cell::RefCell;
     use std::rc::Rc;
 
+    use std::sync::atomic::{AtomicU32, Ordering};
+
     use zuicchini::emCore::emMiniIpc::{emMiniIpcClient, emMiniIpcServer};
     use zuicchini::emCore::emScheduler::EngineScheduler;
+
+    static TEST_COUNTER: AtomicU32 = AtomicU32::new(0);
+
+    fn unique_server_name(prefix: &str) -> String {
+        let id = TEST_COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("{prefix}-{}-{id}", std::process::id())
+    }
 
     #[test]
     fn server_not_found() {
@@ -110,7 +119,7 @@ mod linux {
             }),
         );
 
-        let name = format!("test-mini-ipc-{}", std::process::id());
+        let name = unique_server_name("test-mini-ipc");
         server
             .StartServing(&mut sched, Some(&name))
             .expect("start serving");
@@ -153,7 +162,7 @@ mod linux {
         let mut sched = EngineScheduler::new();
         let mut server = emMiniIpcServer::new(&mut sched, Box::new(|_: &[String]| {}));
 
-        let name = format!("test-cleanup-{}", std::process::id());
+        let name = unique_server_name("test-cleanup");
         server
             .StartServing(&mut sched, Some(&name))
             .expect("start serving");
@@ -182,7 +191,7 @@ mod linux {
             }),
         );
 
-        let name = format!("test-multi-{}", std::process::id());
+        let name = unique_server_name("test-multi");
         server
             .StartServing(&mut sched, Some(&name))
             .expect("start serving");

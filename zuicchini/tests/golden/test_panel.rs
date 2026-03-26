@@ -15,33 +15,33 @@ use std::f64::consts::PI;
 use std::rc::Rc;
 
 use zuicchini::emCore::emColor::emColor;
-use zuicchini::emCore::emImage::emImage;
-use zuicchini::emCore::emResTga::load_tga;
 use zuicchini::emCore::emCursor::emCursor;
+use zuicchini::emCore::emImage::emImage;
 use zuicchini::emCore::emInput::emInputEvent;
 use zuicchini::emCore::emInputState::emInputState;
-use zuicchini::emCore::emLinearLayout::emLinearLayout;
 use zuicchini::emCore::emLinearGroup::emLinearGroup;
-use zuicchini::emCore::emRasterLayout::emRasterLayout;
-use zuicchini::emCore::emRasterGroup::emRasterGroup;
-use zuicchini::emCore::emTiling::{ChildConstraint, Orientation};
+use zuicchini::emCore::emLinearLayout::emLinearLayout;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use zuicchini::emCore::emRasterGroup::emRasterGroup;
+use zuicchini::emCore::emRasterLayout::emRasterLayout;
+use zuicchini::emCore::emResTga::load_tga;
+use zuicchini::emCore::emTiling::{ChildConstraint, Orientation};
 
 use zuicchini::emCore::emPanelCtx::PanelCtx;
 
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
 
-use zuicchini::emCore::emView::{emView, ViewFlags};
 use zuicchini::emCore::emPainter::{emPainter, TextAlignment, VAlign};
+use zuicchini::emCore::emView::{emView, ViewFlags};
 
-use zuicchini::emCore::emStroke::{LineCap, LineJoin, emStroke};
+use zuicchini::emCore::emStroke::{emStroke, LineCap, LineJoin};
 
 use zuicchini::emCore::emStrokeEnd::{emStrokeEnd, StrokeEndType};
 
-use zuicchini::emCore::emTexture::{ImageExtension, ImageQuality, emTexture};
+use zuicchini::emCore::emTexture::{emTexture, ImageExtension, ImageQuality};
 
-use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
 use zuicchini::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
 
 use zuicchini::emCore::emButton::emButton;
 
@@ -66,6 +66,8 @@ use zuicchini::emCore::emSplitter::emSplitter;
 use zuicchini::emCore::emTextField::emTextField;
 
 use zuicchini::emCore::emTunnel::emTunnel;
+
+use zuicchini::emCore::emFileSelectionBox::emFileSelectionBox;
 
 use super::common::*;
 
@@ -296,32 +298,6 @@ impl PanelBehavior for SplitterPanel {
 // ═══════════════════════════════════════════════════════════════════
 // Stub panels for unported C++ types
 // ═══════════════════════════════════════════════════════════════════
-
-/// Stub for C++ emFileSelectionBox — renders a Group border with caption.
-struct FileSelectionBoxStubPanel {
-    border: emBorder,
-    look: Rc<emLook>,
-}
-
-impl FileSelectionBoxStubPanel {
-    fn new(look: Rc<emLook>) -> Self {
-        let border = emBorder::new(OuterBorderType::Group)
-            .with_inner(InnerBorderType::Group)
-            .with_caption("File Selection");
-        Self { border, look }
-    }
-}
-
-impl PanelBehavior for FileSelectionBoxStubPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
-    }
-
-    fn auto_expand(&self) -> bool {
-        true
-    }
-}
 
 /// Canvas panel for PolyDrawPanel — gradient background + polygon drawing.
 /// Extracted from the original PolyDrawPanel.
@@ -827,7 +803,14 @@ impl PanelBehavior for TestPanel {
         let panel_h = h / w;
 
         painter.PaintRect(0.0, 0.0, 1.0, panel_h, bg, emColor::TRANSPARENT);
-        painter.PaintRectOutline(0.01, 0.01, 0.98, panel_h - 0.02, &emStroke::new(fg, 0.02), bg);
+        painter.PaintRectOutline(
+            0.01,
+            0.01,
+            0.98,
+            panel_h - 0.02,
+            &emStroke::new(fg, 0.02),
+            bg,
+        );
 
         // Title
         painter.PaintTextBoxed(
@@ -1037,9 +1020,9 @@ impl PanelBehavior for TkTestGrpPanel {
         if let Some(sp) = ctx.find_child_by_name("sp") {
             ctx.layout_child(sp, cr.x, cr.y, cr.w, cr.h);
         }
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1279,9 +1262,7 @@ impl TkTestPanel {
             sf5.SetEditable(true);
             sf5.SetValue(14400000.0);
             // C++ emTestPanel.cpp:636
-            sf5.SetScaleMarkIntervals(&[
-                3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1,
-            ]);
+            sf5.SetScaleMarkIntervals(&[3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1]);
             sf5.SetTextOfValueFunc(Box::new(|val, _interval| {
                 let ms = val.unsigned_abs();
                 let s = ms / 1000;
@@ -1298,9 +1279,7 @@ impl TkTestPanel {
             sf6.SetCaption("Play Position");
             sf6.SetEditable(true);
             // C++ emTestPanel.cpp:643
-            sf6.SetScaleMarkIntervals(&[
-                3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1,
-            ]);
+            sf6.SetScaleMarkIntervals(&[3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1]);
             sf6.SetTextOfValueFunc(Box::new(|val, _interval| {
                 let ms = val.unsigned_abs();
                 let s = ms / 1000;
@@ -1501,7 +1480,8 @@ impl TkTestPanel {
                 if checked {
                     cb.SetChecked(true);
                 }
-                ctx.tree.set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));
+                ctx.tree
+                    .set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));
             }
             ctx.tree.set_behavior(rl_id, Box::new(rl));
 
@@ -1514,7 +1494,7 @@ impl TkTestPanel {
             );
         }
 
-        // 10. File Selection (C++ :833-858) — stub, emFileSelectionBox not ported
+        // 10. File Selection (C++ :750-764)
         let gid = Self::make_category(
             ctx.tree,
             grid_id,
@@ -1525,8 +1505,14 @@ impl TkTestPanel {
         );
         {
             let id = ctx.tree.create_child(gid, "fsb");
-            ctx.tree
-                .set_behavior(id, Box::new(FileSelectionBoxStubPanel::new(look.clone())));
+            let mut fsb = emFileSelectionBox::new("File Selection Box");
+            fsb.set_filters(&[
+                "All Files (*)".to_string(),
+                "Image Files (*.bmp *.gif *.jpg *.png *.tga)".to_string(),
+                "HTML Files (*.htm *.html)".to_string(),
+            ]);
+            fsb.set_parent_directory(std::path::Path::new("/nonexistent_golden_test_dir"));
+            ctx.tree.set_behavior(id, Box::new(fsb));
 
             let id = ctx.tree.create_child(gid, "open");
             ctx.tree.set_behavior(
@@ -1589,9 +1575,9 @@ impl PanelBehavior for TkTestPanel {
         if let Some(grid) = ctx.find_child_by_name("grid") {
             ctx.layout_child(grid, cr.x, cr.y, cr.w, cr.h);
         }
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -1624,7 +1610,11 @@ impl PolyDrawPanel {
     }
 
     /// Create the 16-method emRadioBox group under a parent.
-    fn create_method_radio(tree: &mut PanelTree, parent_context: PanelId, look: &Rc<emLook>) -> PanelId {
+    fn create_method_radio(
+        tree: &mut PanelTree,
+        parent_context: PanelId,
+        look: &Rc<emLook>,
+    ) -> PanelId {
         let mut rg = emRasterGroup::new();
         rg.border.SetBorderScaling(1.5);
         rg.border.caption = "Method".to_string();
@@ -1664,7 +1654,11 @@ impl PolyDrawPanel {
     }
 
     /// Create a 4-option dash type emRadioBox group.
-    fn create_dash_radio(tree: &mut PanelTree, parent_context: PanelId, look: &Rc<emLook>) -> PanelId {
+    fn create_dash_radio(
+        tree: &mut PanelTree,
+        parent_context: PanelId,
+        look: &Rc<emLook>,
+    ) -> PanelId {
         let mut rg = emRasterGroup::new();
         rg.border.SetBorderScaling(1.5);
         rg.border.caption = "Dash Type".to_string();
@@ -2041,9 +2035,9 @@ impl PanelBehavior for PolyDrawPanel {
         if let Some(layout) = ctx.find_child_by_name("layout") {
             ctx.layout_child(layout, cr.x, cr.y, cr.w, cr.h);
         }
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }

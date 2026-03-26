@@ -127,6 +127,9 @@ mod platform {
         let host = hostname();
         let username = std::env::var("USER").unwrap_or_default();
 
+        // C++ emMiniIpc_CalcFifoBaseName builds: host\0user\0server_name
+        // and passes the full buffer (with embedded nulls) to emCalcHashName
+        // with hash_len=40. emCalcHashName processes all bytes including nulls.
         let mut data = Vec::new();
         data.extend_from_slice(host.as_bytes());
         data.push(0);
@@ -134,8 +137,7 @@ mod platform {
         data.push(0);
         data.extend_from_slice(server_name.as_bytes());
 
-        let hash = crate::emCore::emStd2::emCalcHashCode(&data, 0);
-        format!("{hash:08x}")
+        crate::emCore::emStd2::emCalcHashName(&data, 40)
     }
 
     fn fifo_path(server_name: &str) -> PathBuf {

@@ -5,6 +5,9 @@ edition = "2021"
 description = "A zoomable UI framework inspired by Eagle Mode's emCore"
 license = "MIT"
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(kani)'] }
+
 [dev-dependencies]
 rand = "0.9"
 criterion = { version = "0.8", features = ["html_reports"] }

@@ -9,18 +9,18 @@ use zuicchini::emCore::emColor::emColor;
 use zuicchini::emCore::emCursor::emCursor;
 use zuicchini::emCore::emInput::emInputEvent;
 use zuicchini::emCore::emInputState::emInputState;
-use zuicchini::emCore::emRasterLayout::emRasterLayout;
-use zuicchini::emCore::emRasterGroup::emRasterGroup;
 use zuicchini::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+use zuicchini::emCore::emRasterGroup::emRasterGroup;
+use zuicchini::emCore::emRasterLayout::emRasterLayout;
 
 use zuicchini::emCore::emPanelCtx::PanelCtx;
 
 use zuicchini::emCore::emPanelTree::{PanelId, PanelTree, ViewConditionType};
 
-use zuicchini::emCore::emView::{emView, ViewFlags};
-use zuicchini::emCore::emPainter::emPainter;
-use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
 use zuicchini::emCore::emBorder::{emBorder, InnerBorderType, OuterBorderType};
+use zuicchini::emCore::emPainter::emPainter;
+use zuicchini::emCore::emView::{emView, ViewFlags};
+use zuicchini::emCore::emViewRenderer::SoftwareCompositor;
 
 use zuicchini::emCore::emButton::emButton;
 
@@ -43,6 +43,8 @@ use zuicchini::emCore::emScalarField::emScalarField;
 use zuicchini::emCore::emTextField::emTextField;
 
 use zuicchini::emCore::emTunnel::emTunnel;
+
+use zuicchini::emCore::emFileSelectionBox::emFileSelectionBox;
 
 use super::common::*;
 
@@ -226,37 +228,6 @@ impl PanelBehavior for ListBoxPanel {
         self.widget.Input(e, _s, _is)
     }
     fn IsOpaque(&self) -> bool {
-        true
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// Stub panels for unported C++ types
-// ═══════════════════════════════════════════════════════════════════
-
-
-/// Stub for C++ emFileSelectionBox — renders a Group border with caption.
-struct FileSelectionBoxStubPanel {
-    border: emBorder,
-    look: Rc<emLook>,
-}
-
-impl FileSelectionBoxStubPanel {
-    fn new(look: Rc<emLook>) -> Self {
-        let border = emBorder::new(OuterBorderType::Group)
-            .with_inner(InnerBorderType::Group)
-            .with_caption("File Selection");
-        Self { border, look }
-    }
-}
-
-impl PanelBehavior for FileSelectionBoxStubPanel {
-    fn Paint(&mut self, p: &mut emPainter, w: f64, h: f64, s: &PanelState) {
-        self.border
-            .paint_border(p, w, h, &self.look, s.is_focused(), s.enabled, 1.0);
-    }
-
-    fn auto_expand(&self) -> bool {
         true
     }
 }
@@ -460,10 +431,8 @@ impl TkTestPanel {
             let mut sf1 = emScalarField::new(0.0, 100.0, look.clone());
             sf1.SetCaption("Read-Only");
             let id = ctx.tree.create_child(gid, "sf1");
-            ctx.tree.set_behavior(
-                id,
-                Box::new(ScalarFieldPanel { widget: sf1 }),
-            );
+            ctx.tree
+                .set_behavior(id, Box::new(ScalarFieldPanel { widget: sf1 }));
 
             let mut sf2 = emScalarField::new(0.0, 100.0, look.clone());
             sf2.SetCaption("Editable");
@@ -494,9 +463,7 @@ impl TkTestPanel {
             sf5.SetEditable(true);
             sf5.SetValue(14400000.0);
             // C++ emTestPanel.cpp:636
-            sf5.SetScaleMarkIntervals(&[
-                3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1,
-            ]);
+            sf5.SetScaleMarkIntervals(&[3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1]);
             sf5.SetTextOfValueFunc(Box::new(|val, _interval| {
                 let ms = val.unsigned_abs();
                 let s = ms / 1000;
@@ -512,9 +479,7 @@ impl TkTestPanel {
             sf6.SetCaption("Play Position");
             sf6.SetEditable(true);
             // C++ emTestPanel.cpp:643
-            sf6.SetScaleMarkIntervals(&[
-                3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1,
-            ]);
+            sf6.SetScaleMarkIntervals(&[3600000, 900000, 300000, 60000, 10000, 1000, 100, 10, 1]);
             sf6.SetTextOfValueFunc(Box::new(|val, _interval| {
                 let ms = val.unsigned_abs();
                 let s = ms / 1000;
@@ -583,14 +548,11 @@ impl TkTestPanel {
             t2.SetDepth(30.0);
             ctx.tree.set_behavior(tid, Box::new(t2));
             let child = ctx.tree.create_child(tid, "e");
-            ctx.tree.set_behavior(
-                child,
-                {
-                    let mut rg = emRasterGroup::new();
-                    rg.border.caption = "End Of Tunnel".to_string();
-                    Box::new(rg)
-                },
-            );
+            ctx.tree.set_behavior(child, {
+                let mut rg = emRasterGroup::new();
+                rg.border.caption = "End Of Tunnel".to_string();
+                Box::new(rg)
+            });
 
             // t3: square end (childTallness=1.0)
             let tid = ctx.tree.create_child(gid, "t3");
@@ -598,14 +560,11 @@ impl TkTestPanel {
             t3.SetChildTallness(1.0);
             ctx.tree.set_behavior(tid, Box::new(t3));
             let child = ctx.tree.create_child(tid, "e");
-            ctx.tree.set_behavior(
-                child,
-                {
-                    let mut rg = emRasterGroup::new();
-                    rg.border.caption = "End Of Tunnel".to_string();
-                    Box::new(rg)
-                },
-            );
+            ctx.tree.set_behavior(child, {
+                let mut rg = emRasterGroup::new();
+                rg.border.caption = "End Of Tunnel".to_string();
+                Box::new(rg)
+            });
 
             // t4: square end, zero depth
             let tid = ctx.tree.create_child(gid, "t4");
@@ -614,25 +573,15 @@ impl TkTestPanel {
             t4.SetDepth(0.0);
             ctx.tree.set_behavior(tid, Box::new(t4));
             let child = ctx.tree.create_child(tid, "e");
-            ctx.tree.set_behavior(
-                child,
-                {
-                    let mut rg = emRasterGroup::new();
-                    rg.border.caption = "End Of Tunnel".to_string();
-                    Box::new(rg)
-                },
-            );
+            ctx.tree.set_behavior(child, {
+                let mut rg = emRasterGroup::new();
+                rg.border.caption = "End Of Tunnel".to_string();
+                Box::new(rg)
+            });
         }
 
         // 8. List Boxes (C++ :756-798)
-        let gid = Self::make_category(
-            ctx.tree,
-            ctx.id,
-            "listboxes",
-            "List Boxes",
-            Some(0.4),
-            None,
-        );
+        let gid = Self::make_category(ctx.tree, ctx.id, "listboxes", "List Boxes", Some(0.4), None);
         {
             let items7: Vec<String> = (1..=7).map(|i| format!("Item {i}")).collect();
 
@@ -640,10 +589,8 @@ impl TkTestPanel {
             let mut lb1 = emListBox::new(look.clone());
             lb1.SetCaption("Empty");
             let id = ctx.tree.create_child(gid, "l1");
-            ctx.tree.set_behavior(
-                id,
-                Box::new(ListBoxPanel { widget: lb1 }),
-            );
+            ctx.tree
+                .set_behavior(id, Box::new(ListBoxPanel { widget: lb1 }));
 
             let mut lb2 = emListBox::new(look.clone());
             lb2.SetCaption("Single-Selection");
@@ -729,7 +676,8 @@ impl TkTestPanel {
                 if checked {
                     cb.SetChecked(true);
                 }
-                ctx.tree.set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));
+                ctx.tree
+                    .set_behavior(id, Box::new(CheckBoxPanel { widget: cb }));
             }
             ctx.tree.set_behavior(rl_id, Box::new(rl));
 
@@ -742,7 +690,7 @@ impl TkTestPanel {
             );
         }
 
-        // 10. File Selection (C++ :833-858) — stub
+        // 10. File Selection (C++ :750-764)
         let gid = Self::make_category(
             ctx.tree,
             ctx.id,
@@ -753,8 +701,14 @@ impl TkTestPanel {
         );
         {
             let id = ctx.tree.create_child(gid, "fsb");
-            ctx.tree
-                .set_behavior(id, Box::new(FileSelectionBoxStubPanel::new(look.clone())));
+            let mut fsb = emFileSelectionBox::new("File Selection Box");
+            fsb.set_filters(&[
+                "All Files (*)".to_string(),
+                "Image Files (*.bmp *.gif *.jpg *.png *.tga)".to_string(),
+                "HTML Files (*.htm *.html)".to_string(),
+            ]);
+            fsb.set_parent_directory(std::path::Path::new("/nonexistent_golden_test_dir"));
+            ctx.tree.set_behavior(id, Box::new(fsb));
 
             // C++ emTestPanel.cpp:759-763
             let id = ctx.tree.create_child(gid, "openFile");
@@ -812,9 +766,9 @@ impl PanelBehavior for TkTestPanel {
         // (matches C++ emRasterGroup::LayoutChildren → emRasterLayout)
         let cr = self.border.GetContentRect(rect.w, rect.h, &self.look);
         self.layout.do_layout_skip(ctx, None, Some(cr));
-        let cc = self
-            .border
-            .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
+        let cc =
+            self.border
+                .content_canvas_color(ctx.GetCanvasColor(), &self.look, ctx.is_enabled());
         ctx.set_all_children_canvas_color(cc);
     }
 }
@@ -856,15 +810,7 @@ fn composition_tktest_1x() {
     // After fixing captions, removing grid indirection, and using real emTunnel,
     // remaining ~11% (at tol=0) is from widget-level rendering differences
     // (border image interpolation, text positioning, scalar field arrows).
-    let result = compare_images(
-        "tktest_1x",
-        actual,
-        expected_data,
-        w,
-        h,
-        3,
-        12.0,
-    );
+    let result = compare_images("tktest_1x", actual, expected_data, w, h, 3, 12.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("tktest_1x", actual, expected_data, w, h);
         analyze_diff_distribution(actual, expected_data, w, h, 3);
@@ -910,15 +856,7 @@ fn composition_tktest_2x() {
 
     // TkTestPanel at 2x zoom amplifies layout GetPos differences.
     // Zoom shifts expose border-rounding rects that differ from C++ at sub-pixel level.
-    let result = compare_images(
-        "tktest_2x",
-        actual,
-        expected_data,
-        w,
-        h,
-        3,
-        75.0,
-    );
+    let result = compare_images("tktest_2x", actual, expected_data, w, h, 3, 75.0);
     if result.is_err() && dump_golden_enabled() {
         dump_test_images("tktest_2x", actual, expected_data, w, h);
         analyze_diff_distribution(actual, expected_data, w, h, 3);
