@@ -1,0 +1,11 @@
+FAIL: proofs_generated.rs has no C++ header, no .rust_only, and no SPLIT: comment
+FAIL: proofs_layer3.rs has no C++ header, no .rust_only, and no SPLIT: comment
+{
+  "cpp_headers": 90,
+  "rust_files": 101,
+  "no_rust_equivalent": 15,
+  "rust_only": 5,
+  "errors": 2,
+  "warnings": 0
+}
+Correspondence audit failed with 2 error(s).

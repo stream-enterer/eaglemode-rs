@@ -1,16 +1,13 @@
-# sosumi-7
+# eaglemode-rs
 
-Cargo workspace with two crates:
-- `zuicchini/` — UI framework library (reimplementation of Eagle Mode's emCore in Rust)
-- `sosumi-7/` — game binary (stubbed), depends on zuicchini via path 
+A zoomable UI framework — reimplementation of Eagle Mode's emCore in Rust.
 
 ## Commands
 
 ```bash
-cargo check --workspace
-cargo clippy --workspace -- -D warnings
-cargo-nextest ntr --workspace
-cargo run -p sosumi-7
+cargo check
+cargo clippy -- -D warnings
+cargo-nextest ntr
 ```
 
 ## Pre-commit hook
@@ -32,7 +29,7 @@ For any task of the form "identify/filter/classify code by property P": Is P a p
 - **Imports**: std → external → `crate::`. Explicit names. `use super::*` only in `#[cfg(test)]`.
 - **Construction**: `new()` primary, builder `with_*(self) -> Self` for optional config.
 - **Modules**: One primary type per file. Private `mod` + public `use` re-exports in `mod.rs`.
-- **Visibility**: `pub(crate)` default. `pub` only for library API consumed by `sosumi-7`.
+- **Visibility**: `pub(crate)` default. `pub` only for the library's public API.
 - **Unwrap**: `expect("reason")` unless invariant is obvious from context. Bare `unwrap()` fine in tests and same-line proofs.
 - **Warnings**: Fix the cause (remove dead code, prefix `_`, apply clippy fix). Suppress only genuine false positives with a comment.
 
@@ -50,9 +47,9 @@ Filesystem markers in `src/emCore/`:
 - C++ headers with no Rust equivalent (e.g., `emArray.h` → `Vec<T>`) get an empty marker file: `emArray.no_rust_equivalent`. Lists all exempt headers visibly on the filesystem.
 - Rust files with no C++ header get an empty marker file alongside them: `rect.rust_only`. Identifies Rust-only code visibly on the filesystem.
 
-## Port Fidelity (zuicchini)
+## Port Fidelity
 
-zuicchini is a port of Eagle Mode's emCore. Golden tests compare Rust pixel output against C++ reference data. The fidelity rules depend on what layer the code is in.
+eaglemode-rs is a port of Eagle Mode's emCore. Golden tests compare Rust pixel output against C++ reference data. The fidelity rules depend on what layer the code is in.
 
 **Pixel arithmetic** (blend, coverage, interpolation, sampling): Reproduce C++ integer formulas exactly. Use `(x*257+0x8073)>>16` not `f64` division. Wrap in newtypes (`Fixed12`, `div255_round()`). Named constants with derivations: `const BLINN_BIAS: u32 = 0x8073; // (128 * 257 + 1) / 2`. No f64 approximations in the compositing pipeline.
 
@@ -66,8 +63,8 @@ zuicchini is a port of Eagle Mode's emCore. Golden tests compare Rust pixel outp
 
 - Run: `MEASURE_DIVERGENCE=1 cargo test --test golden -- --test-threads=1`
 - Diff images: `DUMP_GOLDEN=1 cargo test --test golden <name>`
-- Generator: `make -C zuicchini/tests/golden/gen && make -C zuicchini/tests/golden/gen run`
-- Comparison functions in `zuicchini/tests/golden/common.rs`: pixel (ch_tol + max_fail_pct), rect (f64 eps), behavioral/notice/input (exact), trajectory (f64 tol).
+- Generator: `make -C tests/golden/gen && make -C tests/golden/gen run`
+- Comparison functions in `tests/golden/common.rs`: pixel (ch_tol + max_fail_pct), rect (f64 eps), behavioral/notice/input (exact), trajectory (f64 tol).
 
 ## Do NOT
 

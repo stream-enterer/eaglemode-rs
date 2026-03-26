@@ -1,0 +1,8 @@
+{
+  "cpp_headers": 90,
+  "rust_files": 101,
+  "no_rust_equivalent": 15,
+  "rust_only": 5,
+  "errors": 2,
+  "warnings": 0
+}
