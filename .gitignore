@@ -2,3 +2,6 @@
 
 # Cargo cache file that leaks into src/
 zuicchini/src/.rustc_info.json
+
+# LLVM coverage profiling data dumped by Kani harness runs
+*.profraw

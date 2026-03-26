@@ -1,0 +1,4 @@
+[env]
+# Direct LLVM coverage profiling data (from Kani harness runs) into target/
+# instead of polluting the project root.
+LLVM_PROFILE_FILE = { value = "target/profraw/default_%m_%p.profraw", force = false }
