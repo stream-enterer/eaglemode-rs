@@ -125,3 +125,21 @@ OPEN QUESTIONS:
   - emClipRects.h uses a raw linked list internally (not emList<>) and calls
     emSortSingleLinkedList. The Rust emClipRects uses Vec<Rect> instead. Whether
     performance characteristics differ for large clip rect sets is untested.
+
+C++ usage outside emCore (16 files):
+  include/emClock/emTimeZonesModel.h
+  include/emJson/emJsonException.h
+  include/emJson/emJsonParser.h
+  include/emOsm/emOsmTileCacheCleaner.h
+  include/emStocks/emStocksControlPanel.h
+  include/emStocks/emStocksItemPanel.h
+  include/emStocks/emStocksListBox.h
+  include/emStocks/emStocksPricesFetcher.h
+  include/emTest/emTestPanel.h
+  src/emFileMan/emDirModel.cpp
+  src/emPdf/emPdfServerModel.cpp
+  src/emStocks/emStocksControlPanel.cpp
+  src/emStocks/emStocksItemPanel.cpp
+  src/emStocks/emStocksListBox.cpp
+  src/emTest/emTestContainers.cpp
+  src/emTest/emTestPanel.cpp

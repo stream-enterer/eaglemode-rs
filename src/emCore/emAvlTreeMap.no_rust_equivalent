@@ -97,3 +97,11 @@ Coverage gaps:
 
 OPEN QUESTIONS:
   - Whether emFileSelectionBox.rs has ported the deduplication logic from lines 720-721 of the C++ implementation (no HashMap usage found in that file)
+
+C++ usage outside emCore (6 files):
+  include/emFileMan/emFileManTheme.h
+  include/emOsm/emOsmTileCacheCleaner.h
+  include/emStocks/emStocksPricesFetcher.h
+  src/emFileMan/emFileManTheme.cpp
+  src/emStocks/emStocksPricesFetcher.cpp
+  src/emTest/emTestContainers.cpp

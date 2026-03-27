@@ -57,3 +57,7 @@ OPEN QUESTIONS:
   - emTmpFile depends on emModel and emMiniIpc. The Rust port has emMiniIpc
     (src/emCore/emMiniIpc.rs). Does it have sufficient functionality to support
     emTmpFileMaster's liveness-ping pattern if needed?
+
+C++ usage outside emCore (2 files):
+  include/emTmpConv/emTmpConvModel.h
+  src/emTest/emTestContainers.cpp

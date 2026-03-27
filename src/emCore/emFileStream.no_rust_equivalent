@@ -91,3 +91,18 @@ OPEN QUESTIONS:
   - When/if image file model classes (emBmp, emGif, etc.) are ported to Rust, will they
     need an emFileStream equivalent, or will std::io::BufReader/BufWriter + byteorder
     or from_le_bytes suffice?
+
+C++ usage outside emCore (13 files):
+  include/emBmp/emBmpImageFileModel.h
+  include/emGif/emGifFileModel.h
+  include/emIlbm/emIlbmImageFileModel.h
+  include/emPcx/emPcxImageFileModel.h
+  include/emPnm/emPnmImageFileModel.h
+  include/emRas/emRasImageFileModel.h
+  include/emRgb/emRgbImageFileModel.h
+  include/emTga/emTgaImageFileModel.h
+  include/emXpm/emXpmImageFileModel.h
+  src/emGif/emGifFileModel.cpp
+  src/emJpeg/emJpegImageFileModel.cpp
+  src/emTest/emTestContainers.cpp
+  src/emTga/emTgaImageFileModel.cpp

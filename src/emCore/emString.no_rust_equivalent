@@ -121,3 +121,11 @@ OPEN QUESTIONS:
   - The C++ emString is byte-oriented (strlen-based, no encoding assumption). Rust String
     is UTF-8. Whether any emCore code relies on non-UTF-8 byte sequences in strings is
     not verified by this audit.
+
+C++ usage outside emCore (300 files):
+  [Ubiquitous — used in every eaglemode module. Present in all headers and
+  implementations across emAv, emBmp, emClock, emFileMan, emFractal, emGif,
+  emHmiDemo, emIlbm, emJpeg, emJson, emMain, emMines, emNetwalk, emOsm,
+  emPcx, emPdf, emPng, emPnm, emRas, emRgb, emStocks, emSvg, emTest,
+  emText, emTga, emTiff, emTmpConv, emTreeDump, emWebp, emWnds, emX11,
+  emXbm, emXpm, and SilChess.]

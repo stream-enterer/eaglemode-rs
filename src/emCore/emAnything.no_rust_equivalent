@@ -65,3 +65,12 @@ Coverage gaps:
 
 OPEN QUESTIONS:
   - C++ emAnything supports implicit sharing (multiple emAnything values point to same data). The Rust port uses Box<dyn Any> which is not shared. Is any C++ code path relying on shared-copy semantics of emAnything (beyond just passing it around)?
+
+C++ usage outside emCore (7 files):
+  include/emStocks/emStocksControlPanel.h
+  include/emStocks/emStocksItemPanel.h
+  include/emStocks/emStocksListBox.h
+  src/emStocks/emStocksControlPanel.cpp
+  src/emStocks/emStocksItemPanel.cpp
+  src/emStocks/emStocksListBox.cpp
+  src/emTest/emTestContainers.cpp

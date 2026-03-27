@@ -69,3 +69,22 @@ Coverage gaps:
 
 OPEN QUESTIONS:
   - None
+
+C++ usage outside emCore (17 files):
+  include/emAv/emAvClient.h
+  include/emBmp/emBmpImageFileModel.h
+  include/emClock/emTimeZonesModel.h
+  include/emFileMan/emFileManModel.h
+  include/emFileMan/emFileManViewConfig.h
+  include/emGif/emGifFileModel.h
+  include/emGif/emGifImageFileModel.h
+  include/emJpeg/emJpegImageFileModel.h
+  include/emJson/emJsonKeyMap.h
+  include/emMain/emMainWindow.h
+  include/emOsm/emOsmTileCache.h
+  include/emPnm/emPnmImageFileModel.h
+  include/emTga/emTgaImageFileModel.h
+  include/emTmpConv/emTmpConvModel.h
+  include/emWnds/emWndsScreen.h
+  include/emX11/emX11Screen.h
+  include/emXpm/emXpmImageFileModel.h

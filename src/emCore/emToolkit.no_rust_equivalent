@@ -76,3 +76,42 @@ Coverage gaps:
 
 OPEN QUESTIONS:
   - None
+
+C++ usage outside emCore (37 files):
+  include/emAv/emAvFileControlPanel.h
+  include/emAv/emAvLibDirCfg.h
+  include/emClock/emAlarmClockPanel.h
+  include/emClock/emClockFileModel.h
+  include/emClock/emStopwatchPanel.h
+  include/emFileMan/emFileManModel.h
+  include/emHmiDemo/emHmiDemoAnalogDisplay.h
+  include/emHmiDemo/emHmiDemoButton.h
+  include/emHmiDemo/emHmiDemoFile.h
+  include/emHmiDemo/emHmiDemoFillIndicator.h
+  include/emHmiDemo/emHmiDemoFlowIndicator.h
+  include/emHmiDemo/emHmiDemoPanel.h
+  include/emHmiDemo/emHmiDemoPieceGroup.h
+  include/emHmiDemo/emHmiDemoPiece.h
+  include/emMain/emAutoplay.h
+  include/emMain/emBookmarks.h
+  include/emMain/emMainControlPanel.h
+  include/emMines/emMinesControlPanel.h
+  include/emMines/emMinesPanel.h
+  include/emNetwalk/emNetwalkControlPanel.h
+  include/emNetwalk/emNetwalkPanel.h
+  include/emOsm/emOsmControlPanel.h
+  include/emPdf/emPdfControlPanel.h
+  include/emStocks/emStocksFetchPricesDialog.h
+  include/emStocks/emStocksItemChart.h
+  include/emStocks/emStocksItemPanel.h
+  include/emTest/emTestPanel.h
+  include/emText/emTextFileControlPanel.h
+  include/emTreeDump/emTreeDumpControlPanel.h
+  include/SilChess/SilChessControlPanel.h
+  include/SilChess/SilChessPanel.h
+  src/emFileMan/emFileManModel.cpp
+  src/emGif/emGifFilePanel.cpp
+  src/emMain/emMainPanel.cpp
+  src/emShowStdDlg/emShowStdDlg.cpp
+  src/emSvg/emSvgFilePanel.cpp
+  src/emTest/emTestPackLayout.cpp

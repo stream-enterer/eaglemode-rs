@@ -80,3 +80,9 @@ Coverage gaps:
 
 OPEN QUESTIONS:
   - None
+
+C++ usage outside emCore (4 files):
+  include/emOsm/emOsmTileCacheCleaner.h
+  src/emStocks/emStocksListBox.cpp
+  src/emStocks/emStocksRec.cpp
+  src/emTest/emTestContainers.cpp

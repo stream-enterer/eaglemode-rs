@@ -60,3 +60,23 @@ Coverage gaps:
 
 OPEN QUESTIONS:
   - Some C++ code stores emRef<emVarModel<emRef<T>>> (nested references); the Rust equivalent pattern is not verified
+
+C++ usage outside emCore (158 files):
+  [Pervasive — used in virtually every eaglemode module. Key consumers include:]
+  include/emAv/ (6 files) — audio/video models and controls
+  include/emClock/ (7 files) — clock models and panels
+  include/emFileMan/ (11 files) — file manager models and panels
+  include/emFractal/ (2 files) — fractal models
+  include/emGif/ (3 files) — GIF image models
+  include/emMain/ (7 files) — main application models and panels
+  include/emMines/ (2 files) — minesweeper game
+  include/emNetwalk/ (2 files) — netwalk game
+  include/emOsm/ (6 files) — OpenStreetMap viewer
+  include/emPdf/ (7 files) — PDF viewer
+  include/emStocks/ (5 files) — stock tracker
+  include/emSvg/ (3 files) — SVG viewer
+  include/emText/ (3 files) — text viewer
+  include/emTmpConv/ (3 files) — temporary file conversion
+  include/emTreeDump/ (2 files) — tree dump utility
+  include/SilChess/ (3 files) — chess game
+  [Plus corresponding .cpp implementation files for all of the above]

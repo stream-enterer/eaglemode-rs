@@ -48,3 +48,13 @@ Coverage gaps:
 
 OPEN QUESTIONS:
   - None
+
+C++ usage outside emCore (8 files):
+  include/emFileMan/emFileManTheme.h
+  include/emOsm/emOsmTileCacheCleaner.h
+  include/emStocks/emStocksPricesFetcher.h
+  src/emFileMan/emFileManTheme.cpp
+  src/emStocks/emStocksListBox.cpp
+  src/emStocks/emStocksPricesFetcher.cpp
+  src/emStocks/emStocksRec.cpp
+  src/emTest/emTestContainers.cpp
