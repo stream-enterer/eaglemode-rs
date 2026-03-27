@@ -1,0 +1,53 @@
+C++ emArray.h: dynamic array template with copy-on-write and stable iterators.
+
+69 files outside emCore use this type.
+
+Rust equivalent: Vec<T>
+
+Method mapping (verified — identical functionality, different names):
+  GetCount        -> len()
+  SetCount        -> resize() / truncate()
+  Compact         -> shrink_to_fit()
+  Get/operator[]  -> index operator / .get()
+  Set             -> index assignment
+  Add             -> push() / extend()
+  Insert          -> insert()
+  Remove          -> remove()
+  Clear           -> clear()
+  IsEmpty         -> is_empty()
+  Sort            -> sort_by()
+  BinarySearch    -> binary_search_by()
+  GetSubArray     -> slice [a..b] / .to_vec()
+  Extract         -> drain(range).collect()
+  Replace         -> splice()
+  emSortArray     -> slice::sort_by()
+  emBinarySearch  -> slice::binary_search_by()
+
+Composable from stdlib (no direct equivalent, but trivially built):
+  BinaryInsert / BinaryInsertIfNew / BinaryInsertOrReplace /
+  BinaryReplace / BinaryRemove / BinaryRemoveByKey
+    -> binary_search_by() + insert() / remove()
+  NOT VERIFIED: whether any of the 69 outside-emCore files call these methods.
+
+No Rust equivalent exists for:
+  GetWritable / MakeNonShared — COW mutation triggers. Vec has single owner;
+    &mut Vec guarantees exclusive access at compile time.
+  GetDataRefCount — COW refcount. Vec never shares backing data.
+  TuningLevel — controls COW copy thresholds and preallocation strategy.
+  PointerToIndex — converts raw pointer into backing buffer to array index.
+  emArray::Iterator — persistent cursor that survives array mutations and
+    COW clones. Rust iterators borrow the collection immutably.
+
+Semantic differences (unverified impact on app code):
+  COW copy: C++ "emArray b = a" shares data (O(1)), mutation of either
+    triggers deep copy. Rust "let b = a.clone()" always deep copies.
+    NOT VERIFIED: whether any of the 69 outside-emCore files rely on
+    cheap copy semantics or on the original remaining valid after copy.
+
+  Stable iterators: C++ emArray::Iterator auto-adjusts when elements are
+    removed or when COW clone occurs. Rust prevents mutation during iteration.
+    NOT VERIFIED: whether any code mutates an emArray while iterating.
+
+  Persistent cursor: C++ emArray::Iterator can be stored as a struct field
+    and remain valid across method calls. Rust iterators are typically scoped.
+    NOT VERIFIED: whether any code stores an emArray::Iterator as a field.
