@@ -5,3 +5,4 @@ src/.rustc_info.json
 
 # LLVM coverage profiling data dumped by Kani harness runs
 *.profraw
+

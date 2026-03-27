@@ -1,23 +1,37 @@
 use std::fmt;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
-/// Emit a JSONL divergence record to stderr and/or DIVERGENCE_LOG.
-/// Called by all compare_* functions to provide uniform structured output.
-fn emit_divergence(line: &str) {
-    let measure = std::env::var("MEASURE_DIVERGENCE").map_or(false, |v| v == "1");
-    let log_path = std::env::var("DIVERGENCE_LOG").ok();
-    if measure {
-        eprintln!("{line}");
-    }
-    if let Some(ref path) = log_path {
-        if let Ok(mut f) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(path)
-        {
-            let _ = writeln!(f, "{line}");
+/// Path to the current divergence log file.
+/// Rotates on first use: `divergence.jsonl` → `divergence.prev.jsonl`.
+fn divergence_log_path() -> &'static PathBuf {
+    static PATH: OnceLock<PathBuf> = OnceLock::new();
+    PATH.get_or_init(|| {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("target")
+            .join("golden-divergence");
+        let _ = std::fs::create_dir_all(&dir);
+        let current = dir.join("divergence.jsonl");
+        let prev = dir.join("divergence.prev.jsonl");
+        if current.exists() {
+            let _ = std::fs::rename(&current, &prev);
         }
+        current
+    })
+}
+
+/// Append a JSONL divergence record to `tests/golden/divergence.jsonl`.
+fn emit_divergence(line: &str) {
+    let path = divergence_log_path();
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(f, "{line}");
     }
 }
 
@@ -105,16 +119,16 @@ pub fn load_compositor_golden(name: &str) -> (u32, u32, Vec<u8>) {
 ///
 /// Two independent env vars control output, usable separately or together:
 ///
-/// - `MEASURE_DIVERGENCE=1` — emit one JSONL record per call to **stderr**.
-/// - `DIVERGENCE_LOG=<path>` — **append** one JSONL record per call to `<path>`.
-///   Safe to use with parallel test threads: each write is a single `write(2)`
-///   syscall in append GetMode, which is atomic on Linux for records this small.
+/// # Divergence log
 ///
-/// Each record:
+/// Every call appends a tol=0 JSONL record to `tests/golden/divergence.jsonl`
+/// (previous run rotated to `divergence.prev.jsonl`):
+///
 /// ```text
-/// {"test":"<name>","tol":<u8>,"fail":<n>,"total":<n>,"pct":<f>,"max_diff":<u8>,"pass":<bool>}
+/// {"test":"<name>","fail":<n>,"total":<n>,"pct":<f>,"max_diff":<u8>}
 /// ```
-/// Run with `--test-threads=1` for deterministic ordering.
+///
+/// Pass/fail of the test itself still uses the caller-supplied tolerance.
 pub fn compare_images(
     name: &str,
     actual: &[u8],
@@ -124,30 +138,26 @@ pub fn compare_images(
     channel_tolerance: u8,
     max_failure_pct: f64,
 ) -> Result<(), CompareError> {
-    let strict = std::env::var("STRICT_GOLDEN").map_or(false, |v| v == "1");
-    let channel_tolerance = if strict { 0 } else { channel_tolerance };
-    let max_failure_pct = if strict { 0.0 } else { max_failure_pct };
-
     let total = (width * height) as usize;
     assert_eq!(actual.len(), total * 4);
     assert_eq!(expected.len(), total * 4);
 
-    let mut fail_count = 0usize;
+    let mut zero_tol_fail = 0usize;
     let mut max_diff: u8 = 0;
+    let mut fail_count = 0usize;
     let mut first_failures: Vec<(usize, usize, usize)> = Vec::new();
 
     for i in 0..total {
         let off = i * 4;
-        let mut pixel_fail = false;
-        // Compare RGB only (channels 0-2), skip alpha (channel 3)
+        let mut pixel_max = 0u8;
         for ch in 0..3 {
-            let diff = actual[off + ch].abs_diff(expected[off + ch]);
-            if diff > channel_tolerance {
-                pixel_fail = true;
-                max_diff = max_diff.max(diff);
-            }
+            pixel_max = pixel_max.max(actual[off + ch].abs_diff(expected[off + ch]));
         }
-        if pixel_fail {
+        max_diff = max_diff.max(pixel_max);
+        if pixel_max > 0 {
+            zero_tol_fail += 1;
+        }
+        if pixel_max > channel_tolerance {
             fail_count += 1;
             if first_failures.len() < 10 {
                 first_failures.push((i % width as usize, i / width as usize, off));
@@ -155,11 +165,12 @@ pub fn compare_images(
         }
     }
 
-    let fail_pct = fail_count as f64 / total as f64 * 100.0;
-    let pass = fail_pct <= max_failure_pct;
+    let zero_pct = zero_tol_fail as f64 / total as f64 * 100.0;
     emit_divergence(&format!(
-        r#"{{"test":{name:?},"tol":{channel_tolerance},"fail":{fail_count},"total":{total},"pct":{fail_pct:.4},"max_diff":{max_diff},"pass":{pass}}}"#
+        r#"{{"test":{name:?},"fail":{zero_tol_fail},"total":{total},"pct":{zero_pct:.4},"max_diff":{max_diff}}}"#
     ));
+
+    let fail_pct = fail_count as f64 / total as f64 * 100.0;
     if fail_pct > max_failure_pct {
         let mut msg = format!(
             "emImage mismatch: {fail_count}/{total} pixels ({fail_pct:.2}%) exceed tolerance \
