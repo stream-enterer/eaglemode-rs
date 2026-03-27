@@ -1,0 +1,9 @@
+C++ emThread.h: portable threading primitives (threads, mutexes, semaphores, RW locks) wrapping pthreads/Win32.
+
+Superseded by Rust's std::thread and std::sync, which serve the same role natively.
+
+The Rust port also changed the threading model. C++ runs user paint code
+on worker threads with a userSpaceMutex for synchronization. Rust records
+paint ops single-threaded then replays in parallel (see emPainterDrawList),
+because Rc-based panel state is not Send. Consequence: apps that use
+emThread primitives directly need rethinking, not mechanical translation.
