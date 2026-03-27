@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 Rust file: src/emCore/emPainterDrawList.rs
 
 Defines:
@@ -35,3 +39,7 @@ Related C++ code:
 
 OPEN QUESTIONS:
   - The unsafe Send/Sync impls for DrawOp rely on the invariant that emImage pointers remain valid between recording and replay. This is documented in comments but not enforced by the type system.
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================

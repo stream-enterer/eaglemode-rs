@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emString.h
 C++ implementation: src/emCore/emString.cpp
 
@@ -122,6 +126,10 @@ OPEN QUESTIONS:
     is UTF-8. Whether any emCore code relies on non-UTF-8 byte sequences in strings is
     not verified by this audit.
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 C++ usage outside emCore (300 files):
   [Ubiquitous — used in every eaglemode module. Present in all headers and
   implementations across emAv, emBmp, emClock, emFileMan, emFractal, emGif,
@@ -129,3 +137,8 @@ C++ usage outside emCore (300 files):
   emPcx, emPdf, emPng, emPnm, emRas, emRgb, emStocks, emSvg, emTest,
   emText, emTga, emTiff, emTmpConv, emTreeDump, emWebp, emWnds, emX11,
   emXbm, emXpm, and SilChess.]
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

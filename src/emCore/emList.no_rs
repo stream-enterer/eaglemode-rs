@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emList.h
 C++ implementation: src/emCore/emList.cpp
 
@@ -126,6 +130,10 @@ OPEN QUESTIONS:
     emSortSingleLinkedList. The Rust emClipRects uses Vec<Rect> instead. Whether
     performance characteristics differ for large clip rect sets is untested.
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 C++ usage outside emCore (16 files):
   include/emClock/emTimeZonesModel.h
   include/emJson/emJsonException.h
@@ -143,3 +151,8 @@ C++ usage outside emCore (16 files):
   src/emStocks/emStocksListBox.cpp
   src/emTest/emTestContainers.cpp
   src/emTest/emTestPanel.cpp
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

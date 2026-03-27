@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 Rust file: src/emCore/rect.rs
 
 Defines:
@@ -51,3 +55,7 @@ Related C++ code:
 
 OPEN QUESTIONS:
   - PixelRect is defined but no dependents were found importing it in the current grep. It may be used via the module re-export or may be unused.
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================

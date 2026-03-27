@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emOwnPtrArray.h
 C++ implementation: header-only
 
@@ -65,6 +69,15 @@ OPEN QUESTIONS:
   - emFontCache.rs uses a global OnceLock rather than the C++ model/ref pattern; does EntryArray have a Rust equivalent?
   - emFpPlugin.rs exists but its internal Plugins array structure was not verified against emOwnPtrArray<emFpPlugin>
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 C++ usage outside emCore (2 files):
   include/emAv/emAvClient.h
   include/emClock/emTimeZonesModel.h
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

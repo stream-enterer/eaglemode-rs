@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emFileStream.h
 C++ implementation: src/emCore/emFileStream.cpp
 
@@ -92,6 +96,10 @@ OPEN QUESTIONS:
     need an emFileStream equivalent, or will std::io::BufReader/BufWriter + byteorder
     or from_le_bytes suffice?
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 NOTE: Zero emCore consumers, but 13 files outside emCore use this type.
 Gap will surface when those modules are ported. A partial workaround
 already exists: src/emCore/emResTga.rs was written to load toolkit TGA
@@ -113,3 +121,8 @@ C++ usage outside emCore (13 files):
   src/emJpeg/emJpegImageFileModel.cpp
   src/emTest/emTestContainers.cpp
   src/emTga/emTgaImageFileModel.cpp
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

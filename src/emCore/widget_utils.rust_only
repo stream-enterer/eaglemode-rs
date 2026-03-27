@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 Rust file: src/emCore/widget_utils.rs
 
 Defines:
@@ -36,3 +40,7 @@ Related C++ code:
 OPEN QUESTIONS:
   - The file was created during "Phase 3" restructuring. It may have previously been inline code in individual widget files, or it may have been created fresh as a deduplication during the rename.
   - trace_input_enabled uses OnceLock (from std::sync). The CLAUDE.md rules say "no Arc/Mutex — single-threaded UI tree". OnceLock is not Arc/Mutex but is a sync primitive; whether this is considered an exception is unclear.
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================

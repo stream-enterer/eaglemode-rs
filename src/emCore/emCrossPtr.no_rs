@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emCrossPtr.h
 C++ implementation: src/emCore/emCrossPtr.cpp
 
@@ -66,6 +70,10 @@ OPEN QUESTIONS:
   - The C++ pattern allows early invalidation via BreakCrossPtrs() in destructors before full cleanup; Rust's Weak only invalidates when the last Rc drops. Is this timing difference significant for any emCore code path?
   - emBorder's PanelPointerCache and emFileDialog's OverwriteDialog: are these ported with Weak references or with a different pattern?
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 C++ usage outside emCore (21 files):
   include/emMain/emAutoplay.h
   include/emMain/emBookmarks.h
@@ -88,3 +96,8 @@ C++ usage outside emCore (21 files):
   include/emTreeDump/emTreeDumpRecPanel.h
   src/emStocks/emStocksListBox.cpp
   src/emStocks/emStocksPricesFetcher.cpp
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

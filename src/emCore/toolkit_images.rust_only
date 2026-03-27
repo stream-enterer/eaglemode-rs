@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 Rust file: src/emCore/toolkit_images.rs
 
 Defines:
@@ -51,3 +55,7 @@ Structural differences:
 OPEN QUESTIONS:
   - Why is Tunnel.tga present in res/toolkit/ but not loaded by ToolkitImages?
   - Will ImgDir and ImgDirUp be needed when emFileSelectionBox or emFileDialog is ported?
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================

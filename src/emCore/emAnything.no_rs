@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emAnything.h
 C++ implementation: src/emCore/emAnything.cpp
 
@@ -66,6 +70,10 @@ Coverage gaps:
 OPEN QUESTIONS:
   - C++ emAnything supports implicit sharing (multiple emAnything values point to same data). The Rust port uses Box<dyn Any> which is not shared. Is any C++ code path relying on shared-copy semantics of emAnything (beyond just passing it around)?
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 C++ usage outside emCore (7 files):
   include/emStocks/emStocksControlPanel.h
   include/emStocks/emStocksItemPanel.h
@@ -74,3 +82,8 @@ C++ usage outside emCore (7 files):
   src/emStocks/emStocksItemPanel.cpp
   src/emStocks/emStocksListBox.cpp
   src/emTest/emTestContainers.cpp
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

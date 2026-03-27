@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emRef.h
 C++ implementation: src/emCore/emRef.cpp
 
@@ -61,6 +65,10 @@ Coverage gaps:
 OPEN QUESTIONS:
   - Some C++ code stores emRef<emVarModel<emRef<T>>> (nested references); the Rust equivalent pattern is not verified
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 C++ usage outside emCore (158 files):
   [Pervasive — used in virtually every eaglemode module. Key consumers include:]
   include/emAv/ (6 files) — audio/video models and controls
@@ -80,3 +88,8 @@ C++ usage outside emCore (158 files):
   include/emTreeDump/ (2 files) — tree dump utility
   include/SilChess/ (3 files) — chess game
   [Plus corresponding .cpp implementation files for all of the above]
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 C++ header: include/emCore/emAvlTreeMap.h
 C++ implementation: header-only (template class)
 
@@ -98,6 +102,10 @@ Coverage gaps:
 OPEN QUESTIONS:
   - Whether emFileSelectionBox.rs has ported the deduplication logic from lines 720-721 of the C++ implementation (no HashMap usage found in that file)
 
+--------------------------------------------------------------------------------
+OUTSIDE EMCORE (grep output — reproducible, no interpretation)
+--------------------------------------------------------------------------------
+
 C++ usage outside emCore (6 files):
   include/emFileMan/emFileManTheme.h
   include/emOsm/emOsmTileCacheCleaner.h
@@ -105,3 +113,8 @@ C++ usage outside emCore (6 files):
   src/emFileMan/emFileManTheme.cpp
   src/emStocks/emStocksPricesFetcher.cpp
   src/emTest/emTestContainers.cpp
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
+

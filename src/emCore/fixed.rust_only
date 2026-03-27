@@ -1,3 +1,7 @@
+--------------------------------------------------------------------------------
+AGENT AUDIT (unreviewed — treat claims as unverified)
+--------------------------------------------------------------------------------
+
 Rust file: src/emCore/fixed.rs
 
 Defines:
@@ -38,3 +42,7 @@ Related C++ code:
 
 OPEN QUESTIONS:
   - C++ also uses 24-bit fixed point in emPainter_ScTl*.cpp. Whether a Fixed24 type exists or is needed is not documented.
+
+================================================================================
+REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+================================================================================
