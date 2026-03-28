@@ -7,16 +7,16 @@ step, you will make errors that look plausible but are wrong.
 
 ## State of the port
 
-C++ emCore has 90 headers. The Rust port has 97 .rs files (some C++
+C++ emCore has 90 headers. The Rust port has 101 .rs files (some C++
 headers were split into multiple Rust files per the one-type-per-file
-rule). 14 C++ headers have no .rs file — these have .no_rs marker
+rule). 10 C++ headers have no .rs file — these have .no_rs marker
 files. 1 Rust file has no C++ header — emPainterDrawList.rust_only
 (record-replay pattern; deferred to Phase 4).
 
-All 15 marker files contain evidence gathered by LLM agents and
+All 11 marker files contain evidence gathered by LLM agents and
 reviewed by a human-LLM pair. Each marker file has three sections:
 an unreviewed agent audit, a mechanically reproducible grep of
-outside-emCore usage, and a reviewed summary. All 15 have reviewed
+outside-emCore usage, and a reviewed summary. All 11 have reviewed
 summaries as of 2026-03-28.
 
 ### Phase 1 changes (2026-03-28)
@@ -31,6 +31,49 @@ New port — 1 .no_rs file eliminated:
 - emCrossPtr.rs created with emCrossPtr<T> and emCrossPtrList.
   Uses shared Rc<Cell<bool>> invalidation flag (DIVERGED from C++
   intrusive linked list). emCrossPtr.no_rs deleted.
+
+### Phase 2 changes (2026-03-28)
+
+New ports — 4 .no_rs files eliminated:
+- emArray.rs created with emArray<T> (COW array with stable cursor).
+  Backed by Vec<T> wrapped in Rc for COW sharing. emArray.no_rs deleted.
+  DIVERGED: Vec-backed contiguous storage vs C++ custom allocator with
+  gap buffer. Cursor is an external struct (not embedded in the array
+  as in C++). COW clone triggers full Vec clone (no structural sharing).
+- emAvlTreeMap.rs created with emAvlTreeMap<K,V> (COW ordered map with
+  stable cursor). Backed by BTreeMap<K,V> wrapped in Rc for COW sharing.
+  emAvlTreeMap.no_rs deleted. DIVERGED: BTreeMap B-tree vs C++ AVL tree
+  (same O(log n) complexity, different constants). Cursor is an external
+  struct (not an intrusive iterator as in C++).
+- emAvlTreeSet.rs created with emAvlTreeSet<T> (COW ordered set with
+  stable cursor and set algebra). Backed by BTreeSet<T> wrapped in Rc
+  for COW sharing. emAvlTreeSet.no_rs deleted. DIVERGED: BTreeSet B-tree
+  vs C++ AVL tree. Set operations (Union, Intersection, etc.) return new
+  sets rather than mutating in place.
+- emList.rs created with emList<T> (COW doubly-linked list with stable
+  cursor). Backed by Vec<T> (not std::collections::LinkedList).
+  emList.no_rs deleted. DIVERGED: Vec-backed contiguous storage vs C++
+  intrusive doubly-linked list. O(1) index access but O(n) insert/remove
+  in the middle (C++ is O(1) insert/remove, O(n) index). Cursor is an
+  external struct.
+
+Marker file updated:
+- emAvlTree.no_rs updated to reflect that emAvlTreeMap.rs and
+  emAvlTreeSet.rs now provide the ordered-access functionality that C++
+  emAvlTree macros powered. emAvlTree.no_rs remains because the C++ type
+  is a macro library with no direct Rust equivalent — Map/Set provide
+  the functionality at a higher level.
+
+Call site audit (no changes needed):
+- Vec usage audited across all src/emCore/*.rs files. All Vec::clone()
+  sites are defensive copies for before/after comparison (emListBox
+  selected_indices, emPanelTree cycle_list) or independent deep copies.
+  No site depends on COW semantics. All Vec sites left as Vec.
+- HashMap usage audited in emContext.rs, emPanelTree.rs, emListBox.rs,
+  emGUIFramework.rs, emLinearLayout.rs, emPackLayout.rs, emProcess.rs,
+  emRes.rs, emScreen.rs, emTiling.rs. All HashMap sites are used for
+  O(1) key lookup only — no ordered iteration or nearest-key access.
+  All HashMap sites left as HashMap.
 
 Rendering gaps closed:
 - ImgTunnel, ImgDir, ImgDirUp added to ToolkitImages in emBorder.rs.
@@ -100,30 +143,41 @@ Patterns that span multiple marker files and are not visible by reading
 any single file in isolation. Each pattern names the concern and lists
 the files where evidence is documented.
 
-## COW semantics not replicated
+## COW semantics
 
 C++ copy-on-write (shared data, deep copy on mutation) appears in 5
-types. Rust uses move semantics and Clone throughout. Whether any code
-depends on COW behavior is NOT VERIFIED in any of these files.
+types. 4 now have Rust ports with COW via Rc-wrapped backing stores.
+1 remains stdlib-only.
 
-- emArray.no_rs
-- emList.no_rs
-- emString.no_rs
-- emAvlTreeMap.no_rs
-- emAvlTreeSet.no_rs
+- ~~emArray.no_rs~~ RESOLVED: emArray.rs with Rc<Vec<T>> COW
+- ~~emList.no_rs~~ RESOLVED: emList.rs with Rc<Vec<T>> COW
+- emString.no_rs — Rust String has no COW; no port planned
+- ~~emAvlTreeMap.no_rs~~ RESOLVED: emAvlTreeMap.rs with Rc<BTreeMap<K,V>> COW
+- ~~emAvlTreeSet.no_rs~~ RESOLVED: emAvlTreeSet.rs with Rc<BTreeSet<T>> COW
 
-## Stable iterators not replicated
+Call site audit (Phase 2): no existing Vec or HashMap call site in
+emCore depends on COW behavior. The new COW types are available for
+outside-emCore consumers that need them.
+
+## Stable iterators
 
 C++ iterators that survive mutations (auto-adjust on element removal,
 auto-adjust on COW clone) appear in the same 5 types plus emAvlTree.
-Rust iterators borrow the collection immutably. Whether any code
-mutates while iterating is NOT VERIFIED in any of these files.
+4 now have Rust ports with stable Cursor types that survive mutations
+via index tracking and generation checks.
 
-- emArray.no_rs
-- emList.no_rs
-- emAvlTree.no_rs
-- emAvlTreeMap.no_rs
-- emAvlTreeSet.no_rs
+- ~~emArray.no_rs~~ RESOLVED: emArray.rs Cursor (index-based, generation-checked)
+- ~~emList.no_rs~~ RESOLVED: emList.rs Cursor (index-based, generation-checked)
+- ~~emAvlTree.no_rs~~ RESOLVED: functionality provided by emAvlTreeMap/Set cursors
+- ~~emAvlTreeMap.no_rs~~ RESOLVED: emAvlTreeMap.rs MapCursor (key-based, generation-checked)
+- ~~emAvlTreeSet.no_rs~~ RESOLVED: emAvlTreeSet.rs SetCursor (value-based, generation-checked)
+
+DIVERGED: C++ cursors are intrusive (embedded in the data structure and
+auto-adjusted on mutation). Rust cursors are external structs that store
+a position (index or key) and a generation counter. On access, they
+re-validate via generation check and re-seek if the structure was mutated.
+This is O(log n) for map/set cursors and O(1) for array/list cursors
+when no mutation occurred.
 
 ## Zero emCore consumers with outside-emCore usage
 
@@ -132,7 +186,7 @@ eaglemode apps. Each file has a NOTE about this. Gaps will surface
 when those apps are ported.
 
 - emFileStream.no_rs (13 outside files — all image format loaders)
-- emAvlTreeSet.no_rs (4 outside files — emOsm, emStocks)
+- ~~emAvlTreeSet.no_rs~~ RESOLVED: emAvlTreeSet.rs now ported
 - emTmpFile.no_rs (2 outside files — emTmpConv)
 
 ## Workaround for missing feature
@@ -200,7 +254,7 @@ so the output is stable.
 For each .no_rs type, which other .no_rs types does its C++ header include:
 
 ```
-for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
+for type in emAnything emAvlTree emFileStream emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
   includes=$(grep "#include.*emCore/" ~/git/eaglemode-0.96.4/include/emCore/${type}.h 2>/dev/null | sed 's/.*emCore\///' | sed 's/\.h.*//')
   for inc in $includes; do
     [ -f "src/emCore/${inc}.no_rs" ] && echo "  $type -> $inc"
@@ -209,18 +263,15 @@ done
 ```
 
 Produces: which marker types include which other marker types.
-As of 2026-03-28:
-  emAvlTreeMap -> emAvlTree
-  emAvlTreeSet -> emAvlTree
+As of 2026-03-28 (post Phase 2):
   emFileStream -> emOwnPtr
-  emOwnPtrArray -> emArray
 
 ### Which eaglemode app modules use which marker types
 
 For each .no_rs type, which app modules outside emCore reference it:
 
 ```
-for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
+for type in emAnything emAvlTree emFileStream emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
   apps=$(grep -rl "$type" ~/git/eaglemode-0.96.4/include/ ~/git/eaglemode-0.96.4/src/ --include='*.h' --include='*.cpp' 2>/dev/null | grep -v "/emCore/" | sed 's|.*/include/||;s|.*/src/||' | sed 's|/.*||' | sort -u | tr '\n' ' ')
   [ -n "$apps" ] && echo "$type: $apps"
 done
@@ -234,7 +285,7 @@ Tells you: if you're porting emStocks, which marker types will you encounter?
 
 ```
 declare -A app_types
-for type in emAnything emArray emAvlTree emAvlTreeMap emAvlTreeSet emFileStream emList emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
+for type in emAnything emAvlTree emFileStream emOwnPtr emOwnPtrArray emRef emString emThread emTmpFile emToolkit; do
   for app in $(grep -rl "$type" ~/git/eaglemode-0.96.4/include/ ~/git/eaglemode-0.96.4/src/ --include='*.h' --include='*.cpp' 2>/dev/null | grep -v "/emCore/" | sed 's|.*/include/||;s|.*/src/||' | sed 's|/.*||' | sort -u); do
     app_types[$app]="${app_types[$app]} $type"
   done
