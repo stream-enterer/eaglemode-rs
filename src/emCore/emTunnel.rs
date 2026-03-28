@@ -1,29 +1,13 @@
-use std::cell::OnceCell;
 use std::rc::Rc;
 
 use crate::emCore::emColor::emColor;
-use crate::emCore::emImage::emImage;
 use crate::emCore::emPanel::Rect;
 use crate::emCore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use crate::emCore::emPanelCtx::PanelCtx;
 use crate::emCore::emPainter::emPainter;
 
-use super::emBorder::{emBorder, OuterBorderType};
+use super::emBorder::{emBorder, OuterBorderType, with_toolkit_images};
 use crate::emCore::emLook::emLook;
-
-/// emTunnel image loaded once from the toolkit resources.
-fn tunnel_image() -> emImage {
-    thread_local! {
-        static IMG: OnceCell<emImage> = const { OnceCell::new() };
-    }
-    IMG.with(|cell| {
-        cell.get_or_init(|| {
-            crate::emCore::emResTga::load_tga(include_bytes!("../../res/toolkit/Tunnel.tga"))
-                .expect("failed to decode Tunnel.tga")
-        })
-        .clone()
-    })
-}
 
 /// A panel that creates a visual tunnel/zoom corridor to a child panel.
 ///
@@ -159,7 +143,7 @@ impl emTunnel {
         let canvas_color = painter.GetCanvasColor();
         let (bx, by, bw, bh, br) = self.compute_inner_rect(ax, ay, aw, ah, ar);
 
-        let img = tunnel_image();
+        let img = with_toolkit_images(|imgs| imgs.tunnel.clone());
         let img_rx = img.GetWidth() as f64 * 0.5;
         let img_ry = img.GetHeight() as f64 * 0.5;
 

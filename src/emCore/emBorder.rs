@@ -2273,7 +2273,7 @@ pub(crate) struct ToolkitImages {
     pub check_box_pressed: emImage,
     pub radio_box: emImage,
     pub radio_box_pressed: emImage,
-    pub _tunnel: emImage,
+    pub tunnel: emImage,
     pub _dir: emImage,
     pub _dir_up: emImage,
 }
@@ -2383,7 +2383,7 @@ impl ToolkitImages {
                 380,
                 380,
             ),
-            _tunnel: decode_toolkit_image(
+            tunnel: decode_toolkit_image(
                 include_bytes!("../../res/toolkit/Tunnel.tga"),
                 "Tunnel",
                 200,
