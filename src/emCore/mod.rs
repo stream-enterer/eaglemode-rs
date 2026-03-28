@@ -2,6 +2,7 @@
 
 pub mod emArray;
 pub mod emATMatrix;
+pub mod emAvlTreeMap;
 pub mod emBorder;
 pub mod emBorderAlignment;
 pub mod emButton;
