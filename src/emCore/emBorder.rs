@@ -67,6 +67,12 @@ pub struct emBorder {
     /// C++ equivalent: `emBorder::LabelInBorder`.
     pub label_in_border: bool,
     /// Name of the auxiliary child panel, if any.
+    ///
+    /// DIVERGED: C++ `AuxData` — the C++ `emBorder::AuxData` struct (with
+    /// `PanelName`, `Tallness`, `PanelPointerCache`) is flattened into
+    /// `emBorder` fields.  `PanelPointerCache` (`emCrossPtr<emPanel>`) is
+    /// omitted because Rust `emBorder` is not a panel and has no child tree
+    /// to cache lookups into; callers resolve the child by name externally.
     pub(crate) aux_panel_name: Option<String>,
     /// Height/width ratio of the auxiliary area (default 1.0 when absent).
     pub(crate) aux_tallness: f64,
@@ -281,13 +287,12 @@ impl emBorder {
 
     /// Return whether an auxiliary panel is configured.
     ///
-    /// In C++ `GetAuxPanel` returned a panel pointer by walking the child tree
-    /// and caching the result. Rust `emBorder` is not a panel, so this method
-    /// returns whether aux data exists. The caller can use
-    /// [`get_aux_panel_name`](Self::get_aux_panel_name) to resolve the panel by
-    /// name in the widget tree.
-    ///
-    /// C++ equivalent: `emBorder::GetAuxPanel` (structural adaptation).
+    /// DIVERGED: `emBorder::GetAuxPanel` — C++ returned a cached
+    /// `emPanel*` via `PanelPointerCache` (an `emCrossPtr` that
+    /// auto-nullifies when the child is deleted).  Rust `emBorder` is not a
+    /// panel and owns no child tree, so this method returns a bool instead.
+    /// Callers use [`GetAuxPanelName`](Self::GetAuxPanelName) to resolve the
+    /// panel by name in the widget tree.
     pub fn HasAux(&self) -> bool {
         self.aux_panel_name.is_some()
     }
