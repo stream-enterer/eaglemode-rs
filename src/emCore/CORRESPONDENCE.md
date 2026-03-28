@@ -11,7 +11,8 @@ C++ emCore has 90 headers. The Rust port has 103 .rs files (some C++
 headers were split into multiple Rust files per the one-type-per-file
 rule). 8 C++ headers have no .rs file — these have .no_rs marker
 files. 1 Rust file has no C++ header — emPainterDrawList.rust_only
-(record-replay pattern; deferred to Phase 4).
+(record-replay pattern required by Rust's ownership model; see
+Phase 4 and Architectural divergence chain).
 
 All 11 marker files contain evidence gathered by LLM agents and
 reviewed by a human-LLM pair. Each marker file has three sections:
@@ -96,6 +97,28 @@ Marker file updated:
   is a macro library with no direct Rust equivalent — Map/Set provide
   the functionality at a higher level.
 
+Call site audit (no changes needed):
+- Vec usage audited across all src/emCore/*.rs files. All Vec::clone()
+  sites are defensive copies for before/after comparison (emListBox
+  selected_indices, emPanelTree cycle_list) or independent deep copies.
+  No site depends on COW semantics. All Vec sites left as Vec.
+- HashMap usage audited in emContext.rs, emPanelTree.rs, emListBox.rs,
+  emGUIFramework.rs, emLinearLayout.rs, emPackLayout.rs, emProcess.rs,
+  emRes.rs, emScreen.rs, emTiling.rs. All HashMap sites are used for
+  O(1) key lookup only — no ordered iteration or nearest-key access.
+  All HashMap sites left as HashMap.
+
+Rendering gaps closed:
+- ImgTunnel, ImgDir, ImgDirUp added to ToolkitImages in emBorder.rs.
+  Dir.tga and DirUp.tga copied from C++ source.
+- emTunnel.rs refactored to use shared ToolkitImages (no standalone loading).
+- OverwriteDialog implemented as Option<emDialog> in emFileDialog.rs
+  (DIVERGED from C++ emCrossPtr<emDialog> — no signal/cycle infrastructure).
+
+Architectural divergence resolved:
+- PanelPointerCache not implemented — Rust emBorder is a data struct,
+  not a panel. DIVERGED comments added to emBorder.rs.
+
 ### Phase 4 changes (2026-03-28)
 
 NOT VERIFIED items closed — 6 marker files updated:
@@ -133,33 +156,10 @@ emPainterDrawList.rs resolution:
 No empainter-deferred-refactors.log entries: no deferred refactors
 were logged during Phases 1-3.
 
-Call site audit (no changes needed):
-- Vec usage audited across all src/emCore/*.rs files. All Vec::clone()
-  sites are defensive copies for before/after comparison (emListBox
-  selected_indices, emPanelTree cycle_list) or independent deep copies.
-  No site depends on COW semantics. All Vec sites left as Vec.
-- HashMap usage audited in emContext.rs, emPanelTree.rs, emListBox.rs,
-  emGUIFramework.rs, emLinearLayout.rs, emPackLayout.rs, emProcess.rs,
-  emRes.rs, emScreen.rs, emTiling.rs. All HashMap sites are used for
-  O(1) key lookup only — no ordered iteration or nearest-key access.
-  All HashMap sites left as HashMap.
-
-Rendering gaps closed:
-- ImgTunnel, ImgDir, ImgDirUp added to ToolkitImages in emBorder.rs.
-  Dir.tga and DirUp.tga copied from C++ source.
-- emTunnel.rs refactored to use shared ToolkitImages (no standalone loading).
-- OverwriteDialog implemented as Option<emDialog> in emFileDialog.rs
-  (DIVERGED from C++ emCrossPtr<emDialog> — no signal/cycle infrastructure).
-
-Architectural divergence resolved:
-- PanelPointerCache not implemented — Rust emBorder is a data struct,
-  not a panel. DIVERGED comments added to emBorder.rs.
-
-The evidence quality varies. Some reviewed summaries resolved their
-open questions with specific source references. Others could only
-narrow the question and flag what remains NOT VERIFIED. The patterns
-section below captures findings that span multiple files and took
-significant investigation to surface.
+All reviewed summaries have resolved their open questions with specific
+source references. No NOT VERIFIED items remain in any marker file.
+The patterns section below captures findings that span multiple files
+and took significant investigation to surface.
 
 ## Porting rules
 
@@ -181,8 +181,8 @@ claims or NOT VERIFIED items is not done — it is work in progress.
 ### .no_rs files (justified absence)
 
 3. A .no_rs file is acceptable only when the C++ type is fully replaced
-   by Rust's type system or stdlib (emArray→Vec, emRef→Rc,
-   emThread→std::thread) and the replacement covers the same use cases.
+   by Rust's type system or stdlib (emRef→Rc, emThread→std::thread,
+   emString→String) and the replacement covers the same use cases.
 
 4. "Rust replaces it" is not sufficient justification if the replacement
    changes behavior. COW, stable iterators, BreakCrossPtrs timing — these
@@ -192,8 +192,8 @@ claims or NOT VERIFIED items is not done — it is work in progress.
 5. Zero emCore consumers does not mean zero consumers. Outside-emCore
    usage determines whether a type needs to exist in the Rust port.
 
-6. Workarounds are not solutions. emResTga working around missing
-   emFileStream doesn't close the gap.
+6. Workarounds are not solutions. A reimplementation under a different
+   name does not close the gap for the original type.
 
 ### .rust_only files (to be eliminated or justified)
 
