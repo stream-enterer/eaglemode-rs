@@ -62,8 +62,7 @@ Coverage gaps:
   - emRef::Set(ptr)/Reset() explicit rebinding: Rc uses reassignment; no explicit Set/Reset methods
   - GetRefCount(): Rc::strong_count() exists but is not commonly used in the Rust port
 
-OPEN QUESTIONS:
-  - Some C++ code stores emRef<emVarModel<emRef<T>>> (nested references); the Rust equivalent pattern is not verified
+OPEN QUESTIONS: (none — all resolved, see REVIEWED SUMMARY below)
 
 --------------------------------------------------------------------------------
 OUTSIDE EMCORE (grep output — reproducible, no interpretation)
@@ -90,7 +89,7 @@ C++ usage outside emCore (158 files):
   [Plus corresponding .cpp implementation files for all of the above]
 
 ================================================================================
-REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
+REVIEWED SUMMARY (reviewed — all items verified)
 ================================================================================
 
 C++ emRef.h: intrusive reference-counted smart pointer.
@@ -131,5 +130,22 @@ Open question investigated: "emRef<emVarModel<emRef<T>>> nested pattern"
   (emVarModel.rs:7), embedded as a struct field rather than wrapped
   in Rc<RefCell<>>. The C++ ref-counted shared model pattern is
   replaced by direct ownership.
-  NOT VERIFIED: whether this ownership change affects any code path
-  that shares an emVarModel across multiple consumers via emRef.
+
+  VERIFIED: ownership change does not create a sharing gap in emCore.
+  C++ emVarModel usage falls into two categories:
+    1. Stored shared reference (emBorder TkResVarModel):
+       C++ — all emBorder instances Acquire the same common
+       emVarModel<TkResources> from the root context (emBorder.cpp:42).
+       Multiple panels hold emRef to one shared instance.
+       Rust — replaced by thread-local OnceLock<ToolkitImages> accessed
+       via with_toolkit_images() (emBorder.rs:2417). All callers share
+       the same singleton. No sharing gap — equivalent semantics via a
+       different mechanism.
+    2. Transient Set/Get/Remove (emClipboard, emScreen, emImageFile,
+       emInstallInfo, emTestPanel):
+       C++ — static helpers Acquire a common model, read/write Var,
+       and drop the emRef immediately. No persistent multi-consumer
+       sharing. Rust equivalents use Rc<RefCell<T>> or OnceLock as
+       appropriate — no sharing gap.
+  Outside emCore (emAvFileModel ActiveList) uses stored shared refs,
+  but that is outside the scope of the Rust port.
