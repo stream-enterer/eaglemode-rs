@@ -57,7 +57,8 @@ Rust rendering: single-threaded recording phase captures all paint
   executes DrawOps into tile buffers. User paint code never runs on
   worker threads.
 
-Why: panel state uses Rc (not Send). Cannot share across threads.
+Why: panel state uses Rc (e.g. emLook.rs:22 returns Rc<Self>).
+  Rc is not Send — cannot share across threads.
   The record-replay pattern decouples user code from threading.
 
 DrawOp has 37 variants covering the full emPainter API surface.
@@ -70,8 +71,8 @@ unsafe impl Send/Sync for DrawOp relies on three invariants:
   2. The PanelTree is not modified between recording and replay
   3. std::thread::scope ensures all replay threads complete before returning
 
-These invariants are guaranteed by the sequential structure of the
-frame loop (record, then replay, then next frame). They are runtime
-invariants not enforced by the type system. If the frame loop were
-restructured to allow concurrent tree modification during replay,
-the raw pointers could dangle.
+These are runtime invariants not enforced by the type system.
+NOT VERIFIED: whether the frame loop structure actually guarantees
+  invariant #2 (no tree modification between record and replay).
+  The safety comments in the source assert this but no compile-time
+  mechanism prevents it.

@@ -63,8 +63,9 @@ REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 Rust file: src/emCore/rect.rs
 
 Bundles the C++ pattern of passing 4 separate doubles (x, y, w, h)
-into a struct. C++ has no equivalent — every layout function takes
-four separate parameters. Created March 6 to "replace anonymous tuples."
+into a struct. C++ has no dedicated layout rect struct — uses separate
+parameters (e.g. emPanel::GetLayoutX/Y/Width/Height, emButton.cpp:229).
+Created March 6 (commit 74b7dc1) to "replace anonymous tuples."
 
 Rect is used by 22 files across the layout/panel/widget layer.
 

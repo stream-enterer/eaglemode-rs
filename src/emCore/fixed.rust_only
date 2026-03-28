@@ -52,9 +52,9 @@ Rust file: src/emCore/fixed.rs
 Newtype wrapper (Fixed12) around i32 with 12 fractional bits.
 
 C++ uses bare int variables with inline shifts/masks for the same
-arithmetic. The Rust newtype prevents accidental mixing with plain
-i32 values. No C++ header equivalent — the convention is implicit
-in variable naming (ix, iy, ax1, ax2, ay1, ay2).
+arithmetic (emPainter.cpp:358-374, emPainter_ScTl.cpp:296-326).
+No C++ header equivalent — the convention is implicit in variable
+naming (ix, iy, ax1, ax2, ay1, ay2).
 
 Used by emPainter.rs and emPainterScanline.rs only.
 
