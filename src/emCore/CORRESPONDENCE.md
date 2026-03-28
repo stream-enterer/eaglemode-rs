@@ -1,11 +1,4 @@
-# Cross-Cutting Patterns Across Marker Files
-
-Do not assume any claim in these files is true. Use them to find
-where to look, not to decide what is there. Before acting on any
-claim: read the actual source code it references. If you skip this
-step, you will make errors that look plausible but are wrong.
-
----
+# C++/Rust Correspondence
 
 ## Porting rules
 
