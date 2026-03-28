@@ -72,7 +72,61 @@ unsafe impl Send/Sync for DrawOp relies on three invariants:
   3. std::thread::scope ensures all replay threads complete before returning
 
 These are runtime invariants not enforced by the type system.
-NOT VERIFIED: whether the frame loop structure actually guarantees
-  invariant #2 (no tree modification between record and replay).
-  The safety comments in the source assert this but no compile-time
-  mechanism prevents it.
+
+Verified: invariant #2 is upheld by the frame loop structure.
+  emWindow::render_parallel() (emWindow.rs:374-458) proceeds in three
+  sequential phases:
+    Phase 1 (lines 390-406): Records draw ops into DrawList.
+      tree is passed as &mut PanelTree to view.Paint() (emView.rs:2201).
+      Paint calls paint_panel_recursive (emView.rs:2386), which mutates
+      tree via take_behavior/put_behavior (emPanelTree.rs:999-1008) to
+      borrow behaviors for painting. Each behavior is restored before
+      its subtree recursion completes. The same pattern applies to
+      self.control_tree (lines 398-404). All behaviors (and their owned
+      images) are back in both trees when Phase 1 ends at line 406.
+    Phase 2 (lines 422-445): Replays DrawList into tile buffers in
+      parallel via render_pool.CallParallel(). This closure captures
+      only draw_list_ref (&DrawList) and results_ref — it does NOT
+      reference tree at all. No code path between Phase 1 end (line 406)
+      and Phase 2 start (line 432) touches the tree; lines 408-420 only
+      read self.tile_cache.
+    Phase 3 (lines 447-458): Uploads tiles to GPU. Single-threaded,
+      after CallParallel returns (std::thread::scope guarantees all
+      worker threads have joined).
+Verified: same phase structure exists in emViewRenderer.rs:
+  emViewRenderer::render_parallel() (emViewRenderer.rs:37-97) follows
+  identical phase separation:
+    Phase 1 (lines 47-52): Records into DrawList via recording emPainter.
+    Phase 2 (lines 54-81): pool.CallParallel() closure captures only
+      draw_list_ref (&DrawList) and results_ref — no tree reference.
+    Phase 3 (lines 83-97): Composites tiles into framebuffer.
+  The same structural guarantee applies: Phase 2's closure does not
+  capture tree.
+
+  The guarantee is structural, not type-level: Phase 2's closure simply
+  does not capture or access the PanelTree. The &mut PanelTree borrow
+  on render_parallel's signature does not enforce this — Rust would
+  allow tree access between Phases 1 and 2 since the recording borrow
+  has ended. A future refactor could accidentally introduce tree access
+  in Phase 2, breaking the invariant without a compile error.
+  Risk: LOW. The separation is clear in the code structure, and the
+  closure's capture list would make accidental tree access a visible
+  change. However, this remains a runtime invariant, not a type-level
+  guarantee.
+
+RefCell / interior mutability risk: NONE.
+  DrawOp variants contain only plain owned data: f64, u32, u8, bool,
+  emColor (packed u32), String, Vec<(f64, f64)>, emStroke, emTexture,
+  and *const emImage raw pointers. None of these types contain RefCell
+  or Rc — verified by grep (no RefCell/Rc in emPainterDrawList.rs,
+  emStroke.rs, or emTexture.rs). DrawList itself is struct { ops:
+  Vec<DrawOp> } with no interior mutability.
+  The *const emImage pointers point directly at emImage values owned
+  by panel behaviors. While behaviors are accessed through RefCell in
+  the PanelTree, the raw pointer bypasses the RefCell — it addresses
+  the emImage inside the behavior struct, not the RefCell wrapper.
+  During Phase 2 replay, no code path touches the PanelTree or any
+  RefCell; the closure captures only &DrawList (immutable, no RefCell)
+  and output buffers (each tile's Mutex<Option<emImage>> is thread-
+  local by index). There is no path through which a replay thread
+  could reach a RefCell.
