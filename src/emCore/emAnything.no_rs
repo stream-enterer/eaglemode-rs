@@ -87,3 +87,40 @@ C++ usage outside emCore (7 files):
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
 
+C++ emAnything.h: type-erased value container with refcounted sharing.
+
+7 files outside emCore use this type (all in emStocks).
+
+C++ provides two classes:
+  emAnything            — holds a refcounted AbstractSharedData pointer.
+                          Copies share data (refcount bump).
+  emCastAnything<T>     — wraps a T into emAnything, or extracts T from
+                          emAnything via dynamic_cast. Returns NULL on
+                          type mismatch.
+
+Rust equivalents (verified):
+  emAnything             -> Option<Box<dyn Any>>
+    emListBox.rs:234       — data: Option<Box<dyn Any>> (Item struct member)
+    emListBox.rs:661       — GetItemData returns Option<&dyn Any>
+    emListBox.rs:666       — SetItemData takes Option<Box<dyn Any>>
+  emCastAnything<T>      -> Any::downcast_ref::<T>()
+    emPanel.rs:37-45       — as_any()/as_any_mut() trait for downcasting
+
+No Rust equivalent exists for:
+  Refcounted sharing — C++ emAnything copies share data via refcount.
+    Rust Box<dyn Any> is move-only. Rust GetItemData returns a borrow
+    (Option<&dyn Any>) instead of a refcounted copy.
+
+Open question investigated:
+  "Does any C++ code rely on shared-copy semantics?"
+  Examined all emCore consumers (emListBox.cpp, emFileSelectionBox.cpp)
+  and all outside-emCore consumers (emStocks: 6 files). Usage pattern
+  is consistent: values are stored in list items, retrieved by
+  GetItemData(), and immediately extracted via emCastAnything<T>.
+  No code path was found that keeps two emAnything values and relies
+  on them sharing the same underlying data.
+  The emStocks code uses emCastAnything<bool>(true) as a typed tag
+  for marking items obsolete (emStocksControlPanel.cpp:1211).
+  NOT VERIFIED: whether any outside-emCore code not in emStocks uses
+  emAnything in a sharing-dependent way (emTest/emTestContainers.cpp
+  not checked).
