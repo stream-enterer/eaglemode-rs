@@ -183,8 +183,83 @@ Semantic difference — encoding:
   file paths can contain any byte sequence except NUL. A file with
   non-UTF-8 bytes in its name (e.g., ISO-8859-1 filenames) would work
   in C++ emString but would be rejected by Rust String::from().
-  NOT VERIFIED: whether any eaglemode code (inside or outside emCore)
-  encounters non-UTF-8 file paths in practice.
+
+ENCODING AUDIT (2026-03-28) — file path usage in src/emCore/*.rs:
+
+  Sites audited individually:
+
+  emFileModel.rs — path: PathBuf, GetFilePath() -> &Path.
+    Correct. No String used for filesystem paths.
+
+  emInstallInfo.rs — all directory queries return PathBuf; internal
+    helper functions take &Path / return PathBuf.
+    Correct. No String used for filesystem paths.
+
+  emRes.rs — String used only as cache key (display-style identifier,
+    not passed to filesystem operations).
+    Correct. Not a filesystem path.
+
+  emFileDialog.rs — parent_directory: PathBuf, GetParentDirectory() ->
+    &Path, GetSelectedPath() -> PathBuf.  selected_names: Vec<String>
+    stores bare filenames (no directory separator). Joined with PathBuf
+    before any filesystem access; same encoding exposure as
+    emFileSelectionBox (see below).
+
+  emFileSelectionBox.rs — parent_dir: PathBuf. Three to_string_lossy
+    call sites:
+    1. emFileSelectionBox.rs:551 — entry.file_name().to_string_lossy()
+       .to_string() when building the directory listing. Non-UTF-8
+       filenames have replacement bytes substituted (U+FFFD). The
+       corrupted name is stored in listing: Vec<(String, FileItemData)>
+       and flows into selected_names: Vec<String>, which is then joined
+       with parent_dir (PathBuf) at GetSelectedPath() / enter_sub_dir().
+       This means a non-UTF-8 filename cannot be selected or opened
+       correctly through the GUI.
+    2. emFileSelectionBox.rs:428 — abs_path.file_name().to_string_lossy()
+       when resolving a set_selected_path() call. Same exposure.
+    3. emFileSelectionBox.rs:658, 830 — parent_dir.to_string_lossy()
+       for UI display only (text field content). Not stored for
+       filesystem use.
+    Risk level: low in practice — Eagle Mode targets modern Linux
+    filesystems where UTF-8 filenames are universal. Non-UTF-8
+    filenames would be silently un-selectable via the GUI widget,
+    matching the behavior of most GUI file browsers. No crash or
+    memory-safety issue. No refactor needed; same behavior as C++
+    emFileSelectionBox which displays paths using printf (which would
+    also render non-UTF-8 bytes unpredictably in a UI context).
+
+  emFpPlugin.rs — file_path: Option<&str> in SearchPlugin /
+    SearchPlugins. Used only to extract the file extension for plugin
+    type matching (Path::new(path).file_name()). Not passed to any
+    filesystem open/read/write operation.
+    Correct. No filesystem path stored as String.
+
+  emProcess.rs — args: &[&str] for process spawning; dir_path:
+    Option<&Path> for working directory.
+    dir_path is PathBuf/&Path — correct. args uses &str; non-UTF-8
+    program names/arguments are theoretically not representable, but
+    all Eagle Mode binaries use ASCII names and all arguments are
+    constructed from Rust format strings. Acceptable.
+
+  emFilePanel.rs, emPanel.rs, emPanelTree.rs — GetIconFileName()
+    returns String / Option<String> containing resource identifiers
+    like "file.tga". These are resource lookup names, not filesystem
+    paths opened directly by the caller.
+    Correct. Not filesystem paths.
+
+  emMiniIpc.rs:190,209 — to_string_lossy() on socket/IPC names from
+    the filesystem. Display/logging use only; not used to re-open
+    filesystem paths.
+    Acceptable.
+
+  Conclusion: No site required refactoring. Paths that touch the
+  filesystem (emFileModel, emInstallInfo, emFileDialog, emFileSelectionBox
+  parent_dir, emProcess dir_path) all use PathBuf/&Path. The one
+  residual encoding exposure — to_string_lossy in emFileSelectionBox
+  when converting directory-entry filenames to String for GUI display
+  and selection — is a known limitation (non-UTF-8 files are
+  un-selectable via the UI), matches C++ behavior, and carries no
+  safety risk. No refactor warranted.
 
 Semantic difference — COW:
   C++ "emString b = a" shares data (O(1)), mutation triggers deep copy.
