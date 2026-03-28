@@ -105,7 +105,12 @@ Method mapping (same functionality, different names):
 Composable from stdlib:
   BinaryInsert       -> binary_search_by() + insert()
   BinaryRemoveByKey  -> binary_search_by() + remove()
-  NOT VERIFIED: whether any outside-emCore file calls these methods.
+  VERIFIED: Outside-emCore files that call these methods:
+    - emAvClient.cpp: Properties.BinarySearchByKey() with Insert() on negative index (~i pattern)
+    - emTimeZonesModel.cpp: Cities.BinarySearchByKey() with Insert() on negative index (~i pattern)
+  Both use binary search to find sorted position, then Insert at (~index) for new elements.
+  Conclusion: Vec<T> (or Vec<Box<T>>) is sufficient. BinaryInsert/BinaryRemoveByKey are
+  composable from stdlib binary_search_by() + insert()/remove(). No specialized port needed.
 
 No Rust equivalent exists for:
   Set(index, ptr) / Reset(index) — replace element at index, delete old.
