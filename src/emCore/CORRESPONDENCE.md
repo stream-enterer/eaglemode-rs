@@ -1,5 +1,30 @@
 # C++/Rust Correspondence
 
+Do not assume any claim in these files is true. Use them to find
+where to look, not to decide what is there. Before acting on any
+claim: read the actual source code it references. If you skip this
+step, you will make errors that look plausible but are wrong.
+
+## State of the port
+
+C++ emCore has 90 headers. The Rust port has 100 .rs files (some C++
+headers were split into multiple Rust files per the one-type-per-file
+rule). 15 C++ headers have no .rs file — these have .no_rs marker
+files. 5 Rust files have no C++ header — these have .rust_only marker
+files.
+
+All 20 marker files contain evidence gathered by LLM agents and
+reviewed by a human-LLM pair. Each marker file has three sections:
+an unreviewed agent audit, a mechanically reproducible grep of
+outside-emCore usage, and a reviewed summary. All 20 have reviewed
+summaries as of 2026-03-28.
+
+The evidence quality varies. Some reviewed summaries resolved their
+open questions with specific source references. Others could only
+narrow the question and flag what remains NOT VERIFIED. The patterns
+section below captures findings that span multiple files and took
+significant investigation to surface.
+
 ## Porting rules
 
 The end state: every C++ header in include/emCore/ has either a
