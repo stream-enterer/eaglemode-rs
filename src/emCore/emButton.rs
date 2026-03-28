@@ -291,14 +291,22 @@ impl emButton {
         let d = (14.0 / 264.0) * r;
         let face = Rect::new(cr.x + d, cr.y + d, cr.w - 2.0 * d, cr.h - 2.0 * d);
         let fr = (r - d).max(0.0);
-        super::widget_utils::check_mouse_round_rect(mx, my, &face, fr)
+        // RUST_ONLY: widget_utils.rs -- C++ inlines this formula per widget
+        let dx = ((face.x - mx).max(mx - face.x - face.w) + fr).max(0.0);
+        let dy = ((face.y - my).max(my - face.y - face.h) + fr).max(0.0);
+        dx * dx + dy * dy <= fr * fr
     }
 
     pub fn Input(&mut self, event: &emInputEvent, state: &PanelState, _input_state: &emInputState) -> bool {
         if !self.enabled {
             return false;
         }
-        let trace = super::widget_utils::trace_input_enabled();
+        // RUST_ONLY: widget_utils.rs -- debug trace aid, no C++ equivalent
+        let trace = {
+            use std::sync::OnceLock;
+            static ENABLED: OnceLock<bool> = OnceLock::new();
+            *ENABLED.get_or_init(|| std::env::var("TRACE_INPUT").is_ok())
+        };
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {

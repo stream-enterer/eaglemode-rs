@@ -1059,16 +1059,3 @@ fn kani_rect_PixelRect_new() {
     let mut p_h: i32 = kani::any::<i32>();
     let _result = eaglemode_rs::emCore::rect::PixelRect::new(p_x, p_y, p_w, p_h);
 }
-
-#[cfg(kani)]
-#[kani::proof]
-fn kani_widget_utils_check_mouse_round_rect() {
-    let mut p_mx: f64 = kani::any::<f64>();
-    let mut p_my: f64 = kani::any::<f64>();
-    let mut p_rect = Rect { x: kani::any::<f64>(), y: kani::any::<f64>(), w: kani::any::<f64>(), h: kani::any::<f64>() };
-    let mut p_r: f64 = kani::any::<f64>();
-    kani::assume(p_mx.is_finite());
-    kani::assume(p_my.is_finite());
-    kani::assume(p_r.is_finite());
-    let _result = eaglemode_rs::emCore::widget_utils::check_mouse_round_rect(p_mx, p_my, &p_rect, p_r);
-}

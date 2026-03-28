@@ -19,7 +19,7 @@ Used by:
   - src/emCore/emButton.rs:4
   - src/emCore/emCheckBox.rs:4
   - src/emCore/emCheckButton.rs:4
-  - src/emCore/emColorField.rs (via widget_utils which imports Rect)
+  - src/emCore/emColorField.rs
   - src/emCore/emDialog.rs:3
   - src/emCore/emLinearLayout.rs:3
   - src/emCore/emListBox.rs:6
@@ -36,7 +36,6 @@ Used by:
   - src/emCore/emTunnel.rs:6
   - src/emCore/emView.rs:11
   - src/emCore/emViewAnimator.rs:6
-  - src/emCore/widget_utils.rs:1
 
 Git history:
   - Created: 74b7dc1b18d398562f7814c99009f6efa37fb0b9 2026-03-06 — "Add named Rect and PixelRect types to replace anonymous tuples"

@@ -223,7 +223,10 @@ impl emRadioBox {
         let tallness = self.last_h / self.last_w;
         let rect = self.border.GetContentRect(1.0, tallness, &self.look);
         let r = rect.h * 0.2;
-        super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
+        // RUST_ONLY: widget_utils.rs -- C++ inlines this formula per widget
+        let dx = ((rect.x - mx).max(mx - rect.x - rect.w) + r).max(0.0);
+        let dy = ((rect.y - my).max(my - rect.y - rect.h) + r).max(0.0);
+        dx * dx + dy * dy <= r * r
     }
 
     /// Box-specific hit test matching C++ `emButton::CheckMouse` inBox check.
@@ -264,7 +267,12 @@ impl emRadioBox {
         if !self.enabled {
             return false;
         }
-        let trace = super::widget_utils::trace_input_enabled();
+        // RUST_ONLY: widget_utils.rs -- debug trace aid, no C++ equivalent
+        let trace = {
+            use std::sync::OnceLock;
+            static ENABLED: OnceLock<bool> = OnceLock::new();
+            *ENABLED.get_or_init(|| std::env::var("TRACE_INPUT").is_ok())
+        };
         match event.key {
             InputKey::MouseLeft => match event.variant {
                 InputVariant::Press => {

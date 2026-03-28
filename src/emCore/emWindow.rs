@@ -790,7 +790,12 @@ impl ZuiWindow {
         // Dispatch to ALL viewed panels in post-order, matching C++
         // emPanel::Input recursive broadcast. Each panel receives the event
         // with mouse coords transformed to its local space.
-        let trace = crate::emCore::widget_utils::trace_input_enabled();
+        // RUST_ONLY: widget_utils.rs -- debug trace aid, no C++ equivalent
+        let trace = {
+            use std::sync::OnceLock;
+            static ENABLED: OnceLock<bool> = OnceLock::new();
+            *ENABLED.get_or_init(|| std::env::var("TRACE_INPUT").is_ok())
+        };
         let is_press_release = matches!(ev.variant, InputVariant::Press | InputVariant::Release)
             && matches!(
                 ev.key,

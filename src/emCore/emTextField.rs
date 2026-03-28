@@ -2089,7 +2089,10 @@ impl emTextField {
         }
         let tallness = self.last_h / self.last_w;
         let (rect, r) = self.border.GetContentRoundRect(1.0, tallness, &self.look);
-        super::widget_utils::check_mouse_round_rect(mx, my, &rect, r)
+        // RUST_ONLY: widget_utils.rs -- C++ inlines this formula per widget
+        let dx = ((rect.x - mx).max(mx - rect.x - rect.w) + r).max(0.0);
+        let dy = ((rect.y - my).max(my - rect.y - rect.h) + r).max(0.0);
+        dx * dx + dy * dy <= r * r
     }
 
     fn handle_mouse(&mut self, event: &emInputEvent) -> bool {
