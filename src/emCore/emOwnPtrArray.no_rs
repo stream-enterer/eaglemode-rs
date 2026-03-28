@@ -81,3 +81,47 @@ C++ usage outside emCore (2 files):
 REVIEWED SUMMARY (reviewed — unverified items marked NOT VERIFIED)
 ================================================================================
 
+C++ emOwnPtrArray.h: owning array of heap-allocated pointers (non-copyable).
+
+2 files outside emCore use this type.
+
+Only 2 emCore consumers:
+  emFontCache.h:85  — emOwnPtrArray<Entry> EntryArray
+  emFpPlugin.h:349  — emOwnPtrArray<emFpPlugin> Plugins
+
+Rust equivalent: Vec<T> (owned values) or Vec<Box<T>> (heap-allocated).
+
+Method mapping (same functionality, different names):
+  GetCount     -> Vec::len()
+  Add          -> Vec::push()
+  Insert       -> Vec::insert()
+  Remove       -> Vec::remove()
+  Clear        -> Vec::clear()
+  IsEmpty      -> Vec::is_empty()
+  Sort         -> Vec::sort_by()
+  operator[]   -> index operator
+  begin/end    -> .iter()
+
+Composable from stdlib:
+  BinaryInsert       -> binary_search_by() + insert()
+  BinaryRemoveByKey  -> binary_search_by() + remove()
+  NOT VERIFIED: whether any outside-emCore file calls these methods.
+
+No Rust equivalent exists for:
+  Set(index, ptr) / Reset(index) — replace element at index, delete old.
+    Rust equivalent: vec[index] = new_value (Drop runs on old value).
+  Release(index) — release ownership without deleting.
+    Rust equivalent: std::mem::take() or vec.remove().
+  Compact / capacity management — Vec handles this internally.
+
+Open question 1 investigated: "Does emFontCache EntryArray have a Rust equivalent?"
+  C++ emFontCache uses emOwnPtrArray<Entry> as a dynamic cache of font
+  entries. Rust emFontCache.rs replaces the entire structure with a single
+  static OnceLock<emImage> holding one decoded font atlas (emFontCache.rs:28).
+  The EntryArray concept does not exist in Rust — the Rust version is a
+  fixed single-atlas approach rather than a dynamic multi-entry cache.
+
+Open question 2 investigated: "Does emFpPlugin Plugins array have a Rust equivalent?"
+  C++ uses emOwnPtrArray<emFpPlugin>. Rust uses Vec<emFpPlugin>
+  (emFpPlugin.rs:438). Direct mapping — the array is sorted by descending
+  priority (emFpPlugin.rs:479-480).
