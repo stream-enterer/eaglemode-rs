@@ -121,6 +121,16 @@ Open question investigated:
   on them sharing the same underlying data.
   The emStocks code uses emCastAnything<bool>(true) as a typed tag
   for marking items obsolete (emStocksControlPanel.cpp:1211).
-  NOT VERIFIED: whether any outside-emCore code not in emStocks uses
-  emAnything in a sharing-dependent way (emTest/emTestContainers.cpp
-  not checked).
+
+  Verified: emTest/emTestContainers.cpp TestAnything() function
+  (lines 357-369) uses store-retrieve-extract pattern only:
+  - a1 = emCastAnything<int>(4711) — wrap int into a1
+  - a2 = a1 — copy a1 to a2
+  - a1 = emCastAnything<const char*>("Hello") — reassign a1
+  - assert a2 still contains int 4711
+  This pattern does NOT require shared semantics. Each variable owns
+  its own data; test verifies that reassigning a1 doesn't affect a2,
+  which works identically with move-only Box<dyn Any>.
+
+Conclusion: Box<dyn Any> is sufficient. No port needed. All usage
+patterns are store-retrieve-extract with no sharing dependence.
