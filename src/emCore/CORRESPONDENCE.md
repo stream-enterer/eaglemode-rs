@@ -263,7 +263,7 @@ when those apps are ported.
 Rust code that reimplements part of an unported C++ type's functionality
 under a different name, without referencing the original type.
 
-- ~~emResTga.rs decodes TGA from &[u8], working around missing emFileStream~~ RESOLVED: emFileStream.rs now ported; emResTga intentionally retains &[u8] decoder for compile-time embedded assets (DIVERGED comment in emResTga.rs)
+- ~~emResTga.rs decodes TGA from &[u8], working around missing emFileStream~~ RESOLVED: emFileStream.rs now ported; emResTga retains &[u8] decoder for compile-time embedded assets. Outside-emCore image loaders (emTga, emBmp, emGif, etc.) will need a file-based TGA loader via emFileStream when ported — the &[u8] decoder does not serve that use case.
 - emFontCache.rs uses OnceLock<emImage> single atlas, replacing C++
   emOwnPtrArray<Entry> dynamic cache + emRef/emModel shared ownership
   (documented in emOwnPtrArray.no_rs and emRef.no_rs)
