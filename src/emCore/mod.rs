@@ -89,6 +89,7 @@ pub mod emTextField;
 pub mod emTexture;
 pub mod emTiling;
 pub mod emTimer;
+pub mod emTmpFile;
 pub mod emTunnel;
 pub mod emVarModel;
 pub mod emVarSigModel;

@@ -22,3 +22,4 @@ mod mini_ipc;
 mod pri_sched_agent;
 mod radio_button;
 mod state_saver;
+mod tmp_file;
