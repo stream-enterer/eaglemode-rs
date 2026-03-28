@@ -1,5 +1,6 @@
 mod array;
 mod avl_tree_map;
+mod avl_tree_set;
 mod cross_ptr;
 mod clipboard;
 mod color_field;
