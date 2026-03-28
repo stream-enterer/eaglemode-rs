@@ -212,7 +212,8 @@ Architectural difference in the rendering pipeline:
   Rust emViewRenderer records paint ops single-threaded (emPainterDrawList),
   then replays them in parallel. User paint code never runs on worker
   threads. The userSpaceMutex pattern does not exist in Rust.
-  This change was made because Rc (used for panel state) is not Send.
+  This change was made because Rc (used for panel state, e.g.
+  emLook.rs:22) is not Send.
 
 NOT VERIFIED: whether any of the 19 outside-emCore files use emThread
   primitives in ways that are not covered by std::thread / std::sync.

@@ -111,7 +111,7 @@ C++ provides:
 
 Closest Rust stdlib equivalent: BTreeSet
   - Contains, Insert, Remove, Clear, IsEmpty, GetCount -> direct equivalents
-  - GetFirst/GetLast -> .first() / .last() (nightly) or .iter().next() / .iter().next_back()
+  - GetFirst/GetLast -> .first() / .last() (stable since Rust 1.66)
   - GetNearest* -> .range() with Bound
   - Set algebra -> BitAnd, BitOr, Sub traits on &BTreeSet (return new sets)
     C++ &=, |=, -= mutate in place. Rust equivalents are .retain() and
