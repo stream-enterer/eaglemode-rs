@@ -8,6 +8,7 @@ mod config_model;
 mod core_config;
 mod core_config_panel;
 mod cursor;
+mod emstocks_prices_fetcher;
 mod emstocks_rec;
 mod default_item_panel;
 mod file_model;
