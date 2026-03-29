@@ -4,6 +4,8 @@ pub mod emStocksConfig;
 pub mod emStocksControlPanel;
 pub mod emStocksFetchPricesDialog;
 pub mod emStocksFileModel;
+pub mod emStocksFilePanel;
+pub mod emStocksFpPlugin;
 pub mod emStocksItemChart;
 pub mod emStocksItemPanel;
 pub mod emStocksListBox;
