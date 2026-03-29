@@ -80,6 +80,209 @@ impl Interest {
     }
 }
 
+// ─── Date arithmetic ─────────────────────────────────────────────────────────
+// Port of C++ emStocksRec static methods as standalone pub functions.
+
+/// Parse "YYYY-MM-DD" format. Returns (year, month, day) if valid.
+/// Handles negative years (leading '-'). C++ returns bool for validity.
+pub fn ParseDate(date: &str) -> Option<(i32, i32, i32)> {
+    let bytes = date.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+    let mut s: i32 = 1;
+    let (mut y, mut m, mut d): (i32, i32, i32) = (0, 0, 0);
+
+    // Skip non-digits, check for '-'
+    while i < len && (bytes[i] < b'0' || bytes[i] > b'9') {
+        if bytes[i] == b'-' {
+            s = -1;
+        }
+        i += 1;
+    }
+    // Read year digits
+    while i < len && bytes[i] >= b'0' && bytes[i] <= b'9' {
+        y = y * 10 + (bytes[i] - b'0') as i32;
+        i += 1;
+    }
+    // Skip non-digits
+    while i < len && (bytes[i] < b'0' || bytes[i] > b'9') {
+        i += 1;
+    }
+    // Read month digits
+    while i < len && bytes[i] >= b'0' && bytes[i] <= b'9' {
+        m = m * 10 + (bytes[i] - b'0') as i32;
+        i += 1;
+    }
+    // Skip non-digits
+    while i < len && (bytes[i] < b'0' || bytes[i] > b'9') {
+        i += 1;
+    }
+    // Read day digits
+    while i < len && bytes[i] >= b'0' && bytes[i] <= b'9' {
+        d = d * 10 + (bytes[i] - b'0') as i32;
+        i += 1;
+    }
+
+    if m >= 1 && d >= 1 {
+        Some((s * y, m, d))
+    } else {
+        None
+    }
+}
+
+/// Compare two date strings. Returns negative if date1 < date2, positive if date1 > date2, 0 if equal.
+/// Uses C++ formula: ((y1-y2)*16+m1-m2)*32+d1-d2
+pub fn CompareDates(date1: &str, date2: &str) -> i32 {
+    let (y1, m1, d1) = ParseDate(date1).unwrap_or((0, 0, 0));
+    let (y2, m2, d2) = ParseDate(date2).unwrap_or((0, 0, 0));
+    ((y1 - y2) * 16 + m1 - m2) * 32 + d1 - d2
+}
+
+/// Days in a month, accounting for leap years.
+pub fn GetDaysOfMonth(year: i32, month: i32) -> i32 {
+    match month {
+        2 => {
+            if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+                29
+            } else {
+                28
+            }
+        }
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+/// Add days to a date (mutating y/m/d). Port the C++ boundary loops exactly.
+pub fn AddDaysToDateParts(days: i32, y: &mut i32, m: &mut i32, d: &mut i32) {
+    *d += days;
+    while *d < -213 {
+        *d += 365 - 28 + GetDaysOfMonth(if *m > 2 { *y } else { *y - 1 }, 2);
+        *y -= 1;
+    }
+    while *d > 243 {
+        *y += 1;
+        *d -= 365 - 28 + GetDaysOfMonth(if *m > 2 { *y } else { *y - 1 }, 2);
+    }
+    while *d < 1 {
+        *m -= 1;
+        if *m < 1 {
+            *y -= 1;
+            *m = 12;
+        }
+        *d += GetDaysOfMonth(*y, *m);
+    }
+    while *d > 28 {
+        let n = GetDaysOfMonth(*y, *m);
+        if *d <= n {
+            break;
+        }
+        *d -= n;
+        *m += 1;
+        if *m > 12 {
+            *y += 1;
+            *m = 1;
+        }
+    }
+}
+
+/// Add days to a date string, returning new date string "YYYY-MM-DD".
+pub fn AddDaysToDate(days: i32, date: &str) -> String {
+    let (mut y, mut m, mut d) = ParseDate(date).unwrap_or((0, 0, 0));
+    AddDaysToDateParts(days, &mut y, &mut m, &mut d);
+    format!("{:04}-{:02}-{:02}", y, m, d)
+}
+
+/// Get difference in days between two dates (6-arg version).
+pub fn GetDateDifferenceParts(
+    mut y1: i32,
+    mut m1: i32,
+    mut d1: i32,
+    mut y2: i32,
+    mut m2: i32,
+    d2: i32,
+) -> i32 {
+    let mut days = d2 - d1;
+    if y1 != y2 {
+        days += (y2 - y1) * 365 + (m2 - m1) * 30;
+        AddDaysToDateParts(days, &mut y1, &mut m1, &mut d1);
+        days += d2 - d1;
+    }
+    while y1 < y2 || (y1 == y2 && m1 < m2) {
+        days += GetDaysOfMonth(y1, m1);
+        m1 += 1;
+        if m1 > 12 {
+            y1 += 1;
+            m1 = 1;
+        }
+    }
+    while y1 > y2 || (y1 == y2 && m1 > m2) {
+        days -= GetDaysOfMonth(y2, m2);
+        m2 += 1;
+        if m2 > 12 {
+            y2 += 1;
+            m2 = 1;
+        }
+    }
+    days
+}
+
+/// Get difference in days between two date strings.
+/// DIVERGED: Returns (days, dates_valid) tuple instead of C++ bool* out-param.
+pub fn GetDateDifference(from_date: &str, to_date: &str) -> (i32, bool) {
+    let from_parsed = ParseDate(from_date);
+    let to_parsed = ParseDate(to_date);
+    let (y1, m1, d1) = from_parsed.unwrap_or((0, 0, 0));
+    let (y2, m2, d2) = to_parsed.unwrap_or((0, 0, 0));
+    let valid = from_parsed.is_some() && to_parsed.is_some();
+    (GetDateDifferenceParts(y1, m1, d1, y2, m2, d2), valid)
+}
+
+/// Get current date as "YYYY-MM-DD".
+pub fn GetCurrentDate() -> String {
+    unsafe {
+        let t = libc::time(std::ptr::null_mut());
+        let mut tmbuf: libc::tm = std::mem::zeroed();
+        let p = libc::localtime_r(&t, &mut tmbuf);
+        if p.is_null() {
+            return "0000-00-00".to_string();
+        }
+        format!(
+            "{:04}-{:02}-{:02}",
+            (*p).tm_year + 1900,
+            (*p).tm_mon + 1,
+            (*p).tm_mday
+        )
+    }
+}
+
+// ─── Price formatting ────────────────────────────────────────────────────────
+
+/// Format share price with adaptive decimal places based on magnitude.
+pub fn SharePriceToString(price: f64) -> String {
+    let mut d = 0;
+    let mut m = 1000.0_f64;
+    loop {
+        if price.abs() >= m {
+            break;
+        }
+        if d >= 8 {
+            if price == 0.0 {
+                d = 0;
+            }
+            break;
+        }
+        d += 1;
+        m /= 10.0;
+    }
+    format!("{:.prec$}", price, prec = d)
+}
+
+/// Format payment price with 2 decimal places.
+pub fn PaymentPriceToString(price: f64) -> String {
+    format!("{:.2}", price)
+}
+
 // ─── StockRec ────────────────────────────────────────────────────────────────
 
 /// Port of C++ emStocksRec::StockRec.
@@ -165,9 +368,402 @@ impl fmt::Debug for StockRec {
 }
 
 impl StockRec {
+    pub const MAX_NUM_PRICES: usize = 366 * 20;
+
     /// Expose cross-pointer list for linking. Corresponds to C++ LinkCrossPtr.
     pub fn LinkCrossPtr(&mut self) -> &mut emCrossPtrList {
         &mut self.cross_ptr_list
+    }
+
+    /// Port of C++ GetPricePtrOfDate. Returns the price substring for a given date.
+    /// Returns "" if date is out of range.
+    pub fn GetPricePtrOfDate(&self, date: &str) -> &str {
+        let (mut d, dates_valid) = GetDateDifference(date, &self.last_price_date);
+        if !dates_valid || d < 0 {
+            return "";
+        }
+        // Walk backwards through pipe-separated segments
+        let prices = self.prices.as_bytes();
+        let mut end = prices.len();
+        loop {
+            if end == 0 {
+                return "";
+            }
+            // Find start of this segment
+            let mut start = end;
+            while start > 0 && prices[start - 1] != b'|' {
+                start -= 1;
+            }
+            d -= 1;
+            if d < 0 {
+                return &self.prices[start..end];
+            }
+            // Move past the '|' separator
+            if start > 0 {
+                end = start - 1;
+            } else {
+                end = 0;
+            }
+        }
+    }
+
+    /// Port of C++ GetPriceOfDate.
+    pub fn GetPriceOfDate(&self, date: &str) -> String {
+        let p = self.GetPricePtrOfDate(date);
+        // In C++, GetPriceOfDate extracts up to '|', but GetPricePtrOfDate
+        // already returns a segment without '|', so just return it.
+        p.to_string()
+    }
+
+    /// Port of C++ GetPricesDateBefore.
+    pub fn GetPricesDateBefore(&self, date: &str) -> String {
+        let (d, _) = GetDateDifference(date, &self.last_price_date);
+        let prices = self.prices.as_bytes();
+        let mut end = prices.len();
+        let mut n: i32 = 0;
+        while end > 0 {
+            let mut start = end;
+            while start > 0 && prices[start - 1] != b'|' {
+                start -= 1;
+            }
+            if n > d {
+                // Check segment is non-empty
+                let seg = &self.prices[start..end];
+                if !seg.is_empty() && seg.as_bytes()[0] != b'|' {
+                    return AddDaysToDate(-n, &self.last_price_date);
+                }
+            }
+            n += 1;
+            if start > 0 {
+                end = start - 1;
+            } else {
+                end = 0;
+            }
+        }
+        String::new()
+    }
+
+    /// Port of C++ GetPricesDateAfter.
+    pub fn GetPricesDateAfter(&self, date: &str) -> String {
+        let (d, _) = GetDateDifference(date, &self.last_price_date);
+        if d <= 0 {
+            return String::new();
+        }
+        let prices = self.prices.as_bytes();
+        let mut end = prices.len();
+        let mut n: i32 = 0;
+        let mut m: i32 = -1;
+        while end > 0 {
+            let mut start = end;
+            while start > 0 && prices[start - 1] != b'|' {
+                start -= 1;
+            }
+            let seg = &self.prices[start..end];
+            if !seg.is_empty() && seg.as_bytes()[0] != b'|' {
+                m = n;
+            }
+            if n + 1 >= d {
+                break;
+            }
+            n += 1;
+            if start > 0 {
+                end = start - 1;
+            } else {
+                end = 0;
+            }
+        }
+        if m >= 0 {
+            AddDaysToDate(-m, &self.last_price_date)
+        } else {
+            String::new()
+        }
+    }
+
+    /// Port of C++ AddPrice. Complex method with MAX_NUM_PRICES trimming.
+    pub fn AddPrice(&mut self, date: &str, price: &str) {
+        let mut prices = self.prices.clone();
+
+        // Count segments
+        let mut n: i32 = 0;
+        if !prices.is_empty() {
+            n = 1;
+            for b in prices.bytes() {
+                if b == b'|' {
+                    n += 1;
+                }
+            }
+        }
+
+        if n <= 0 {
+            self.prices = price.to_string();
+            self.last_price_date = date.to_string();
+            return;
+        }
+
+        let mut i: i32 =
+            n - 1 + GetDateDifference(&self.last_price_date, date).0;
+
+        if i >= n {
+            // Trim old prices from front if exceeding MAX_NUM_PRICES
+            let bytes = prices.as_bytes();
+            let mut pos = 0;
+            while pos < bytes.len()
+                && ((i + 1) as usize > Self::MAX_NUM_PRICES || bytes[pos] == b'|')
+            {
+                loop {
+                    pos += 1;
+                    if pos >= bytes.len() || bytes[pos - 1] == b'|' {
+                        break;
+                    }
+                }
+                n -= 1;
+                i -= 1;
+            }
+            if n <= 0 {
+                self.prices = price.to_string();
+                self.last_price_date = date.to_string();
+                return;
+            }
+            if pos > 0 {
+                prices = prices[pos..].to_string();
+            }
+        }
+
+        if i < 0 {
+            // Trim recent prices from back if exceeding MAX_NUM_PRICES
+            let bytes = prices.as_bytes();
+            let mut q_pos = bytes.len();
+            while q_pos > 0
+                && ((-i + n) as usize > Self::MAX_NUM_PRICES || bytes[q_pos - 1] == b'|')
+            {
+                loop {
+                    q_pos -= 1;
+                    if q_pos == 0 || bytes[q_pos] == b'|' {
+                        break;
+                    }
+                }
+                n -= 1;
+                self.last_price_date = AddDaysToDate(-1, &self.last_price_date);
+            }
+            if n <= 0 {
+                self.prices = price.to_string();
+                self.last_price_date = date.to_string();
+                return;
+            }
+            if q_pos < bytes.len() {
+                prices = prices[..q_pos].to_string();
+            }
+        }
+
+        if i >= n {
+            // Extend with pipe separators
+            let extend = (i + 1 - n) as usize;
+            for _ in 0..extend {
+                prices.push('|');
+            }
+            n = i + 1;
+            self.last_price_date = date.to_string();
+        }
+
+        if i < 0 {
+            // Prepend pipe separators
+            let prepend = (-i) as usize;
+            let mut prefix = String::with_capacity(prepend + prices.len());
+            for _ in 0..prepend {
+                prefix.push('|');
+            }
+            prefix.push_str(&prices);
+            prices = prefix;
+            n += -i;
+            i = 0;
+        }
+
+        // Replace segment at index i (counting from end, j = n-1 is last segment)
+        // Find the segment at position i (0 = first/oldest, n-1 = last/newest)
+        let bytes = prices.as_bytes();
+        let total_len = bytes.len();
+        let mut e_pos = total_len;
+        let mut q_pos;
+        let mut j = n - 1;
+        loop {
+            q_pos = e_pos;
+            while q_pos > 0 && bytes[q_pos - 1] != b'|' {
+                q_pos -= 1;
+            }
+            if j <= i {
+                break;
+            }
+            e_pos = if q_pos > 0 { q_pos - 1 } else { 0 };
+            j -= 1;
+        }
+
+        // Replace prices[q_pos..e_pos] with price
+        let mut result = String::with_capacity(q_pos + price.len() + (total_len - e_pos));
+        result.push_str(&prices[..q_pos]);
+        result.push_str(price);
+        result.push_str(&prices[e_pos..]);
+        self.prices = result;
+    }
+
+    /// Port of C++ IsMatchingSearchText. Case-insensitive substring search.
+    pub fn IsMatchingSearchText(&self, search_text: &str) -> bool {
+        let needle = search_text.to_ascii_lowercase();
+        let fields = [
+            &self.name,
+            &self.symbol,
+            &self.wkn,
+            &self.isin,
+            &self.country,
+            &self.sector,
+            &self.collection,
+            &self.comment,
+        ];
+        for field in &fields {
+            if field.to_ascii_lowercase().contains(&needle) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Port of C++ GetTradeValue.
+    /// DIVERGED: Returns Option<f64> instead of bool + *pResult.
+    pub fn GetTradeValue(&self) -> Option<f64> {
+        if !self.owning_shares || self.trade_price.is_empty() || self.own_shares.is_empty() {
+            return None;
+        }
+        let tp: f64 = self.trade_price.parse().unwrap_or(0.0);
+        let os: f64 = self.own_shares.parse().unwrap_or(0.0);
+        Some(tp * os)
+    }
+
+    /// Port of C++ GetValueOfDate.
+    pub fn GetValueOfDate(&self, date: &str) -> Option<f64> {
+        if !self.owning_shares || self.own_shares.is_empty() {
+            return None;
+        }
+        let price_str = self.GetPricePtrOfDate(date);
+        let first = price_str.as_bytes().first().copied().unwrap_or(0);
+        if !first.is_ascii_digit() {
+            return None;
+        }
+        let p: f64 = price_str.parse().unwrap_or(0.0);
+        let os: f64 = self.own_shares.parse().unwrap_or(0.0);
+        Some(p * os)
+    }
+
+    /// Port of C++ GetDifferenceValueOfDate.
+    pub fn GetDifferenceValueOfDate(&self, date: &str) -> Option<f64> {
+        let v1 = self.GetTradeValue()?;
+        let v2 = self.GetValueOfDate(date)?;
+        Some(v2 - v1)
+    }
+
+    /// Port of C++ GetAchievementOfDate.
+    pub fn GetAchievementOfDate(&self, date: &str, relative: bool) -> Option<f64> {
+        if self.desired_price.is_empty() {
+            return None;
+        }
+        let mut d: f64 = self.desired_price.parse().unwrap_or(0.0);
+        if d < 1e-10 {
+            return None;
+        }
+
+        let price_str = self.GetPricePtrOfDate(date);
+        let first = price_str.as_bytes().first().copied().unwrap_or(0);
+        if !first.is_ascii_digit() {
+            return None;
+        }
+        let p: f64 = price_str.parse().unwrap_or(0.0);
+        if p < 1e-10 {
+            return None;
+        }
+
+        let result = if relative {
+            if self.trade_price.is_empty() {
+                return None;
+            }
+            let t: f64 = self.trade_price.parse().unwrap_or(0.0);
+            if t < 1e-10 {
+                return None;
+            }
+            if (d - t).abs() < 1e-10 {
+                d = t + if self.owning_shares { 1e-10 } else { -1e-10 };
+            }
+            (p - t) / (d - t)
+        } else if self.owning_shares {
+            p / d
+        } else {
+            d / p
+        };
+
+        Some(result * 100.0)
+    }
+
+    /// Port of C++ GetRiseUntilDate.
+    pub fn GetRiseUntilDate(&self, date: &str, days: i32) -> Option<f64> {
+        let q_str = self.GetPricePtrOfDate(date);
+        let first_byte = q_str.as_bytes().first().copied().unwrap_or(0);
+        if !first_byte.is_ascii_digit() {
+            return None;
+        }
+        let c_val: f64 = q_str.parse().unwrap_or(0.0);
+        if c_val < 1e-10 {
+            return None;
+        }
+
+        // Collect all segments in order (oldest first, same as self.prices layout)
+        let segments: Vec<&str> = self.prices.split('|').collect();
+
+        // Find which segment index corresponds to `date`.
+        // GetPricePtrOfDate returns segment at index (total_segments - 1 - diff)
+        // where diff = GetDateDifference(date, last_price_date).
+        let (diff, _) = GetDateDifference(date, &self.last_price_date);
+        let total = segments.len() as i32;
+        let cur_idx = total - 1 - diff;
+
+        let d1 = days - days / 6;
+        let d2 = days + days / 6;
+        let mut m = 0.0_f64;
+        let mut n = 0;
+        let mut last_valid_val: Option<f64> = None;
+
+        // Walk backwards from cur_idx-1 (d starts at 1)
+        for d in 1..=d2 {
+            let idx = cur_idx - d;
+            if idx < 0 {
+                break;
+            }
+            let seg = segments[idx as usize];
+            let seg_first = seg.as_bytes().first().copied().unwrap_or(0);
+            if !seg_first.is_ascii_digit() {
+                continue;
+            }
+            last_valid_val = Some(seg.parse::<f64>().unwrap_or(0.0));
+            if d < d1 {
+                continue;
+            }
+            m += seg.parse::<f64>().unwrap_or(0.0);
+            n += 1;
+        }
+
+        if n == 0 {
+            m = last_valid_val.unwrap_or(c_val);
+        } else {
+            m /= n as f64;
+        }
+
+        if m < 1e-10 {
+            return None;
+        }
+
+        let c_result = if self.owning_shares {
+            c_val / m
+        } else {
+            m / c_val
+        };
+
+        Some(c_result * 100.0)
     }
 }
 
@@ -343,6 +939,116 @@ mod tests {
         assert_eq!(rec.id, "");
         assert_eq!(rec.interest, Interest::Medium);
         assert!(rec.web_pages.is_empty());
+    }
+
+    #[test]
+    fn parse_date_valid() {
+        assert_eq!(ParseDate("2024-03-15"), Some((2024, 3, 15)));
+    }
+
+    #[test]
+    fn parse_date_negative_year() {
+        assert_eq!(ParseDate("-500-01-01"), Some((-500, 1, 1)));
+    }
+
+    #[test]
+    fn parse_date_invalid() {
+        assert_eq!(ParseDate(""), None);
+        assert_eq!(ParseDate("foo"), None);
+    }
+
+    #[test]
+    fn compare_dates() {
+        assert!(CompareDates("2024-03-15", "2024-03-16") < 0);
+        assert!(CompareDates("2024-03-16", "2024-03-15") > 0);
+        assert_eq!(CompareDates("2024-03-15", "2024-03-15"), 0);
+    }
+
+    #[test]
+    fn days_of_month() {
+        assert_eq!(GetDaysOfMonth(2024, 2), 29); // leap year
+        assert_eq!(GetDaysOfMonth(2023, 2), 28);
+        assert_eq!(GetDaysOfMonth(2024, 1), 31);
+        assert_eq!(GetDaysOfMonth(2024, 4), 30);
+    }
+
+    #[test]
+    fn add_days_to_date() {
+        assert_eq!(AddDaysToDate(1, "2024-03-31"), "2024-04-01");
+        assert_eq!(AddDaysToDate(-1, "2024-01-01"), "2023-12-31");
+        assert_eq!(AddDaysToDate(366, "2024-01-01"), "2025-01-01"); // 2024 is leap year
+    }
+
+    #[test]
+    fn get_date_difference() {
+        assert_eq!(GetDateDifference("2024-01-01", "2024-01-02"), (1, true));
+        assert_eq!(GetDateDifference("2024-01-02", "2024-01-01"), (-1, true));
+        assert_eq!(GetDateDifference("2024-01-01", "2025-01-01").0, 366); // leap year
+    }
+
+    #[test]
+    fn stock_add_price_and_retrieve() {
+        let mut stock = StockRec::default();
+        stock.AddPrice("2024-03-15", "100.50");
+        assert_eq!(stock.last_price_date, "2024-03-15");
+        assert_eq!(stock.GetPriceOfDate("2024-03-15"), "100.50");
+    }
+
+    #[test]
+    fn stock_add_multiple_prices() {
+        let mut stock = StockRec::default();
+        stock.AddPrice("2024-03-14", "99.00");
+        stock.AddPrice("2024-03-15", "100.50");
+        assert_eq!(stock.GetPriceOfDate("2024-03-14"), "99.00");
+        assert_eq!(stock.GetPriceOfDate("2024-03-15"), "100.50");
+        assert_eq!(stock.last_price_date, "2024-03-15");
+    }
+
+    #[test]
+    fn stock_is_matching_search_text() {
+        let mut stock = StockRec::default();
+        stock.name = "Apple Inc.".to_string();
+        stock.symbol = "AAPL".to_string();
+        assert!(stock.IsMatchingSearchText("apple"));
+        assert!(stock.IsMatchingSearchText("AAPL"));
+        assert!(!stock.IsMatchingSearchText("GOOG"));
+    }
+
+    #[test]
+    fn stock_get_trade_value() {
+        let mut stock = StockRec::default();
+        stock.owning_shares = true;
+        stock.trade_price = "150.00".to_string();
+        stock.own_shares = "10".to_string();
+        assert_eq!(stock.GetTradeValue(), Some(1500.0));
+    }
+
+    #[test]
+    fn stock_get_trade_value_not_owning() {
+        let stock = StockRec::default();
+        assert_eq!(stock.GetTradeValue(), None);
+    }
+
+    #[test]
+    fn share_price_to_string_large() {
+        // C++: d=0 (fabs(1234.5) >= 1000.0), format "%.0f" -> "1234"
+        assert_eq!(SharePriceToString(1234.5), "1234");
+    }
+
+    #[test]
+    fn share_price_to_string_small() {
+        // C++: d=4 (fabs(0.12345678) >= 0.1), format "%.4f" -> "0.1235"
+        assert_eq!(SharePriceToString(0.12345678), "0.1235");
+    }
+
+    #[test]
+    fn share_price_to_string_zero() {
+        assert_eq!(SharePriceToString(0.0), "0");
+    }
+
+    #[test]
+    fn payment_price_to_string() {
+        assert_eq!(PaymentPriceToString(1234.5), "1234.50");
     }
 
     #[test]
