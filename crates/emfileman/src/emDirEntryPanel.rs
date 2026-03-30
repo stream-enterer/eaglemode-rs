@@ -1,3 +1,17 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use emcore::emColor::emColor;
+use emcore::emContext::emContext;
+use emcore::emPanel::{PanelBehavior, PanelState};
+use emcore::emPanelCtx::PanelCtx;
+use emcore::emPanelTree::PanelId;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
+
+use crate::emDirEntry::emDirEntry;
+use crate::emFileManModel::emFileManModel;
+use crate::emFileManViewConfig::emFileManViewConfig;
+
 pub const CONTENT_NAME: &str = "";
 pub const ALT_NAME: &str = "a";
 
@@ -48,16 +62,233 @@ pub fn compute_bg_color(
     }
 }
 
+/// Directory entry panel — displays a single file or directory.
+/// Port of C++ `emDirEntryPanel` (extends emPanel).
+///
+/// The rendering workhorse of emFileMan. Draws themed background, name,
+/// info, borders, and content area. Creates content panels via the plugin
+/// system and alt panels for alternative views.
+pub struct emDirEntryPanel {
+    file_man: Rc<RefCell<emFileManModel>>,
+    config: Rc<RefCell<emFileManViewConfig>>,
+    dir_entry: emDirEntry,
+    pub(crate) bg_color: u32,
+    content_panel: Option<PanelId>,
+    alt_panel: Option<PanelId>,
+}
+
+impl emDirEntryPanel {
+    pub fn new(ctx: Rc<emContext>, dir_entry: emDirEntry) -> Self {
+        let file_man = emFileManModel::Acquire(&ctx);
+        let config = emFileManViewConfig::Acquire(&ctx);
+
+        let bg_color = {
+            let fm = file_man.borrow();
+            let cfg = config.borrow();
+            let theme = cfg.GetTheme();
+            let theme_rec = theme.GetRec();
+            compute_bg_color(
+                fm.IsSelectedAsSource(dir_entry.GetPath()),
+                fm.IsSelectedAsTarget(dir_entry.GetPath()),
+                theme_rec.BackgroundColor,
+                theme_rec.SourceSelectionColor,
+                theme_rec.TargetSelectionColor,
+            )
+        };
+
+        Self {
+            file_man,
+            config,
+            dir_entry,
+            bg_color,
+            content_panel: None,
+            alt_panel: None,
+        }
+    }
+
+    pub fn GetDirEntry(&self) -> &emDirEntry {
+        &self.dir_entry
+    }
+
+    pub fn UpdateDirEntry(&mut self, dir_entry: emDirEntry) {
+        if self.dir_entry == dir_entry {
+            return;
+        }
+        let path_changed = dir_entry.GetPath() != self.dir_entry.GetPath();
+        self.dir_entry = dir_entry;
+        if path_changed {
+            self.update_bg_color();
+        }
+    }
+
+    fn update_bg_color(&mut self) {
+        let fm = self.file_man.borrow();
+        let cfg = self.config.borrow();
+        let theme = cfg.GetTheme();
+        let theme_rec = theme.GetRec();
+        self.bg_color = compute_bg_color(
+            fm.IsSelectedAsSource(self.dir_entry.GetPath()),
+            fm.IsSelectedAsTarget(self.dir_entry.GetPath()),
+            theme_rec.BackgroundColor,
+            theme_rec.SourceSelectionColor,
+            theme_rec.TargetSelectionColor,
+        );
+    }
+}
+
+impl PanelBehavior for emDirEntryPanel {
+    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
+        self.update_bg_color();
+        false
+    }
+
+    fn IsOpaque(&self) -> bool {
+        let cfg = self.config.borrow();
+        let theme = cfg.GetTheme();
+        let theme_rec = theme.GetRec();
+        (self.bg_color >> 24) == 0xFF
+            && theme_rec.BackgroundX <= 0.0
+            && theme_rec.BackgroundY <= 0.0
+            && theme_rec.BackgroundW >= 1.0
+            && theme_rec.BackgroundRX <= 0.0
+            && theme_rec.BackgroundRY <= 0.0
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, _w: f64, _h: f64, state: &PanelState) {
+        let cfg = self.config.borrow();
+        let theme = cfg.GetTheme();
+        let theme_rec = theme.GetRec();
+        let bg = emColor::from_packed(self.bg_color);
+
+        // Background rounded rect
+        let r = theme_rec.BackgroundRX.min(theme_rec.BackgroundRY);
+        painter.PaintRoundRect(
+            theme_rec.BackgroundX, theme_rec.BackgroundY,
+            theme_rec.BackgroundW, theme_rec.BackgroundH,
+            r, bg,
+        );
+
+        // Name color based on file type
+        let name_color = if self.dir_entry.IsRegularFile() {
+            let mode = self.dir_entry.GetStat().st_mode;
+            if mode & (libc::S_IXUSR | libc::S_IXGRP | libc::S_IXOTH) != 0 {
+                emColor::from_packed(theme_rec.ExeNameColor)
+            } else {
+                emColor::from_packed(theme_rec.NormalNameColor)
+            }
+        } else if self.dir_entry.IsDirectory() {
+            emColor::from_packed(theme_rec.DirNameColor)
+        } else {
+            emColor::from_packed(theme_rec.OtherNameColor)
+        };
+
+        let name = self.dir_entry.GetName();
+        painter.PaintTextBoxed(
+            theme_rec.NameX, theme_rec.NameY,
+            theme_rec.NameW, theme_rec.NameH,
+            name, theme_rec.NameH,
+            name_color, bg,
+            TextAlignment::Left, VAlign::Center,
+            TextAlignment::Left, 0.5, false, 1.0,
+        );
+
+        // Path (shown when content area is visible)
+        let content_w = if self.dir_entry.IsDirectory() {
+            theme_rec.DirContentW
+        } else {
+            theme_rec.FileContentW
+        };
+
+        if self.content_panel.is_some() || state.viewed_rect.w * content_w >= theme_rec.MinContentVW {
+            painter.PaintTextBoxed(
+                theme_rec.PathX, theme_rec.PathY,
+                theme_rec.PathW, theme_rec.PathH,
+                self.dir_entry.GetPath(), theme_rec.PathH,
+                emColor::from_packed(theme_rec.PathColor), bg,
+                TextAlignment::Left, VAlign::Center,
+                TextAlignment::Left, 0.5, false, 1.0,
+            );
+
+            // Content area background
+            if self.dir_entry.IsDirectory() {
+                painter.PaintRect(
+                    theme_rec.DirContentX, theme_rec.DirContentY,
+                    theme_rec.DirContentW, theme_rec.DirContentH,
+                    emColor::from_packed(theme_rec.DirContentColor), bg,
+                );
+            } else {
+                painter.PaintRect(
+                    theme_rec.FileContentX, theme_rec.FileContentY,
+                    theme_rec.FileContentW, theme_rec.FileContentH,
+                    emColor::from_packed(theme_rec.FileContentColor), bg,
+                );
+            }
+        }
+
+        // Info area (permissions, owner, group, size, time)
+        let info_color = emColor::from_packed(theme_rec.InfoColor);
+        let time_str = FormatTime(self.dir_entry.GetStat().st_mtime, false);
+        painter.PaintTextBoxed(
+            theme_rec.InfoX, theme_rec.InfoY,
+            theme_rec.InfoW, theme_rec.InfoH,
+            &time_str, theme_rec.InfoH,
+            info_color, bg,
+            TextAlignment::Left, VAlign::Center,
+            TextAlignment::Left, 0.5, false, 1.0,
+        );
+    }
+
+    fn get_title(&self) -> Option<String> {
+        Some(self.dir_entry.GetPath().to_string())
+    }
+
+    fn GetIconFileName(&self) -> Option<String> {
+        if self.dir_entry.IsDirectory() {
+            Some("directory.tga".to_string())
+        } else {
+            Some("file.tga".to_string())
+        }
+    }
+
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
+        if let Some(child) = self.content_panel {
+            let cfg = self.config.borrow();
+            let theme = cfg.GetTheme();
+            let theme_rec = theme.GetRec();
+            let (cx, cy, cw, ch, cc) = if self.dir_entry.IsDirectory() {
+                (theme_rec.DirContentX, theme_rec.DirContentY,
+                 theme_rec.DirContentW, theme_rec.DirContentH,
+                 emColor::from_packed(theme_rec.DirContentColor))
+            } else {
+                (theme_rec.FileContentX, theme_rec.FileContentY,
+                 theme_rec.FileContentW, theme_rec.FileContentH,
+                 emColor::from_packed(theme_rec.FileContentColor))
+            };
+            ctx.layout_child_canvas(child, cx, cy, cw, ch, cc);
+        }
+        if let Some(child) = self.alt_panel {
+            let cfg = self.config.borrow();
+            let theme = cfg.GetTheme();
+            let theme_rec = theme.GetRec();
+            ctx.layout_child_canvas(
+                child,
+                theme_rec.AltX, theme_rec.AltY,
+                theme_rec.AltW, theme_rec.AltH,
+                emColor::from_packed(self.bg_color),
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn format_time_inline() {
-        let t: libc::time_t = 1610000000; // 2021-01-07 06:13:20 UTC (safe across timezones)
+        let t: libc::time_t = 1610000000;
         let s = FormatTime(t, false);
         assert!(s.contains("2021"));
-        // Format: YYYY-MM-DD HH:MM:SS
         assert_eq!(s.matches('-').count(), 2);
         assert_eq!(s.matches(':').count(), 2);
         assert!(!s.contains('\n'));
@@ -99,5 +330,33 @@ mod tests {
     fn content_name_constants() {
         assert_eq!(CONTENT_NAME, "");
         assert_eq!(ALT_NAME, "a");
+    }
+
+    #[test]
+    fn panel_implements_panel_behavior() {
+        use emcore::emPanel::PanelBehavior;
+
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+        let _: Box<dyn PanelBehavior> = Box::new(panel);
+    }
+
+    #[test]
+    fn panel_initial_bg_color() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+        assert_ne!(panel.bg_color, 0);
+    }
+
+    #[test]
+    fn panel_get_title() {
+        use emcore::emPanel::PanelBehavior;
+
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+        assert_eq!(panel.get_title(), Some("/tmp".to_string()));
     }
 }
