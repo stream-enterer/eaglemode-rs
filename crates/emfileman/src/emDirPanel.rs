@@ -10,6 +10,7 @@ use emcore::emInput::{emInputEvent, InputKey};
 use emcore::emInputState::emInputState;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
+use emcore::emPanelTree::PanelId;
 use emcore::emPainter::emPainter;
 
 use crate::emDirEntry::emDirEntry;
@@ -435,6 +436,11 @@ impl PanelBehavior for emDirPanel {
                 ctx.layout_child_canvas(*child, 0.0, 0.0, cw, ch, canvas_color);
             }
         }
+    }
+
+    fn CreateControlPanel(&mut self, parent_ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+        let panel = crate::emFileManControlPanel::emFileManControlPanel::new(Rc::clone(&self.ctx));
+        Some(parent_ctx.create_child_with(name, Box::new(panel)))
     }
 
     fn GetIconFileName(&self) -> Option<String> {

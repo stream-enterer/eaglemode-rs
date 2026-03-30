@@ -396,6 +396,11 @@ impl PanelBehavior for emDirEntryPanel {
         Some(self.dir_entry.GetPath().to_string())
     }
 
+    fn CreateControlPanel(&mut self, parent_ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
+        let panel = crate::emFileManControlPanel::emFileManControlPanel::new(Rc::clone(&self.ctx));
+        Some(parent_ctx.create_child_with(name, Box::new(panel)))
+    }
+
     fn GetIconFileName(&self) -> Option<String> {
         if self.dir_entry.IsDirectory() {
             Some("directory.tga".to_string())
