@@ -232,6 +232,21 @@ Config files:
 - EM_DIR set to repo root for development via .cargo/config.toml
 - LD_LIBRARY_PATH set to target/debug/ for plugin .so discovery
 
+### emFilePanel completion (2026-03-30)
+
+emCore infrastructure for file panel ↔ model integration:
+- FileModelClient trait added to emFileModel.rs. Panels register as clients
+  for memory/priority aggregation (AddClient, RemoveClient, UpdateMemoryLimit,
+  UpdatePriority, IsAnyClientReloadAnnoying).
+- FileModelState trait added to emFileModel.rs for type erasure. DIVERGED:
+  C++ emFileModel base class — Rust uses trait since emFileModel<T> is generic.
+- emFilePanel restructured from passive data bag to active model observer.
+  SetFileModel accepts Rc<RefCell<dyn FileModelState>>. Cycle detects model
+  state changes. notice forwards memory/priority from panel tree to model.
+- IsContentReady added based on VirtualFileState.
+- Scheduler behavioral test validates PriSchedModel callback pattern for
+  file model loading.
+
 ## Porting rules
 
 The highest priority is scope and parity with each C++ header. Every
