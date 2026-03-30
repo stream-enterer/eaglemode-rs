@@ -8,6 +8,8 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emInput::emInputEvent;
+use emcore::emInputState::emInputState;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
@@ -220,6 +222,17 @@ impl PanelBehavior for emDirEntryAltPanel {
             theme_rec.AltContentW, theme_rec.AltContentH,
             bg, canvas,
         );
+    }
+
+    fn Input(
+        &mut self,
+        _event: &emInputEvent,
+        _state: &PanelState,
+        _input_state: &emInputState,
+    ) -> bool {
+        // Mouse events in alt content area: content panel receives
+        // the event via panel tree propagation. Nothing to handle here.
+        false
     }
 
     fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
