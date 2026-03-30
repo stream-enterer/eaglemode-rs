@@ -1,8 +1,255 @@
-// Selection subsystem of emFileManModel.
-// Command tree and IPC will be added in Tasks 8 and 9.
+// Selection subsystem and command tree of emFileManModel.
+// IPC will be added in Task 9.
 
 use emcore::emStd2::emCalcHashCode;
 use std::path::Path;
+
+// ---------------------------------------------------------------------------
+// Command tree
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CommandType {
+    Command,
+    Group,
+    Separator,
+}
+
+#[derive(Clone, Debug)]
+pub struct CommandNode {
+    pub cmd_path: String,
+    pub command_type: CommandType,
+    pub order: f64,
+    pub interpreter: String,
+    pub dir: String,
+    pub default_for: String,
+    pub caption: String,
+    pub description: String,
+    pub hotkey: String,
+    pub border_scaling: f64,
+    pub pref_child_tallness: f64,
+    pub children: Vec<CommandNode>,
+    pub dir_crc: u64,
+}
+
+impl Default for CommandNode {
+    fn default() -> Self {
+        Self {
+            cmd_path: String::new(),
+            command_type: CommandType::Command,
+            order: 0.0,
+            interpreter: String::new(),
+            dir: String::new(),
+            default_for: String::new(),
+            caption: String::new(),
+            description: String::new(),
+            hotkey: String::new(),
+            border_scaling: 0.0,
+            pref_child_tallness: 0.0,
+            children: Vec::new(),
+            dir_crc: 0,
+        }
+    }
+}
+
+/// Parse `# [[BEGIN PROPERTIES]]` ... `# [[END PROPERTIES]]` blocks from
+/// command file content. Each property line has the form `# Key = Value`.
+pub fn parse_command_properties(content: &str, cmd_path: &str) -> Result<CommandNode, String> {
+    let mut node = CommandNode {
+        cmd_path: cmd_path.to_string(),
+        ..CommandNode::default()
+    };
+
+    let mut in_block = false;
+    let mut found_type = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed == "# [[BEGIN PROPERTIES]]" {
+            in_block = true;
+            continue;
+        }
+        if trimmed == "# [[END PROPERTIES]]" {
+            break;
+        }
+        if !in_block {
+            continue;
+        }
+
+        // Strip leading "# " and parse "Key = Value"
+        let stripped = if let Some(s) = trimmed.strip_prefix("# ") {
+            s
+        } else {
+            continue;
+        };
+
+        let Some((key, value)) = stripped.split_once('=') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+
+        match key {
+            "Type" => {
+                node.command_type = match value {
+                    "Command" => CommandType::Command,
+                    "Group" => CommandType::Group,
+                    "Separator" => CommandType::Separator,
+                    other => return Err(format!("Unknown command type: {other}")),
+                };
+                found_type = true;
+            }
+            "Order" => {
+                node.order = value
+                    .parse::<f64>()
+                    .map_err(|e| format!("Bad Order value: {e}"))?;
+            }
+            "Interpreter" => {
+                node.interpreter = value.to_string();
+            }
+            "Directory" | "Dir" => {
+                // Resolve relative to command file's parent directory
+                let parent = Path::new(cmd_path)
+                    .parent()
+                    .unwrap_or_else(|| Path::new(""));
+                let resolved = parent.join(value);
+                node.dir = resolved.to_string_lossy().to_string();
+            }
+            "DefaultFor" => {
+                node.default_for = value.to_string();
+            }
+            "Caption" => {
+                if node.caption.is_empty() {
+                    node.caption = value.to_string();
+                } else {
+                    node.caption.push('\n');
+                    node.caption.push_str(value);
+                }
+            }
+            "Description" | "Descr" => {
+                if node.description.is_empty() {
+                    node.description = value.to_string();
+                } else {
+                    node.description.push('\n');
+                    node.description.push_str(value);
+                }
+            }
+            "Hotkey" => {
+                node.hotkey = value.to_string();
+            }
+            "BorderScaling" => {
+                node.border_scaling = value
+                    .parse::<f64>()
+                    .map_err(|e| format!("Bad BorderScaling value: {e}"))?;
+            }
+            "PrefChildTallness" => {
+                node.pref_child_tallness = value
+                    .parse::<f64>()
+                    .map_err(|e| format!("Bad PrefChildTallness value: {e}"))?;
+            }
+            // Store color/icon properties as-is (unused for now)
+            "BgColor" | "FgColor" | "ButtonBgColor" | "ButtonFgColor" | "Icon" => {}
+            _ => {}
+        }
+    }
+
+    if !found_type {
+        return Err("Missing Type property".to_string());
+    }
+
+    Ok(node)
+}
+
+/// Returns true if the filename has an allowed command file extension.
+/// Allowed (case-insensitive): `.js`, `.pl`, `.props`, `.py`, `.sh`
+pub fn check_command_file_ending(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with(".js")
+        || lower.ends_with(".pl")
+        || lower.ends_with(".props")
+        || lower.ends_with(".py")
+        || lower.ends_with(".sh")
+}
+
+/// Check whether `cmd` is a default command for the given file path.
+/// Returns a priority value (higher = better match), or 0 if no match.
+///
+/// For extension matching this does NOT check the filesystem — it only
+/// compares the suffix. For the keywords "file" and "directory" it uses
+/// `Path::is_file()` / `Path::is_dir()`.
+#[allow(non_snake_case)]
+pub fn CheckDefaultCommand(cmd: &CommandNode, file_path: &str) -> i32 {
+    if cmd.command_type != CommandType::Command {
+        return 0;
+    }
+    if cmd.default_for.is_empty() {
+        return 0;
+    }
+    if cmd.default_for == "file" {
+        return if Path::new(file_path).is_file() { 1 } else { 0 };
+    }
+    if cmd.default_for == "directory" {
+        return if Path::new(file_path).is_dir() { 1 } else { 0 };
+    }
+
+    let path_len = file_path.len();
+    let path_lower = file_path.to_ascii_lowercase();
+    let mut best_len: usize = 0;
+
+    for ext in cmd.default_for.split(':') {
+        let ext_len = ext.len();
+        if ext_len > best_len && ext_len <= path_len {
+            let ext_lower = ext.to_ascii_lowercase();
+            if path_lower.ends_with(&ext_lower) {
+                best_len = ext_len;
+            }
+        }
+    }
+
+    if best_len > 0 {
+        (best_len + 1) as i32
+    } else {
+        0
+    }
+}
+
+/// Depth-first search for the best default command for a file path.
+/// Returns the `CommandNode` with the highest priority match, or `None`.
+#[allow(non_snake_case)]
+pub fn SearchDefaultCommandFor<'a>(
+    root: &'a CommandNode,
+    file_path: &str,
+) -> Option<&'a CommandNode> {
+    let mut best_cmd: Option<&'a CommandNode> = None;
+    let mut best_pri: i32 = 0;
+
+    search_default_recursive(root, file_path, &mut best_cmd, &mut best_pri);
+    best_cmd
+}
+
+fn search_default_recursive<'a>(
+    parent: &'a CommandNode,
+    file_path: &str,
+    best_cmd: &mut Option<&'a CommandNode>,
+    best_pri: &mut i32,
+) {
+    // Check CT_COMMAND children
+    for child in &parent.children {
+        if child.command_type == CommandType::Command {
+            let pri = CheckDefaultCommand(child, file_path);
+            if pri > *best_pri {
+                *best_pri = pri;
+                *best_cmd = Some(child);
+            }
+        }
+    }
+    // Recurse into CT_GROUP children
+    for child in &parent.children {
+        if child.command_type == CommandType::Group {
+            search_default_recursive(child, file_path, best_cmd, best_pri);
+        }
+    }
+}
 
 struct SelEntry {
     hash_code: i32,
@@ -298,5 +545,111 @@ mod tests {
         m.SelectAsSource("/foo");
         let id2 = m.GetCommandRunId();
         assert_ne!(id1, id2);
+    }
+}
+
+#[cfg(test)]
+mod command_tests {
+    use super::*;
+
+    #[test]
+    fn parse_command_properties() {
+        let content = "#!/bin/bash\n\
+            # [[BEGIN PROPERTIES]]\n\
+            # Type = Command\n\
+            # Order = 1.5\n\
+            # Interpreter = bash\n\
+            # Caption = Test Command\n\
+            # Description = A test command\n\
+            # DefaultFor = .txt:.rs\n\
+            # [[END PROPERTIES]]\n\
+            echo \"hello\"\n";
+        let cmd = super::parse_command_properties(content, "/test/cmd.sh").unwrap();
+        assert_eq!(cmd.command_type, CommandType::Command);
+        assert!((cmd.order - 1.5).abs() < f64::EPSILON);
+        assert_eq!(cmd.interpreter, "bash");
+        assert_eq!(cmd.caption, "Test Command");
+        assert_eq!(cmd.description, "A test command");
+        assert_eq!(cmd.default_for, ".txt:.rs");
+    }
+
+    #[test]
+    fn parse_group_properties() {
+        let content = "#!/bin/bash\n\
+            # [[BEGIN PROPERTIES]]\n\
+            # Type = Group\n\
+            # Order = 2.0\n\
+            # Directory = subdir\n\
+            # Caption = My Group\n\
+            # [[END PROPERTIES]]\n";
+        let cmd = super::parse_command_properties(content, "/test/group.sh").unwrap();
+        assert_eq!(cmd.command_type, CommandType::Group);
+        assert_eq!(cmd.caption, "My Group");
+    }
+
+    #[test]
+    fn parse_separator() {
+        let content = "# [[BEGIN PROPERTIES]]\n# Type = Separator\n# [[END PROPERTIES]]\n";
+        let cmd = super::parse_command_properties(content, "/test/sep.sh").unwrap();
+        assert_eq!(cmd.command_type, CommandType::Separator);
+    }
+
+    #[test]
+    fn check_default_command_for_extension() {
+        let cmd = CommandNode {
+            default_for: ".txt:.rs".to_string(),
+            command_type: CommandType::Command,
+            ..CommandNode::default()
+        };
+        assert_eq!(CheckDefaultCommand(&cmd, "/foo/bar.txt"), 5); // ".txt".len() + 1
+        assert_eq!(CheckDefaultCommand(&cmd, "/foo/bar.rs"), 4); // ".rs".len() + 1
+        assert_eq!(CheckDefaultCommand(&cmd, "/foo/bar.py"), 0);
+    }
+
+    #[test]
+    fn check_command_file_ending() {
+        assert!(super::check_command_file_ending("test.sh"));
+        assert!(super::check_command_file_ending("test.py"));
+        assert!(super::check_command_file_ending("test.pl"));
+        assert!(super::check_command_file_ending("test.js"));
+        assert!(super::check_command_file_ending("test.props"));
+        assert!(!super::check_command_file_ending("test.exe"));
+        assert!(!super::check_command_file_ending("test.txt"));
+    }
+
+    #[test]
+    fn search_default_command_for_priority() {
+        let child1 = CommandNode {
+            default_for: ".txt".to_string(),
+            command_type: CommandType::Command,
+            caption: "Simple".to_string(),
+            ..CommandNode::default()
+        };
+        let child2 = CommandNode {
+            default_for: ".tar.gz".to_string(),
+            command_type: CommandType::Command,
+            caption: "Archive".to_string(),
+            ..CommandNode::default()
+        };
+        let root = CommandNode {
+            command_type: CommandType::Group,
+            children: vec![child1, child2],
+            ..CommandNode::default()
+        };
+        // .tar.gz is longer match for "foo.tar.gz"
+        let result = SearchDefaultCommandFor(&root, "/foo.tar.gz");
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().caption, "Archive");
+    }
+
+    #[test]
+    fn multi_line_caption() {
+        let content = "# [[BEGIN PROPERTIES]]\n\
+            # Type = Command\n\
+            # Caption = Line 1\n\
+            # Caption = Line 2\n\
+            # [[END PROPERTIES]]\n";
+        let cmd = super::parse_command_properties(content, "/test/cmd.sh").unwrap();
+        assert_eq!(cmd.caption, "Line 1\nLine 2");
     }
 }
