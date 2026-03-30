@@ -860,4 +860,34 @@ mod tests {
         model.InvalidatePriority();
         assert!(model.is_priority_invalid());
     }
+
+    #[test]
+    fn scheduler_drives_loading_via_callback() {
+        use crate::emPriSchedAgent::PriSchedModel;
+        use crate::emScheduler::EngineScheduler;
+
+        let mut sched = EngineScheduler::new();
+        let mut ps_model = PriSchedModel::new(&mut sched);
+
+        let model: Rc<RefCell<emFileModel<String>>> = Rc::new(RefCell::new(
+            emFileModel::new(PathBuf::from("/dev/null"), SignalId::default(), SignalId::default()),
+        ));
+
+        // Create a GotAccess callback that drives loading
+        let m = Rc::clone(&model);
+        let agent = ps_model.add_agent(1.0, Box::new(move || {
+            let mut model = m.borrow_mut();
+            model.complete_load("loaded".to_string());
+        }));
+
+        ps_model.RequestAccess(agent, &mut sched);
+        sched.DoTimeSlice();
+
+        assert!(ps_model.HasAccess(agent));
+        assert_eq!(*model.borrow().GetFileState(), FileState::Loaded);
+        assert_eq!(model.borrow().GetMap(), Some(&"loaded".to_string()));
+
+        ps_model.ReleaseAccess(agent, &mut sched);
+        ps_model.remove(&mut sched);
+    }
 }
