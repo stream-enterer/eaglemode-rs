@@ -7,3 +7,4 @@ pub mod emFileManConfig;
 pub mod emFileManTheme;
 pub mod emFileManModel;
 pub mod emFileManThemeNames;
+pub mod emFileManViewConfig;
