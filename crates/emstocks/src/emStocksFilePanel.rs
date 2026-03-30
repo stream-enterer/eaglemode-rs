@@ -1,10 +1,16 @@
 // Port of C++ emStocksFilePanel.h / emStocksFilePanel.cpp
 
+use emcore::emPanel::PanelBehavior;
+
 /// Port of C++ emStocksFilePanel.
 /// DIVERGED: Data model only — panel framework integration deferred.
 pub struct emStocksFilePanel {
     pub bg_color: u32, // emColor packed RGBA
 }
+
+/// Minimal PanelBehavior so the type can be returned from the plugin function.
+/// DIVERGED: All methods use defaults — full panel rendering deferred.
+impl PanelBehavior for emStocksFilePanel {}
 
 impl emStocksFilePanel {
     pub fn new() -> Self {

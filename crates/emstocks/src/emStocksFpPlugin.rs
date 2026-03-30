@@ -1,12 +1,34 @@
-// Port of C++ emStocksFpPlugin.cpp
+//! Plugin entry point for .emStocks files.
+//!
+//! Port of C++ `emStocksFpPlugin.cpp`. Exports `emStocksFpPluginFunc`
+//! which is resolved via dlsym when the plugin manager loads this library.
 
-/// Port of C++ emStocksFpPluginFunc.
-/// DIVERGED: Static registration instead of dynamic loading via extern "C".
-/// Registers the .emStocks file type handler. When dynamic loading is
-/// implemented later, this moves to a separate crate.
-pub fn register_emstocks_plugin() {
-    // Plugin registration will be connected when the plugin system is wired up.
-    // For now this is a placeholder that documents the registration function exists.
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
+use emcore::emPanel::PanelBehavior;
+
+use crate::emStocksFilePanel::emStocksFilePanel;
+
+/// Plugin entry point for .emStocks files.
+/// Port of C++ `emStocksFpPluginFunc` in emStocksFpPlugin.cpp.
+///
+/// Called by the plugin manager when a .emStocks file needs to be displayed.
+#[no_mangle]
+pub fn emStocksFpPluginFunc(
+    _parent: &PanelParentArg,
+    _name: &str,
+    _path: &str,
+    plugin: &emFpPlugin,
+    error_buf: &mut String,
+) -> Option<Rc<RefCell<dyn PanelBehavior>>> {
+    if !plugin.properties.is_empty() {
+        *error_buf = "emStocksFpPlugin: No properties allowed.".to_string();
+        return None;
+    }
+
+    Some(Rc::new(RefCell::new(emStocksFilePanel::new())))
 }
 
 /// The file extension this plugin handles.
@@ -22,7 +44,28 @@ mod tests {
     }
 
     #[test]
-    fn register_does_not_panic() {
-        register_emstocks_plugin(); // Just verify it doesn't crash
+    fn plugin_func_rejects_properties() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let parent = PanelParentArg::new(ctx);
+        let mut plugin = emFpPlugin::new();
+        plugin.properties.push(emcore::emFpPlugin::FpPluginProperty {
+            name: "bad".to_string(),
+            value: "prop".to_string(),
+        });
+        let mut err = String::new();
+        let result = emStocksFpPluginFunc(&parent, "test", "/tmp/test.emStocks", &plugin, &mut err);
+        assert!(result.is_none());
+        assert!(err.contains("No properties allowed"));
+    }
+
+    #[test]
+    fn plugin_func_creates_panel() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let parent = PanelParentArg::new(ctx);
+        let plugin = emFpPlugin::new();
+        let mut err = String::new();
+        let result = emStocksFpPluginFunc(&parent, "test", "/tmp/test.emStocks", &plugin, &mut err);
+        assert!(result.is_some());
+        assert!(err.is_empty());
     }
 }
