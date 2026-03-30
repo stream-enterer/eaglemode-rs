@@ -6,6 +6,7 @@ use std::rc::Rc;
 use crate::emContext::emContext;
 use crate::emInstallInfo::emGetConfigDirOverloadable;
 use crate::emPanel::PanelBehavior;
+use crate::emPanelTree::PanelId;
 use crate::emRec::{RecError, RecStruct, RecValue};
 use crate::emRecRecord::Record;
 
@@ -17,13 +18,16 @@ use crate::emRecRecord::Record;
 
 /// Type of the plugin function for creating a file panel.
 /// Port of C++ `emFpPluginFunc`.
+/// DIVERGED: C++ returns emPanel* (raw pointer to Rc-managed panel). Rust returns
+/// Box<dyn PanelBehavior> — ownership transfers to caller who installs it in the
+/// panel tree via set_behavior.
 pub type emFpPluginFunc = fn(
     parent: &PanelParentArg,
     name: &str,
     path: &str,
     plugin: &emFpPlugin,
     error_buf: &mut String,
-) -> Option<Rc<RefCell<dyn PanelBehavior>>>;
+) -> Option<Box<dyn PanelBehavior>>;
 
 /// Type of the plugin model function for acquiring file models.
 /// Port of C++ `emFpPluginModelFunc`.
@@ -36,21 +40,37 @@ pub type emFpPluginModelFunc = fn(
     error_buf: &mut String,
 ) -> Option<Rc<RefCell<dyn Any>>>;
 
-/// Simplified parent argument for panel creation.
-/// DIVERGED: Full C++ emPanel::ParentArg carries parent panel reference.
-/// This simplified version carries the root context for model acquisition.
-/// Full panel tree integration deferred to panel framework completion.
+/// Parent argument for panel creation.
+/// DIVERGED: C++ emPanel::ParentArg carries full parent panel reference with
+/// layout constraint forwarding. This version carries parent panel ID for tree
+/// integration but does not forward layout constraints. Full constraint
+/// forwarding deferred to panel framework completion.
 pub struct PanelParentArg {
     root_context: Rc<emContext>,
+    parent_panel: Option<PanelId>,
 }
 
 impl PanelParentArg {
     pub fn new(root_context: Rc<emContext>) -> Self {
-        Self { root_context }
+        Self {
+            root_context,
+            parent_panel: None,
+        }
+    }
+
+    pub fn with_parent(root_context: Rc<emContext>, parent: PanelId) -> Self {
+        Self {
+            root_context,
+            parent_panel: Some(parent),
+        }
     }
 
     pub fn root_context(&self) -> &Rc<emContext> {
         &self.root_context
+    }
+
+    pub fn parent_panel(&self) -> Option<PanelId> {
+        self.parent_panel
     }
 }
 
@@ -184,7 +204,7 @@ impl emFpPlugin {
         parent: &PanelParentArg,
         name: &str,
         path: &str,
-    ) -> Result<Rc<RefCell<dyn PanelBehavior>>, FpPluginError> {
+    ) -> Result<Box<dyn PanelBehavior>, FpPluginError> {
         use crate::emStd2::{emTryResolveSymbol, LibError};
 
         let mut cached = self.cached.borrow_mut();
@@ -697,22 +717,22 @@ impl emFpPluginList {
         name: &str,
         path: &str,
         alternative: usize,
-    ) -> Rc<RefCell<dyn PanelBehavior>> {
+    ) -> Box<dyn PanelBehavior> {
         let abs_path = match std::fs::canonicalize(path) {
             Ok(p) => p.to_string_lossy().to_string(),
             Err(e) => {
-                return Rc::new(RefCell::new(
+                return Box::new(
                     crate::emErrorPanel::emErrorPanel::new(&e.to_string()),
-                ));
+                );
             }
         };
 
         let metadata = std::fs::metadata(&abs_path);
 
         match metadata {
-            Err(e) => Rc::new(RefCell::new(
+            Err(e) => Box::new(
                 crate::emErrorPanel::emErrorPanel::new(&e.to_string()),
-            )),
+            ),
             Ok(meta) => {
                 let stat_mode = if meta.is_dir() {
                     FileStatMode::Directory
@@ -736,11 +756,11 @@ impl emFpPluginList {
         stat_err: Option<&std::io::Error>,
         stat_mode: FileStatMode,
         alternative: usize,
-    ) -> Rc<RefCell<dyn PanelBehavior>> {
+    ) -> Box<dyn PanelBehavior> {
         if let Some(err) = stat_err {
-            return Rc::new(RefCell::new(
+            return Box::new(
                 crate::emErrorPanel::emErrorPanel::new(&err.to_string()),
-            ));
+            );
         }
 
         let plugin =
@@ -752,15 +772,15 @@ impl emFpPluginList {
                 } else {
                     "No alternative file panel plugin available."
                 };
-                Rc::new(RefCell::new(
+                Box::new(
                     crate::emErrorPanel::emErrorPanel::new(msg),
-                ))
+                )
             }
             Some(plugin) => match plugin.TryCreateFilePanel(parent, name, absolute_path) {
                 Ok(panel) => panel,
-                Err(e) => Rc::new(RefCell::new(
+                Err(e) => Box::new(
                     crate::emErrorPanel::emErrorPanel::new(&e.to_string()),
-                )),
+                ),
             },
         }
     }

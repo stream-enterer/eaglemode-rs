@@ -1,6 +1,3 @@
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use emcore::emErrorPanel::emErrorPanel;
 use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
 use emcore::emPanel::PanelBehavior;
@@ -14,7 +11,7 @@ pub fn test_plugin_func(
     path: &str,
     plugin: &emFpPlugin,
     error_buf: &mut String,
-) -> Option<Rc<RefCell<dyn PanelBehavior>>> {
+) -> Option<Box<dyn PanelBehavior>> {
     // Check properties — if any property named "fail" exists, return error
     if plugin.GetProperty("fail").is_some() {
         *error_buf = "test_plugin: instructed to fail".to_string();
@@ -22,7 +19,7 @@ pub fn test_plugin_func(
     }
 
     // Return an error panel as a simple PanelBehavior implementor
-    Some(Rc::new(RefCell::new(emErrorPanel::new(
+    Some(Box::new(emErrorPanel::new(
         &format!("test_plugin loaded: {path}"),
-    ))))
+    )))
 }

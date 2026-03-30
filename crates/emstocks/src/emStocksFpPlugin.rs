@@ -3,9 +3,6 @@
 //! Port of C++ `emStocksFpPlugin.cpp`. Exports `emStocksFpPluginFunc`
 //! which is resolved via dlsym when the plugin manager loads this library.
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
 use emcore::emPanel::PanelBehavior;
 
@@ -22,13 +19,13 @@ pub fn emStocksFpPluginFunc(
     _path: &str,
     plugin: &emFpPlugin,
     error_buf: &mut String,
-) -> Option<Rc<RefCell<dyn PanelBehavior>>> {
+) -> Option<Box<dyn PanelBehavior>> {
     if !plugin.properties.is_empty() {
         *error_buf = "emStocksFpPlugin: No properties allowed.".to_string();
         return None;
     }
 
-    Some(Rc::new(RefCell::new(emStocksFilePanel::new())))
+    Some(Box::new(emStocksFilePanel::new()))
 }
 
 /// The file extension this plugin handles.

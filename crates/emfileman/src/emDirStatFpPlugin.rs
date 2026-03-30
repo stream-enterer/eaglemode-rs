@@ -1,7 +1,5 @@
 use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
 use emcore::emPanel::PanelBehavior;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 /// Entry point for the directory statistics panel plugin.
 /// Loaded via `emDirStat.emFpPlugin` config file.
@@ -12,7 +10,7 @@ pub fn emDirStatFpPluginFunc(
     _path: &str,
     plugin: &emFpPlugin,
     error_buf: &mut String,
-) -> Option<Rc<RefCell<dyn PanelBehavior>>> {
+) -> Option<Box<dyn PanelBehavior>> {
     if !plugin.properties.is_empty() {
         *error_buf = "emDirStatFpPlugin: No properties allowed.".to_string();
         return None;

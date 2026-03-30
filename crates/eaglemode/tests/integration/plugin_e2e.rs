@@ -33,8 +33,8 @@ fn load_emstocks_plugin_end_to_end() {
         0,
     );
 
-    // Panel should be created successfully — verify it exists and can be borrowed
-    let _borrowed = panel.borrow();
+    // Panel should be created successfully — verify it is not opaque (default)
+    assert!(!panel.IsOpaque());
 
     // Cleanup
     let _ = std::fs::remove_file(&tmp_file);
