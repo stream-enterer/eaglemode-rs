@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
-use emcore::emFilePanel::{emFilePanel, VirtualFileState};
+use emcore::emFilePanel::emFilePanel;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPainter::emPainter;
@@ -110,6 +110,9 @@ pub struct emDirPanel {
     dir_model: Option<Rc<RefCell<emDirModel>>>,
     pub(crate) content_complete: bool,
     child_count: usize,
+    loading_started: bool,
+    loading_done: bool,
+    loading_error: Option<String>,
 }
 
 impl emDirPanel {
@@ -123,6 +126,9 @@ impl emDirPanel {
             dir_model: None,
             content_complete: false,
             child_count: 0,
+            loading_started: false,
+            loading_done: false,
+            loading_error: None,
         }
     }
 
@@ -135,52 +141,94 @@ impl emDirPanel {
     }
 
     fn update_children(&mut self, ctx: &mut PanelCtx) {
-        if self.file_panel.GetVirFileState() == VirtualFileState::Loaded {
-            if let Some(ref dm_rc) = self.dir_model {
-                let dm = dm_rc.borrow();
-                let cfg = self.config.borrow();
-                let show_hidden = cfg.GetShowHiddenFiles();
-                let count = dm.GetEntryCount();
+        if !self.loading_done {
+            self.content_complete = false;
+            return;
+        }
+        if let Some(ref dm_rc) = self.dir_model {
+            let dm = dm_rc.borrow();
+            let cfg = self.config.borrow();
+            let show_hidden = cfg.GetShowHiddenFiles();
+            let count = dm.GetEntryCount();
 
-                // Count visible entries
-                let mut visible_count = 0;
+            // Count visible entries
+            let mut visible_count = 0;
+            for i in 0..count {
+                let entry = dm.GetEntry(i);
+                if !entry.IsHidden() || show_hidden {
+                    visible_count += 1;
+                }
+            }
+
+            // Only recreate if count changed
+            if visible_count != self.child_count {
+                ctx.DeleteAllChildren();
+
                 for i in 0..count {
                     let entry = dm.GetEntry(i);
                     if !entry.IsHidden() || show_hidden {
-                        visible_count += 1;
+                        let panel = emDirEntryPanel::new(
+                            Rc::clone(&self.ctx),
+                            entry.clone(),
+                        );
+                        ctx.create_child_with(entry.GetName(), Box::new(panel));
                     }
                 }
 
-                // Only recreate if count changed
-                if visible_count != self.child_count {
-                    ctx.DeleteAllChildren();
-
-                    for i in 0..count {
-                        let entry = dm.GetEntry(i);
-                        if !entry.IsHidden() || show_hidden {
-                            let panel = emDirEntryPanel::new(
-                                Rc::clone(&self.ctx),
-                                entry.clone(),
-                            );
-                            ctx.create_child_with(entry.GetName(), Box::new(panel));
-                        }
-                    }
-
-                    self.child_count = visible_count;
-                    self.content_complete = true;
-                }
+                self.child_count = visible_count;
+                self.content_complete = true;
             }
-        } else {
-            self.content_complete = false;
         }
     }
 }
 
 impl PanelBehavior for emDirPanel {
     fn Cycle(&mut self, ctx: &mut PanelCtx) -> bool {
+        let mut changed = false;
+
+        if let Some(ref dm_rc) = self.dir_model {
+            let mut dm = dm_rc.borrow_mut();
+            if !self.loading_started {
+                match dm.try_start_loading() {
+                    Ok(()) => {
+                        self.loading_started = true;
+                        self.loading_done = false;
+                        self.loading_error = None;
+                        self.file_panel.clear_custom_error();
+                    }
+                    Err(e) => {
+                        self.loading_error = Some(e.clone());
+                        self.file_panel.set_custom_error(&e);
+                    }
+                }
+                changed = true;
+            } else if !self.loading_done && self.loading_error.is_none() {
+                match dm.try_continue_loading() {
+                    Ok(true) => {
+                        dm.quit_loading();
+                        self.loading_done = true;
+                        self.file_panel.clear_custom_error();
+                        drop(dm);
+                        self.update_children(ctx);
+                        changed = true;
+                    }
+                    Ok(false) => {
+                        changed = true;
+                    }
+                    Err(e) => {
+                        self.loading_error = Some(e.clone());
+                        self.file_panel.set_custom_error(&e);
+                        changed = true;
+                    }
+                }
+            } else if self.loading_done {
+                drop(dm);
+                self.update_children(ctx);
+            }
+        }
+
         self.file_panel.refresh_vir_file_state();
-        self.update_children(ctx);
-        false
+        changed
     }
 
     fn notice(&mut self, flags: NoticeFlags, state: &PanelState) {
@@ -188,37 +236,46 @@ impl PanelBehavior for emDirPanel {
             if state.viewed {
                 if self.dir_model.is_none() {
                     self.dir_model = Some(emDirModel::Acquire(&self.ctx, &self.path));
+                    self.loading_started = false;
+                    self.loading_done = false;
+                    self.loading_error = None;
+                    self.child_count = 0;
+                    self.content_complete = false;
                 }
             } else if self.dir_model.is_some() {
                 self.dir_model = None;
                 self.file_panel.SetFileModel(None);
+                self.loading_started = false;
+                self.loading_done = false;
+                self.loading_error = None;
             }
         }
     }
 
     fn IsOpaque(&self) -> bool {
-        match self.file_panel.GetVirFileState() {
-            VirtualFileState::Loaded | VirtualFileState::NoFileModel => {
-                let cfg = self.config.borrow();
-                let theme = cfg.GetTheme();
-                let dc = theme.GetRec().DirContentColor;
-                (dc >> 24) == 0xFF
-            }
-            _ => false,
+        if self.loading_done {
+            let cfg = self.config.borrow();
+            let theme = cfg.GetTheme();
+            let dc = theme.GetRec().DirContentColor;
+            (dc >> 24) == 0xFF
+        } else {
+            false
         }
     }
 
     fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, _state: &PanelState) {
-        match self.file_panel.GetVirFileState() {
-            VirtualFileState::Loaded | VirtualFileState::NoFileModel => {
-                let cfg = self.config.borrow();
-                let theme = cfg.GetTheme();
-                let dc = emColor::from_packed(theme.GetRec().DirContentColor);
-                painter.Clear(dc);
-            }
-            _ => {
-                self.file_panel.paint_status(painter, w, h);
-            }
+        if self.loading_done {
+            let cfg = self.config.borrow();
+            let theme = cfg.GetTheme();
+            let dc = emColor::from_packed(theme.GetRec().DirContentColor);
+            painter.Clear(dc);
+        } else if self.loading_error.is_some() || self.loading_started {
+            self.file_panel.paint_status(painter, w, h);
+        } else {
+            let cfg = self.config.borrow();
+            let theme = cfg.GetTheme();
+            let dc = emColor::from_packed(theme.GetRec().DirContentColor);
+            painter.Clear(dc);
         }
     }
 
@@ -234,11 +291,10 @@ impl PanelBehavior for emDirPanel {
         let theme_rec = theme.GetRec();
         let rect = ctx.layout_rect();
 
-        let canvas_color = match self.file_panel.GetVirFileState() {
-            VirtualFileState::Loaded | VirtualFileState::NoFileModel => {
-                emColor::from_packed(theme_rec.DirContentColor)
-            }
-            _ => emColor::TRANSPARENT,
+        let canvas_color = if self.loading_done {
+            emColor::from_packed(theme_rec.DirContentColor)
+        } else {
+            emColor::TRANSPARENT
         };
 
         if self.content_complete {
