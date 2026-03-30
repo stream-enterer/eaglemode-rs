@@ -3,6 +3,8 @@ use std::rc::Rc;
 
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
+use emcore::emInput::{emInputEvent, InputKey};
+use emcore::emInputState::emInputState;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
@@ -204,6 +206,42 @@ impl emDirEntryPanel {
             theme_rec.TargetSelectionColor,
         );
     }
+
+    /// Port of C++ emDirEntryPanel::Select
+    fn select(&mut self, shift: bool, ctrl: bool) {
+        let path = self.dir_entry.GetPath().to_string();
+        let mut fm = self.file_man.borrow_mut();
+
+        if ctrl {
+            // Toggle target selection
+            if fm.IsSelectedAsTarget(&path) {
+                fm.DeselectAsTarget(&path);
+            } else {
+                fm.SelectAsTarget(&path);
+            }
+            fm.SetShiftTgtSelPath(&path);
+        } else if shift {
+            // Range selection — select from ShiftTgtSelPath to current
+            // For now, just select this entry (range requires sibling enumeration)
+            fm.SelectAsTarget(&path);
+            fm.SetShiftTgtSelPath(&path);
+        } else {
+            // Plain click: old targets become sources, select this as target
+            fm.ClearSourceSelection();
+            fm.SwapSelection();
+            fm.SelectAsTarget(&path);
+            fm.SetShiftTgtSelPath(&path);
+        }
+    }
+
+    /// Port of C++ emDirEntryPanel::SelectSolely
+    fn select_solely(&mut self) {
+        let path = self.dir_entry.GetPath().to_string();
+        let mut fm = self.file_man.borrow_mut();
+        fm.ClearSourceSelection();
+        fm.ClearTargetSelection();
+        fm.SelectAsTarget(&path);
+    }
 }
 
 impl PanelBehavior for emDirEntryPanel {
@@ -227,6 +265,35 @@ impl PanelBehavior for emDirEntryPanel {
     fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
         self.update_bg_color();
         false
+    }
+
+    fn Input(
+        &mut self,
+        event: &emInputEvent,
+        _state: &PanelState,
+        input_state: &emInputState,
+    ) -> bool {
+        match event.key {
+            InputKey::MouseLeft => {
+                if event.repeat >= 2 {
+                    // Double-click: select solely (RunDefaultCommand out of scope)
+                    self.select_solely();
+                    true
+                } else {
+                    self.select(input_state.GetShift(), input_state.GetCtrl());
+                    true
+                }
+            }
+            InputKey::Enter => {
+                self.select_solely();
+                true
+            }
+            InputKey::Space => {
+                self.select(input_state.GetShift(), input_state.GetCtrl());
+                true
+            }
+            _ => false,
+        }
     }
 
     fn IsOpaque(&self) -> bool {
@@ -449,5 +516,56 @@ mod tests {
         let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
         let panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
         assert_eq!(panel.get_title(), Some("/tmp".to_string()));
+    }
+
+    #[test]
+    fn select_solely_clears_and_selects() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let mut panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+
+        panel.select_solely();
+
+        let fm = panel.file_man.borrow();
+        assert!(fm.IsSelectedAsTarget("/tmp"));
+        assert_eq!(fm.GetTargetSelectionCount(), 1);
+        assert_eq!(fm.GetSourceSelectionCount(), 0);
+    }
+
+    #[test]
+    fn select_plain_swaps_selection() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let mut panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+
+        // First click: selects as target
+        panel.select(false, false);
+        {
+            let fm = panel.file_man.borrow();
+            assert!(fm.IsSelectedAsTarget("/tmp"));
+        }
+
+        // Create another panel and click it
+        let entry2 = crate::emDirEntry::emDirEntry::from_path("/var");
+        let mut panel2 = emDirEntryPanel::new(Rc::clone(&ctx), entry2);
+        panel2.select(false, false);
+
+        let fm = panel2.file_man.borrow();
+        assert!(fm.IsSelectedAsTarget("/var"));
+        // /tmp should now be a source (swapped)
+        assert!(fm.IsSelectedAsSource("/tmp"));
+    }
+
+    #[test]
+    fn select_ctrl_toggles() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let entry = crate::emDirEntry::emDirEntry::from_path("/tmp");
+        let mut panel = emDirEntryPanel::new(Rc::clone(&ctx), entry);
+
+        panel.select(false, true); // ctrl-click: select
+        assert!(panel.file_man.borrow().IsSelectedAsTarget("/tmp"));
+
+        panel.select(false, true); // ctrl-click: deselect
+        assert!(!panel.file_man.borrow().IsSelectedAsTarget("/tmp"));
     }
 }
