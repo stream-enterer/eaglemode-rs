@@ -195,9 +195,82 @@ impl Default for emDirModelData {
     }
 }
 
+/// Directory model wrapper.
+/// Port of C++ `emDirModel` (extends emFileModel).
+///
+/// DIVERGED: Does not compose emFileModel<T> because emFileModel requires
+/// SignalId and update_signal from the scheduler, which are not needed for
+/// the data-layer-only port. Wraps emDirModelData directly. The panel layer
+/// drives the loading state machine by calling these methods in its Cycle.
+pub struct emDirModel {
+    data: emDirModelData,
+    path: String,
+}
+
+impl emDirModel {
+    pub fn Acquire(
+        ctx: &std::rc::Rc<emcore::emContext::emContext>,
+        name: &str,
+    ) -> std::rc::Rc<std::cell::RefCell<Self>> {
+        ctx.acquire::<Self>(name, || Self {
+            data: emDirModelData::new(),
+            path: name.to_string(),
+        })
+    }
+
+    pub fn GetEntryCount(&self) -> usize {
+        self.data.GetEntryCount()
+    }
+
+    pub fn GetEntry(&self, index: usize) -> &emDirEntry {
+        self.data.GetEntry(index)
+    }
+
+    pub fn GetEntryIndex(&self, name: &str) -> Option<usize> {
+        self.data.GetEntryIndex(name)
+    }
+
+    pub fn IsOutOfDate(&self) -> bool {
+        self.data.IsOutOfDate()
+    }
+
+    pub fn name_count(&self) -> usize {
+        self.data.name_count()
+    }
+
+    pub fn GetFilePath(&self) -> &str {
+        &self.path
+    }
+
+    pub fn reset_data(&mut self) {
+        self.data.reset_data();
+    }
+
+    pub fn try_start_loading(&mut self) -> Result<(), String> {
+        self.data.try_start_loading_from(&self.path)
+    }
+
+    pub fn try_continue_loading(&mut self) -> Result<bool, String> {
+        self.data.try_continue_loading()
+    }
+
+    pub fn quit_loading(&mut self) {
+        self.data.quit_loading();
+    }
+
+    pub fn calc_memory_need(&self) -> u64 {
+        self.data.calc_memory_need()
+    }
+
+    pub fn calc_file_progress(&self) -> f64 {
+        self.data.calc_file_progress()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::rc::Rc;
 
     #[test]
     fn initial_state() {
@@ -251,6 +324,32 @@ mod tests {
         while !m.try_continue_loading().unwrap() {}
         m.quit_loading();
         assert_eq!(m.calc_memory_need(), m.name_count() as u64 * 8192);
+    }
+
+    #[test]
+    fn model_acquire_same_path_returns_same() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let m1 = emDirModel::Acquire(&ctx, "/tmp");
+        let m2 = emDirModel::Acquire(&ctx, "/tmp");
+        assert!(Rc::ptr_eq(&m1, &m2));
+    }
+
+    #[test]
+    fn model_delegates_entry_accessors() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let model = emDirModel::Acquire(&ctx, "/tmp");
+        let model = model.borrow();
+        assert_eq!(model.GetEntryCount(), 0);
+        assert!(model.GetEntryIndex("anything").is_none());
+    }
+
+    #[test]
+    fn model_file_model_ops_wiring() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let model = emDirModel::Acquire(&ctx, "/tmp");
+        let mut model = model.borrow_mut();
+        model.reset_data();
+        assert_eq!(model.GetEntryCount(), 0);
     }
 
     #[test]
