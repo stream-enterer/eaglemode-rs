@@ -1,6 +1,6 @@
 // Port of C++ emStocksControlPanel.h / emStocksControlPanel.cpp
 
-use crate::emStocks::emStocksRec::StockRec;
+use crate::emStocksRec::StockRec;
 
 /// Port of C++ emStocksControlPanel::FileFieldPanel.
 /// DIVERGED: Stub — actual widget creation deferred.
@@ -80,7 +80,7 @@ impl Default for emStocksControlPanel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emStocks::emStocksRec::StockRec;
+    use crate::emStocksRec::StockRec;
 
     #[test]
     fn control_panel_new() {

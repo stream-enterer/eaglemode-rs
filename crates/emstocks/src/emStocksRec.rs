@@ -3,9 +3,9 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::emCore::emCrossPtr::emCrossPtrList;
-use crate::emCore::emRec::{RecStruct, RecValue};
-use crate::emCore::emRecRecord::{RecError, Record};
+use emcore::emCrossPtr::emCrossPtrList;
+use emcore::emRec::{RecStruct, RecValue};
+use emcore::emRecRecord::{RecError, Record};
 
 // ─── Interest ────────────────────────────────────────────────────────────────
 

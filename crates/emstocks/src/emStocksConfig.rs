@@ -3,8 +3,8 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::emCore::emRec::{RecStruct, RecValue};
-use crate::emCore::emRecRecord::{RecError, Record};
+use emcore::emRec::{RecStruct, RecValue};
+use emcore::emRecRecord::{RecError, Record};
 
 use super::emStocksRec::{
     GetDaysOfMonth, GetDateDifferenceParts, Interest, ParseDate,

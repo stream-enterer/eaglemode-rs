@@ -476,7 +476,7 @@ impl emStocksItemChart {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::emStocks::emStocksConfig::ChartPeriod;
+    use crate::emStocksConfig::ChartPeriod;
 
     #[test]
     fn price_set_valid() {

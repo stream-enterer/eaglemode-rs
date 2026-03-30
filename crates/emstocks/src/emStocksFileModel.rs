@@ -3,9 +3,9 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use crate::emCore::emCrossPtr::emCrossPtr;
-use crate::emCore::emFileModel::FileState;
-use crate::emCore::emRecFileModel::emRecFileModel;
+use emcore::emCrossPtr::emCrossPtr;
+use emcore::emFileModel::FileState;
+use emcore::emRecFileModel::emRecFileModel;
 
 use super::emStocksRec::emStocksRec;
 
