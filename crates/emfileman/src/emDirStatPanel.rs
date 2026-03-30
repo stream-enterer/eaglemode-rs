@@ -1,4 +1,15 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use emcore::emColor::emColor;
+use emcore::emContext::emContext;
+use emcore::emFilePanel::{emFilePanel, VirtualFileState};
+use emcore::emPanel::{PanelBehavior, PanelState};
+use emcore::emPanelCtx::PanelCtx;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
+
 use crate::emDirEntry::emDirEntry;
+use crate::emFileManViewConfig::emFileManViewConfig;
 
 pub struct DirStatistics {
     pub total_count: i32,
@@ -52,8 +63,113 @@ impl DirStatistics {
     }
 }
 
+/// Directory statistics panel.
+/// Port of C++ `emDirStatPanel` (extends emFilePanel).
+pub struct emDirStatPanel {
+    pub(crate) file_panel: emFilePanel,
+    config: Rc<RefCell<emFileManViewConfig>>,
+    stats: DirStatistics,
+}
+
+impl emDirStatPanel {
+    pub fn new(ctx: Rc<emContext>) -> Self {
+        let config = emFileManViewConfig::Acquire(&ctx);
+        Self {
+            file_panel: emFilePanel::new(),
+            config,
+            stats: DirStatistics {
+                total_count: -1,
+                file_count: -1,
+                sub_dir_count: -1,
+                other_type_count: -1,
+                hidden_count: -1,
+            },
+        }
+    }
+
+    fn update_statistics(&mut self) {
+        if self.file_panel.GetVirFileState() != VirtualFileState::Loaded {
+            self.stats = DirStatistics {
+                total_count: -1,
+                file_count: -1,
+                sub_dir_count: -1,
+                other_type_count: -1,
+                hidden_count: -1,
+            };
+        }
+    }
+
+    /// Update statistics from a slice of entries (called by parent when model loads).
+    pub fn set_entries(&mut self, entries: &[crate::emDirEntry::emDirEntry]) {
+        self.stats = DirStatistics::from_entries(entries);
+    }
+}
+
+impl PanelBehavior for emDirStatPanel {
+    fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {
+        self.file_panel.refresh_vir_file_state();
+        self.update_statistics();
+        false
+    }
+
+    fn IsOpaque(&self) -> bool {
+        if self.file_panel.GetVirFileState() != VirtualFileState::Loaded {
+            return false;
+        }
+        let config = self.config.borrow();
+        let theme = config.GetTheme();
+        let bg = theme.GetRec().BackgroundColor;
+        (bg >> 24) == 0xFF
+    }
+
+    fn Paint(&mut self, painter: &mut emPainter, w: f64, h: f64, state: &PanelState) {
+        if self.file_panel.GetVirFileState() != VirtualFileState::Loaded {
+            self.file_panel.paint_status(painter, w, h);
+            return;
+        }
+
+        let config = self.config.borrow();
+        let theme = config.GetTheme();
+        let bg_packed = theme.GetRec().BackgroundColor;
+        let bg_color = emColor::rgba(
+            (bg_packed >> 24) as u8,
+            (bg_packed >> 16) as u8,
+            (bg_packed >> 8) as u8,
+            bg_packed as u8,
+        );
+        painter.Clear(bg_color);
+
+        let text = self.stats.format_text();
+        let name_packed = theme.GetRec().DirNameColor;
+        let name_color = emColor::rgba(
+            (name_packed >> 24) as u8,
+            (name_packed >> 16) as u8,
+            (name_packed >> 8) as u8,
+            name_packed as u8,
+        );
+        painter.PaintTextBoxed(
+            0.02,
+            0.02,
+            w - 0.04,
+            state.height - 0.04,
+            &text,
+            state.height,
+            name_color,
+            bg_color,
+            TextAlignment::Left,
+            VAlign::Top,
+            TextAlignment::Left,
+            0.5,
+            false,
+            1.0,
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use super::*;
     use crate::emDirEntry::emDirEntry;
 
@@ -101,5 +217,24 @@ mod tests {
         let text = stats.format_text();
         assert!(text.contains("Total Entries :    10"));
         assert!(text.contains("Hidden Entries:     1"));
+    }
+
+    #[test]
+    fn panel_implements_panel_behavior() {
+        use emcore::emPanel::PanelBehavior;
+
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emDirStatPanel::new(Rc::clone(&ctx));
+        let _: Box<dyn PanelBehavior> = Box::new(panel);
+    }
+
+    #[test]
+    fn panel_initial_vfs_is_no_model() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emDirStatPanel::new(Rc::clone(&ctx));
+        assert_eq!(
+            panel.file_panel.GetVirFileState(),
+            emcore::emFilePanel::VirtualFileState::NoFileModel
+        );
     }
 }
