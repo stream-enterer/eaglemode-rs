@@ -11,6 +11,23 @@ workspace = true
 emcore = { workspace = true }
 
 [dev-dependencies]
+emstocks = { path = "../emstocks" }
 rand = { workspace = true }
 criterion = { workspace = true }
 gungraun = { workspace = true }
+
+[[bench]]
+name = "interaction"
+harness = false
+
+[[bench]]
+name = "interaction_iai"
+harness = false
+
+[[bench]]
+name = "scaled_tree"
+harness = false
+
+[[bench]]
+name = "scaled_tree_iai"
+harness = false

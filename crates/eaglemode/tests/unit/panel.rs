@@ -1,0 +1,218 @@
+use emcore::emColor::emColor;
+use emcore::emPanel::Rect;
+use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
+
+use emcore::emPanelCtx::PanelCtx;
+
+use emcore::emPanelTree::{PanelId, PanelTree};
+
+use emcore::emView::{emView, ViewFlags};
+
+use emcore::emPainter::emPainter;
+
+struct TestBehavior {
+    paint_count: u32,
+    last_notice: NoticeFlags,
+}
+
+impl TestBehavior {
+    fn new() -> Self {
+        Self {
+            paint_count: 0,
+            last_notice: NoticeFlags::empty(),
+        }
+    }
+}
+
+impl PanelBehavior for TestBehavior {
+    fn Paint(&mut self, _painter: &mut emPainter, _w: f64, _h: f64, _state: &PanelState) {
+        self.paint_count += 1;
+    }
+
+    fn notice(&mut self, flags: NoticeFlags, _state: &PanelState) {
+        self.last_notice = flags;
+    }
+
+    fn IsOpaque(&self) -> bool {
+        true
+    }
+}
+
+#[test]
+fn create_and_remove_panels() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    assert!(tree.contains(root));
+    assert_eq!(tree.len(), 1);
+
+    let child = tree.create_child(root, "child");
+    assert_eq!(tree.len(), 2);
+    assert_eq!(tree.GetParentContext(child), Some(root));
+
+    tree.remove(child);
+    assert!(!tree.contains(child));
+    assert_eq!(tree.len(), 1);
+}
+
+#[test]
+fn child_iteration() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    let a = tree.create_child(root, "a");
+    let b = tree.create_child(root, "b");
+    let c = tree.create_child(root, "c");
+
+    let children: Vec<PanelId> = tree.children(root).collect();
+    assert_eq!(children, vec![a, b, c]);
+    assert_eq!(tree.child_count(root), 3);
+}
+
+#[test]
+fn name_lookup() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    let child = tree.create_child(root, "my_panel");
+
+    assert_eq!(tree.find_by_name("my_panel"), Some(child));
+    assert_eq!(tree.find_by_name("nonexistent"), None);
+
+    tree.remove(child);
+    assert_eq!(tree.find_by_name("my_panel"), None);
+}
+
+#[test]
+fn panel_ctx_operations() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+
+    // Use PanelCtx to create a child
+    {
+        let mut ctx = PanelCtx::new(&mut tree, root);
+        let child = ctx.create_child("child_via_ctx");
+        ctx.layout_child(child, 10.0, 20.0, 100.0, 50.0);
+        assert_eq!(ctx.name(), "root");
+        assert_eq!(ctx.children().len(), 1);
+    }
+
+    let child_id = tree.find_by_name("child_via_ctx").unwrap();
+    let layout = tree.layout_rect(child_id).unwrap();
+    assert_eq!(layout, Rect::new(10.0, 20.0, 100.0, 50.0));
+}
+
+#[test]
+fn notice_flag_propagation() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    tree.set_behavior(root, Box::new(TestBehavior::new()));
+
+    // Creating a child should set CHILDREN_CHANGED on GetParentContext
+    let _child = tree.create_child(root, "child");
+
+    // Verify notice is pending before delivery
+    assert!(tree
+        .pending_notices(root)
+        .contains(NoticeFlags::CHILDREN_CHANGED));
+
+    // Deliver notices
+    tree.HandleNotice(true, 1.0);
+
+    // Verify notices were cleared after delivery
+    assert!(tree.pending_notices(root).is_empty());
+}
+
+#[test]
+fn remove_subtree() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    let parent = tree.create_child(root, "parent");
+    let child1 = tree.create_child(parent, "child1");
+    let child2 = tree.create_child(parent, "child2");
+    let grandchild = tree.create_child(child1, "grandchild");
+    assert_eq!(tree.len(), 5);
+
+    // Remove GetParentContext and all descendants
+    tree.remove(parent);
+    assert_eq!(tree.len(), 1);
+    assert!(!tree.contains(parent));
+    assert!(!tree.contains(child1));
+    assert!(!tree.contains(child2));
+    assert!(!tree.contains(grandchild));
+}
+
+#[test]
+fn view_visit_and_navigation() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+    let child = tree.create_child(root, "child");
+    tree.Layout(child, 0.0, 0.0, 100.0, 100.0);
+
+    let mut view = emView::new(root, 800.0, 600.0);
+    assert_eq!(view.GetRootPanel(), root);
+    assert_eq!(view.current_visit().panel, root);
+
+    // Visit a child
+    view.Visit(child, 10.0, 20.0, 0.5);
+    assert_eq!(view.current_visit().panel, child);
+    assert_eq!(view.visit_stack().len(), 2);
+
+    // Go back
+    assert!(view.go_back());
+    assert_eq!(view.current_visit().panel, root);
+    assert_eq!(view.visit_stack().len(), 1);
+
+    // Can't go back past root
+    assert!(!view.go_back());
+}
+
+#[test]
+fn view_zoom_and_scroll() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+
+    let mut view = emView::new(root, 800.0, 600.0);
+
+    // scroll(dx, dy) normalizes by viewport: rel_x += dx / vw
+    view.Scroll(10.0, 20.0);
+    let expected_x = 10.0 / 800.0;
+    let expected_y = 20.0 / 600.0;
+    assert!((view.current_visit().rel_x - expected_x).abs() < 0.001);
+    assert!((view.current_visit().rel_y - expected_y).abs() < 0.001);
+
+    view.Zoom(2.0, 400.0, 300.0);
+    // C++ Zoom(factor=2): ra *= 1/4, rel_a *= 4
+    assert!((view.current_visit().rel_a - 4.0).abs() < 0.01);
+}
+
+#[test]
+fn view_flags_disable_zoom() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+
+    let mut view = emView::new(root, 800.0, 600.0);
+    view.flags = ViewFlags::NO_ZOOM;
+
+    view.Zoom(2.0, 400.0, 300.0);
+    // Zoom should have been blocked
+    assert!((view.current_visit().rel_a - 1.0).abs() < 0.001);
+}
+
+#[test]
+fn layout_rect_and_canvas_color() {
+    let mut tree = PanelTree::new();
+    let root = tree.create_root("root");
+
+    tree.Layout(root, 10.0, 20.0, 300.0, 200.0);
+    tree.SetCanvasColor(root, emColor::rgb(128, 128, 128));
+
+    assert_eq!(
+        tree.layout_rect(root).unwrap(),
+        Rect::new(10.0, 20.0, 300.0, 200.0)
+    );
+    assert_eq!(tree.GetCanvasColor(root).unwrap(), emColor::rgb(128, 128, 128));
+    assert!(tree
+        .pending_notices(root)
+        .contains(NoticeFlags::LAYOUT_CHANGED));
+    assert!(tree
+        .pending_notices(root)
+        .contains(NoticeFlags::CANVAS_CHANGED));
+}
