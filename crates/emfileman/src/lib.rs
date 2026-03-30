@@ -9,3 +9,5 @@ pub mod emFileManModel;
 pub mod emFileManThemeNames;
 pub mod emFileManViewConfig;
 pub mod emFileLinkModel;
+
+pub mod emDirStatPanel;
