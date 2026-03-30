@@ -4,3 +4,4 @@
 pub mod emDirEntry;
 pub mod emFileManConfig;
 pub mod emFileManTheme;
+pub mod emFileManThemeNames;
