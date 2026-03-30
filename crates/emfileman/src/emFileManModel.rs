@@ -1,5 +1,4 @@
 // Selection subsystem and command tree of emFileManModel.
-// IPC will be added in Task 9.
 
 use emcore::emStd2::emCalcHashCode;
 use std::path::Path;
@@ -417,6 +416,42 @@ impl SelectionManager {
     pub fn GetCommandRunId(&self) -> String {
         format!("{}", self.sel_cmd_counter)
     }
+
+    pub fn handle_ipc_message(&mut self, args: &[&str]) {
+        if args.len() == 1 && args[0] == "update" {
+            return;
+        }
+        if args.len() >= 2 {
+            let matches_id = self.GetCommandRunId() == args[1];
+            match args[0] {
+                "select" if matches_id => {
+                    self.SwapSelection();
+                    self.ClearTargetSelection();
+                    for path in &args[2..] {
+                        self.DeselectAsSource(path);
+                        self.SelectAsTarget(path);
+                    }
+                }
+                "selectks" if matches_id => {
+                    self.ClearTargetSelection();
+                    for path in &args[2..] {
+                        self.DeselectAsSource(path);
+                        self.SelectAsTarget(path);
+                    }
+                }
+                "selectcs" if matches_id => {
+                    self.ClearSourceSelection();
+                    self.ClearTargetSelection();
+                    for path in &args[2..] {
+                        self.SelectAsTarget(path);
+                    }
+                }
+                _ => {
+                    log::warn!("emFileManModel: Illegal MiniIpc request: {:?}", args);
+                }
+            }
+        }
+    }
 }
 
 impl Default for SelectionManager {
@@ -651,5 +686,73 @@ mod command_tests {
             # [[END PROPERTIES]]\n";
         let cmd = super::parse_command_properties(content, "/test/cmd.sh").unwrap();
         assert_eq!(cmd.caption, "Line 1\nLine 2");
+    }
+}
+
+#[cfg(test)]
+mod ipc_tests {
+    use super::*;
+
+    #[test]
+    fn ipc_select_message() {
+        let mut m = SelectionManager::new();
+        m.SelectAsSource("/src1");
+        let run_id = m.GetCommandRunId();
+
+        m.handle_ipc_message(&["select", &run_id, "/new_target"]);
+
+        // "select" swaps src→tgt, clears tgt, then deselects from src and selects as tgt
+        // After swap: old source "/src1" becomes target, then clear target removes it
+        // Then: deselect "/new_target" from source (noop), select as target
+        assert!(m.IsSelectedAsTarget("/new_target"));
+    }
+
+    #[test]
+    fn ipc_selectks_message() {
+        let mut m = SelectionManager::new();
+        m.SelectAsSource("/src1");
+        m.SelectAsTarget("/old_tgt");
+        let run_id = m.GetCommandRunId();
+
+        m.handle_ipc_message(&["selectks", &run_id, "/new_target"]);
+
+        // "selectks" keeps source, clears tgt, deselects from src, selects as tgt
+        assert!(m.IsSelectedAsTarget("/new_target"));
+        assert!(!m.IsSelectedAsTarget("/old_tgt"));
+        assert!(m.IsSelectedAsSource("/src1")); // source kept (not deselected since different path)
+    }
+
+    #[test]
+    fn ipc_selectcs_message() {
+        let mut m = SelectionManager::new();
+        m.SelectAsSource("/src1");
+        m.SelectAsTarget("/tgt1");
+        let run_id = m.GetCommandRunId();
+
+        m.handle_ipc_message(&["selectcs", &run_id, "/new"]);
+
+        // "selectcs" clears both, selects paths as target
+        assert_eq!(m.GetSourceSelectionCount(), 0);
+        assert!(m.IsSelectedAsTarget("/new"));
+    }
+
+    #[test]
+    fn ipc_stale_run_id_ignored() {
+        let mut m = SelectionManager::new();
+        m.SelectAsTarget("/existing");
+
+        m.handle_ipc_message(&["select", "wrong_id", "/new"]);
+
+        // Stale ID: selection unchanged
+        assert!(m.IsSelectedAsTarget("/existing"));
+        assert!(!m.IsSelectedAsTarget("/new"));
+    }
+
+    #[test]
+    fn ipc_update_message() {
+        let mut m = SelectionManager::new();
+        // "update" is a no-op on SelectionManager (caller handles the signal)
+        m.handle_ipc_message(&["update"]);
+        // Just verify it doesn't crash
     }
 }
