@@ -1,11 +1,15 @@
+use std::rc::Rc;
+
 use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
 use emcore::emPanel::PanelBehavior;
+
+use crate::emFileLinkPanel::emFileLinkPanel;
 
 /// Entry point for the file link panel plugin.
 /// Loaded via `emFileLink.emFpPlugin` config file.
 #[no_mangle]
 pub fn emFileLinkFpPluginFunc(
-    _parent: &PanelParentArg,
+    parent: &PanelParentArg,
     _name: &str,
     _path: &str,
     plugin: &emFpPlugin,
@@ -15,7 +19,10 @@ pub fn emFileLinkFpPluginFunc(
         *error_buf = "emFileLinkFpPlugin: No properties allowed.".to_string();
         return None;
     }
-    // TODO: create emFileLinkPanel with emFileLinkModel
-    *error_buf = "emFileLinkFpPlugin: not yet implemented".to_string();
-    None
+    // Border depends on parent panel type — for now default to true
+    // (correct determination requires checking parent's PanelBehavior type)
+    Some(Box::new(emFileLinkPanel::new(
+        Rc::clone(parent.root_context()),
+        true,
+    )))
 }

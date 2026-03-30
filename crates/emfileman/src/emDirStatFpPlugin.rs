@@ -1,11 +1,15 @@
+use std::rc::Rc;
+
 use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
 use emcore::emPanel::PanelBehavior;
+
+use crate::emDirStatPanel::emDirStatPanel;
 
 /// Entry point for the directory statistics panel plugin.
 /// Loaded via `emDirStat.emFpPlugin` config file.
 #[no_mangle]
 pub fn emDirStatFpPluginFunc(
-    _parent: &PanelParentArg,
+    parent: &PanelParentArg,
     _name: &str,
     _path: &str,
     plugin: &emFpPlugin,
@@ -15,7 +19,7 @@ pub fn emDirStatFpPluginFunc(
         *error_buf = "emDirStatFpPlugin: No properties allowed.".to_string();
         return None;
     }
-    // TODO: create emDirStatPanel with emDirModel, updateFileModel=false
-    *error_buf = "emDirStatFpPlugin: not yet implemented".to_string();
-    None
+    Some(Box::new(emDirStatPanel::new(
+        Rc::clone(parent.root_context()),
+    )))
 }

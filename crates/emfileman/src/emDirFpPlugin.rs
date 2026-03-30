@@ -1,13 +1,17 @@
+use std::rc::Rc;
+
 use emcore::emFpPlugin::{emFpPlugin, PanelParentArg};
 use emcore::emPanel::PanelBehavior;
+
+use crate::emDirPanel::emDirPanel;
 
 /// Entry point for the directory panel plugin.
 /// Loaded via `emDir.emFpPlugin` config file.
 #[no_mangle]
 pub fn emDirFpPluginFunc(
-    _parent: &PanelParentArg,
+    parent: &PanelParentArg,
     _name: &str,
-    _path: &str,
+    path: &str,
     plugin: &emFpPlugin,
     error_buf: &mut String,
 ) -> Option<Box<dyn PanelBehavior>> {
@@ -15,7 +19,8 @@ pub fn emDirFpPluginFunc(
         *error_buf = "emDirFpPlugin: No properties allowed.".to_string();
         return None;
     }
-    // TODO: return new emDirPanel when panel integration is complete
-    *error_buf = "emDirFpPlugin: not yet implemented".to_string();
-    None
+    Some(Box::new(emDirPanel::new(
+        Rc::clone(parent.root_context()),
+        path.to_string(),
+    )))
 }
