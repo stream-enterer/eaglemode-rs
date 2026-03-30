@@ -3,6 +3,7 @@ members = [
     "crates/emcore",
     "crates/emstocks",
     "crates/eaglemode",
+    "crates/test_plugin",
 ]
 resolver = "2"
 

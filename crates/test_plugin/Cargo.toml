@@ -1,0 +1,11 @@
+[package]
+name = "test_plugin"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "test_plugin"
+crate-type = ["cdylib"]
+
+[dependencies]
+emcore = { path = "../emcore" }
