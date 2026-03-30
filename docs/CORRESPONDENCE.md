@@ -7,7 +7,7 @@ step, you will make errors that look plausible but are wrong.
 
 ## State of the port
 
-C++ emCore has 90 headers. The Rust port has 103 .rs files (some C++
+C++ emCore has 90 headers. The Rust port has 103 .rs files in crates/emcore/src/ (some C++
 headers were split into multiple Rust files per the one-type-per-file
 rule). 8 C++ headers have no .rs file — these have .no_rs marker
 files. 1 Rust file has no C++ header — emPainterDrawList.rust_only
@@ -164,8 +164,8 @@ and took significant investigation to surface.
 ### emStocks port (2026-03-29)
 
 First outside-emCore app module ported. 10 C++ headers in
-include/emStocks/ mapped to 11 .rs files in src/emStocks/ (10 type
-files + mod.rs). All types follow File and Name Correspondence.
+include/emStocks/ mapped to 11 .rs files in crates/emstocks/src/
+(10 type files + lib.rs). All types follow File and Name Correspondence.
 
 emCore gap closed:
 - emAbsoluteFileModelClient added to emFileModel.rs. Uses
@@ -178,10 +178,12 @@ emCore types stress-tested by emStocks:
 - emRec serialization — Record round-trip for StockRec and emStocksConfig
 
 UI panels ported as data-model stubs (DIVERGED: panel framework
-integration deferred — no PanelBehavior impl yet):
+integration deferred):
 - emStocksItemChart — price chart data model and update logic
 - emStocksItemPanel, emStocksListBox, emStocksControlPanel
-- emStocksFetchPricesDialog, emStocksFilePanel, emStocksFpPlugin
+- emStocksFetchPricesDialog
+- emStocksFilePanel — minimal PanelBehavior impl (default methods only)
+- emStocksFpPlugin — dynamic plugin entry point (#[no_mangle])
 
 Key DIVERGED annotations:
 - emStocksRec: Rust struct fields use snake_case. Method names preserve
@@ -192,8 +194,43 @@ Key DIVERGED annotations:
 - emStocksPricesFetcher: BTreeMap<String, Option<usize>> replaces
   emAvlTreeMap<String, emCrossPtr<StockRec>>. Process management
   stubbed (parsing logic fully ported).
-- emStocksFpPlugin: static registration instead of extern "C" dynamic
-  loading.
+- emStocksFpPlugin: ~~static registration instead of extern "C" dynamic
+  loading~~ RESOLVED: converted to dynamic plugin entry point (see
+  plugin system port below).
+
+### Plugin system port (2026-03-30)
+
+Workspace restructured: single crate split into Cargo workspace with
+crates/emcore/ (dylib+rlib), crates/emstocks/ (cdylib+rlib),
+crates/eaglemode/ (bin). All 103 emCore .rs files moved to
+crates/emcore/src/, all 11 emStocks .rs files moved to
+crates/emstocks/src/. Import paths updated mechanically.
+
+Dynamic library API ported to emStd2.rs:
+- emTryOpenLib, emTryResolveSymbolFromLib, emCloseLib, emTryResolveSymbol
+- Library table with refcount caching (thread_local! RefCell<Vec>)
+- DIVERGED: Single-threaded (no mutex); linear search (not binary search)
+
+Plugin invocation ported to emFpPlugin.rs:
+- emFpPluginFunc and emFpPluginModelFunc type aliases (Rust calling convention)
+- emFpPlugin::TryCreateFilePanel and TryAcquireModel with cached function pointers
+- emFpPluginList::CreateFilePanel (both overloads) and TryAcquireModelFromPlugin
+- PanelParentArg: DIVERGED from C++ emPanel::ParentArg (simplified — carries
+  root context only, full panel tree integration deferred)
+- DIVERGED: #[no_mangle] with Rust ABI (not extern "C") — types cross dylib
+  boundary safely because host and plugins link the same libemcore.so
+
+emStocks converted to dynamic plugin:
+- emStocksFpPlugin.rs: #[no_mangle] pub fn emStocksFpPluginFunc (was placeholder stub)
+- emStocksFilePanel.rs: minimal PanelBehavior impl added (DIVERGED: all methods
+  use defaults, full panel integration deferred)
+- etc/emCore/FpPlugins/emStocks.emFpPlugin config file added
+- Static registration stub eliminated
+
+Config files:
+- etc/emCore/FpPlugins/ directory with .emFpPlugin config files
+- EM_DIR set to repo root for development via .cargo/config.toml
+- LD_LIBRARY_PATH set to target/debug/ for plugin .so discovery
 
 ## Porting rules
 
