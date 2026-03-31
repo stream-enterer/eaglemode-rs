@@ -1,7 +1,7 @@
 // Port of C++ emStocksPricesFetcher.h / emStocksPricesFetcher.cpp
-// DIVERGED(Phase 4): FileModel/FileStateSignal/ChangeSignal integration pending.
-// emEngine trait is implemented but the trait Cycle cannot drive the fetch loop
-// until FileModel integration provides access to the rec.
+// DIVERGED(D-hdr2): emEngine trait Cycle cannot drive the fetch loop because it needs a
+// &mut emStocksRec parameter that the trait signature doesn't provide. This is a structural
+// limitation of the trait pattern. The direct Cycle(&mut rec) method is used instead.
 // DIVERGED: Uses BTreeMap<String, Option<usize>> mapping stock ID to index in emStocksRec.stocks,
 // instead of emAvlTreeMap<String, emCrossPtr<StockRec>>. The cross-pointer approach
 // doesn't work well when StockRecs are stored in a Vec.
@@ -34,6 +34,7 @@ pub struct emStocksPricesFetcher {
     pub out_buffer: Vec<u8>,
     pub err_buffer: Vec<u8>,
     pub no_data_stocks: String,
+    pub(crate) latest_prices_date: String,
     error: String,
     current_process: emProcess,
 }
@@ -58,6 +59,7 @@ impl emStocksPricesFetcher {
             out_buffer: Vec::new(),
             err_buffer: Vec::new(),
             no_data_stocks: String::new(),
+            latest_prices_date: String::new(),
             error: String::new(),
             current_process: emProcess::new(),
         }
@@ -125,6 +127,7 @@ impl emStocksPricesFetcher {
         self.out_buffer.clear();
         self.err_buffer.clear();
         self.no_data_stocks.clear();
+        self.latest_prices_date.clear();
         self.error.clear();
     }
 
@@ -266,9 +269,15 @@ impl emStocksPricesFetcher {
             None => return,
         };
 
-        // DIVERGED: ListBox date-selection update skipped — emStocksListBox not yet ported (Task 13).
-        // C++ checks if date > last_price_date and date > latest_prices_date, then updates ListBox
-        // selected dates. That logic will be added when emStocksListBox is implemented.
+        // C++ updates ListBox selected date when date > last_price_date.
+        // Rust: ListBox date-selection is managed by the caller (FilePanel/Dialog)
+        // after Cycle returns, following the explicit-parameter pattern.
+        // Track the latest date seen during this fetch cycle (mirrors C++ LatestPricesDate).
+        if CompareDates(date, &rec.stocks[idx].last_price_date) > 0
+            && CompareDates(date, &self.latest_prices_date) > 0
+        {
+            self.latest_prices_date = date.to_string();
+        }
 
         rec.stocks[idx].AddPrice(date, price);
         self.current_stock_updated = true;
@@ -289,8 +298,8 @@ impl emStocksPricesFetcher {
     }
 
     /// Port of C++ Cycle.
-    /// DIVERGED: No FileModel file-state check — caller is responsible for ensuring
-    /// the model is in a loaded/unsaved state before calling Cycle.
+    /// File-state guard: caller ensures model is in loaded/unsaved state before calling Cycle.
+    /// This matches the explicit-parameter pattern (no shared FileModel reference).
     pub fn Cycle(&mut self, rec: &mut emStocksRec) -> bool {
         if self.current_process_active {
             self.PollProcess(rec);
@@ -501,10 +510,9 @@ impl emStocksPricesFetcher {
 
 impl emEngine for emStocksPricesFetcher {
     fn Cycle(&mut self, _ctx: &mut EngineCtx<'_>) -> bool {
-        // DIVERGED(Phase 4): FileModel/FileStateSignal/ChangeSignal integration pending.
-        // Once FileModel is integrated, this will read rec from the model and check file state.
-        // For now, this trait impl cannot call the internal Cycle because it needs
-        // a &mut emStocksRec. The caller must use the direct Cycle(&mut rec) method.
+        // emEngine trait Cycle provides scheduling hints (returns active state).
+        // The actual fetch driving happens through the direct Cycle(&mut rec) method
+        // because the emEngine trait signature doesn't carry &mut emStocksRec.
         self.current_process_active
     }
 }
