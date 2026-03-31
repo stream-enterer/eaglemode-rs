@@ -122,8 +122,8 @@ impl emColor {
         self.0
     }
 
-    // DIVERGED: SetHSVA — renamed to SetHSVA constructor (not mutator); alpha omitted
-    // (use .SetAlpha() to set it). s/v scale matches C++ [0,100].
+    // DIVERGED: SetHSVA — constructor instead of mutator (emColor is Copy);
+    // 4-param variant available as SetHSVA_with_alpha. s/v scale matches C++ [0,100].
     /// Create a color from HSV values. `h` in [0, 360), `s` and `v` in [0, 100].
     ///
     /// Uses the exact C++ integer algorithm (emColor.cpp:868-918):
@@ -160,7 +160,11 @@ impl emColor {
         Self::rgb(r as u8, g as u8, b as u8)
     }
 
-    // DIVERGED: GetHue/GetSat/GetVal — combined into GetHSV returning (h, s, v) tuple
+    /// Create a color from HSV + alpha. C++ `emColor::SetHSVA(h, s, v, alpha)`.
+    pub fn SetHSVA_with_alpha(h: f32, s: f32, v: f32, alpha: u8) -> Self {
+        Self::SetHSVA(h, s, v).SetAlpha(alpha)
+    }
+
     /// Convert to HSV. Returns `(h, s, v)` with h in [0, 360), s and v in [0, 100].
     ///
     /// Port of C++ GetHue/GetSat/GetVal integer algorithm (emColor.cpp:793-864).
@@ -215,6 +219,24 @@ impl emColor {
         let val = cmax as f32 * (100.0_f32 / 255.0_f32);
 
         (hue, sat, val)
+    }
+
+    /// Get the hue component. Returns [0.0, 360.0).
+    /// C++ `emColor::GetHue()`.
+    pub fn GetHue(self) -> f32 {
+        self.GetHSV().0
+    }
+
+    /// Get the saturation component. Returns [0.0, 100.0].
+    /// C++ `emColor::GetSat()`.
+    pub fn GetSat(self) -> f32 {
+        self.GetHSV().1
+    }
+
+    /// Get the value (brightness) component. Returns [0.0, 100.0].
+    /// C++ `emColor::GetVal()`.
+    pub fn GetVal(self) -> f32 {
+        self.GetHSV().2
     }
 
     /// Lighten or darken the color.
@@ -338,11 +360,18 @@ impl emColor {
         ((self.GetRed() as u16 + self.GetGreen() as u16 + self.GetBlue() as u16 + 1) / 3) as u8
     }
 
-    // DIVERGED: SetGrey — constructor instead of mutator; alpha param omitted (use .SetAlpha())
+    // DIVERGED: SetGrey — constructor instead of mutator (emColor is Copy);
+    // 2-param variant available as SetGrey_with_alpha.
     /// Construct a grey color with `a=255`.
     #[inline]
     pub const fn SetGrey(val: u8) -> emColor {
         emColor::rgba(val, val, val, 255)
+    }
+
+    /// Construct a grey color with explicit alpha. C++ `emColor::SetGrey(val, alpha)`.
+    #[inline]
+    pub const fn SetGrey_with_alpha(val: u8, alpha: u8) -> emColor {
+        emColor::rgba(val, val, val, alpha)
     }
 
     // DIVERGED: SetHue — returns new value instead of mutating (emColor is Copy)
@@ -831,5 +860,35 @@ mod tests {
         // Zero = no change
         let same = c.GetLighted(0.0);
         assert_eq!(same.GetPacked(), c.GetPacked());
+    }
+
+    #[test]
+    fn test_individual_hsv_accessors() {
+        let c = emColor::rgb(255, 0, 0); // pure red
+        assert!((c.GetHue() - 0.0).abs() < 1.0);
+        assert!((c.GetSat() - 100.0).abs() < 1.0);
+        assert!((c.GetVal() - 100.0).abs() < 1.0);
+
+        // Verify consistency with GetHSV tuple
+        let (h, s, v) = c.GetHSV();
+        assert_eq!(c.GetHue(), h);
+        assert_eq!(c.GetSat(), s);
+        assert_eq!(c.GetVal(), v);
+    }
+
+    #[test]
+    fn test_set_hsva_4_param() {
+        let c = emColor::SetHSVA_with_alpha(0.0, 100.0, 100.0, 128);
+        assert_eq!(c.GetAlpha(), 128);
+        assert_eq!(c.GetRed(), 255);
+    }
+
+    #[test]
+    fn test_set_grey_2_param() {
+        let c = emColor::SetGrey_with_alpha(128, 200);
+        assert_eq!(c.GetRed(), 128);
+        assert_eq!(c.GetGreen(), 128);
+        assert_eq!(c.GetBlue(), 128);
+        assert_eq!(c.GetAlpha(), 200);
     }
 }
