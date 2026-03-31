@@ -35,6 +35,10 @@ impl emDirModelData {
         }
     }
 
+    pub fn is_loaded(&self) -> bool {
+        matches!(self.loading_phase, LoadingPhase::Done)
+    }
+
     pub fn try_start_loading_from(&mut self, path: &str) -> Result<(), String> {
         let dir_path = PathBuf::from(path);
         let dir_iter = std::fs::read_dir(&dir_path)
@@ -202,6 +206,9 @@ impl Default for emDirModelData {
 /// SignalId and update_signal from the scheduler, which are not needed for
 /// the data-layer-only port. Wraps emDirModelData directly. The panel layer
 /// drives the loading state machine by calling these methods in its Cycle.
+/// Does not implement the FileModelState trait (which returns `&FileState`),
+/// but provides `get_file_state()` returning an owned FileState and
+/// `is_loaded()` for convenience.
 pub struct emDirModel {
     data: emDirModelData,
     path: String,
@@ -264,6 +271,22 @@ impl emDirModel {
 
     pub fn calc_file_progress(&self) -> f64 {
         self.data.calc_file_progress()
+    }
+
+    pub fn is_loaded(&self) -> bool {
+        self.data.is_loaded()
+    }
+
+    pub fn get_file_state(&self) -> emcore::emFileModel::FileState {
+        match &self.data.loading_phase {
+            LoadingPhase::Idle => emcore::emFileModel::FileState::Waiting,
+            LoadingPhase::ReadingNames { .. }
+            | LoadingPhase::Sorting { .. }
+            | LoadingPhase::LoadingEntries { .. } => emcore::emFileModel::FileState::Loading {
+                progress: self.data.calc_file_progress(),
+            },
+            LoadingPhase::Done => emcore::emFileModel::FileState::Loaded,
+        }
     }
 }
 
@@ -362,6 +385,50 @@ mod tests {
     fn progress_calculation() {
         let m = emDirModelData::new();
         assert!((m.calc_file_progress() - 100.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn is_loaded_lifecycle() {
+        let mut m = emDirModelData::new();
+        assert!(!m.is_loaded());
+        m.try_start_loading_from("/tmp").unwrap();
+        assert!(!m.is_loaded());
+        while !m.try_continue_loading().unwrap() {}
+        // Done but not quit yet — still in Done phase
+        assert!(m.is_loaded());
+    }
+
+    #[test]
+    fn get_file_state_maps_phases() {
+        use emcore::emFileModel::FileState;
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let model = emDirModel::Acquire(&ctx, "/tmp");
+
+        // Initially Idle → Waiting
+        {
+            let m = model.borrow();
+            assert!(matches!(m.get_file_state(), FileState::Waiting));
+        }
+
+        // Start loading → Loading
+        {
+            let mut m = model.borrow_mut();
+            m.try_start_loading().unwrap();
+            assert!(matches!(m.get_file_state(), FileState::Loading { .. }));
+        }
+
+        // Continue until done → Loaded
+        loop {
+            let mut m = model.borrow_mut();
+            if m.try_continue_loading().unwrap() {
+                break;
+            }
+        }
+        {
+            let m = model.borrow();
+            assert!(matches!(m.get_file_state(), FileState::Loaded));
+            assert!(m.is_loaded());
+        }
     }
 
     #[test]
