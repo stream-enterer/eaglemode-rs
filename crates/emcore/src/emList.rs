@@ -14,15 +14,6 @@
 // tracking (same pattern as emArray::Cursor), since Rust Iterator is a
 // standard trait with different semantics.
 //
-// DIVERGED: Move operations (MoveToBeg, MoveToEnd, MoveBefore, MoveAfter)
-// are O(n) Vec operations, not O(1) pointer relinks.
-//
-// DIVERGED: GetSubList, Extract(range) — omitted from initial port. No
-// emCore consumer exists.
-//
-// DIVERGED: Sort takes no comparator function pointer. Uses Ord trait.
-// Separate impl block bounded on T: Ord.
-//
 // DIVERGED: GetIndexOf searches by value equality (PartialEq) rather than
 // by pointer identity, since elements are stored in a Vec, not as
 // individually-allocated nodes.
@@ -183,6 +174,27 @@ impl<T: Clone> emList<T> {
         Some(&mut v[len - 1])
     }
 
+    /// Get a mutable reference to the next element after the given index.
+    pub fn GetNextWritable(&mut self, index: usize) -> Option<(usize, &mut T)> {
+        let next = index + 1;
+        if next < self.data.len() {
+            let v = Rc::make_mut(&mut self.data);
+            Some((next, &mut v[next]))
+        } else {
+            None
+        }
+    }
+
+    /// Get a mutable reference to the previous element before the given index.
+    pub fn GetPrevWritable(&mut self, index: usize) -> Option<(usize, &mut T)> {
+        if index == 0 {
+            return None;
+        }
+        let prev = index - 1;
+        let v = Rc::make_mut(&mut self.data);
+        Some((prev, &mut v[prev]))
+    }
+
     /// Replace an element at the given index.
     pub fn Set(&mut self, index: usize, obj: T) {
         Rc::make_mut(&mut self.data)[index] = obj;
@@ -213,6 +225,62 @@ impl<T: Clone> emList<T> {
     /// Alias for InsertAtEnd_one.
     pub fn Add_one(&mut self, obj: T) {
         self.InsertAtEnd_one(obj);
+    }
+
+    /// Insert a slice of elements at the beginning.
+    pub fn InsertAtBeg_slice(&mut self, elements: &[T]) {
+        let v = Rc::make_mut(&mut self.data);
+        for (i, e) in elements.iter().enumerate() {
+            v.insert(i, e.clone());
+        }
+    }
+
+    /// Insert elements from another list at the beginning.
+    pub fn InsertAtBeg_list(&mut self, other: &emList<T>) {
+        self.InsertAtBeg_slice(&other.data);
+    }
+
+    /// Insert `count` copies of `element` at the beginning.
+    pub fn InsertAtBeg_fill(&mut self, element: T, count: usize) {
+        let v = Rc::make_mut(&mut self.data);
+        for i in 0..count {
+            v.insert(i, element.clone());
+        }
+    }
+
+    /// Insert a slice of elements at the end.
+    pub fn InsertAtEnd_slice(&mut self, elements: &[T]) {
+        let v = Rc::make_mut(&mut self.data);
+        v.extend_from_slice(elements);
+    }
+
+    /// Insert elements from another list at the end.
+    pub fn InsertAtEnd_list(&mut self, other: &emList<T>) {
+        self.InsertAtEnd_slice(&other.data);
+    }
+
+    /// Insert `count` copies of `element` at the end.
+    pub fn InsertAtEnd_fill(&mut self, element: T, count: usize) {
+        let v = Rc::make_mut(&mut self.data);
+        v.extend(std::iter::repeat_n(element, count));
+    }
+
+    /// Insert a slice of elements before the given index.
+    pub fn InsertBefore_slice(&mut self, index: usize, elements: &[T]) {
+        let v = Rc::make_mut(&mut self.data);
+        for (i, e) in elements.iter().enumerate() {
+            v.insert(index + i, e.clone());
+        }
+    }
+
+    /// Insert a slice of elements after the given index.
+    pub fn InsertAfter_slice(&mut self, index: usize, elements: &[T]) {
+        self.InsertBefore_slice(index + 1, elements);
+    }
+
+    /// Alias for InsertAtEnd_slice.
+    pub fn Add_slice(&mut self, elements: &[T]) {
+        self.InsertAtEnd_slice(elements);
     }
 
     // --- Remove ---
@@ -263,6 +331,81 @@ impl<T: Clone> emList<T> {
         }
     }
 
+    // --- Move ---
+
+    /// Move the element at `index` to the beginning.
+    // DIVERGED: C++ O(1) pointer relinks vs Rust O(n) Vec operations.
+    pub fn MoveToBeg(&mut self, index: usize) {
+        if index == 0 {
+            return;
+        }
+        let v = Rc::make_mut(&mut self.data);
+        let elem = v.remove(index);
+        v.insert(0, elem);
+    }
+
+    /// Move the element at `index` to the end.
+    // DIVERGED: C++ O(1) pointer relinks vs Rust O(n) Vec operations.
+    pub fn MoveToEnd(&mut self, index: usize) {
+        let v = Rc::make_mut(&mut self.data);
+        if index >= v.len() - 1 {
+            return;
+        }
+        let elem = v.remove(index);
+        v.push(elem);
+    }
+
+    /// Move the element at `src` to just before `dst`.
+    // DIVERGED: C++ O(1) pointer relinks vs Rust O(n) Vec operations.
+    pub fn MoveBefore(&mut self, src: usize, dst: usize) {
+        let v = Rc::make_mut(&mut self.data);
+        let elem = v.remove(src);
+        let insert_at = if src < dst { dst - 1 } else { dst };
+        v.insert(insert_at, elem);
+    }
+
+    /// Move the element at `src` to just after `dst`.
+    // DIVERGED: C++ O(1) pointer relinks vs Rust O(n) Vec operations.
+    pub fn MoveAfter(&mut self, src: usize, dst: usize) {
+        let v = Rc::make_mut(&mut self.data);
+        let elem = v.remove(src);
+        let insert_at = if src <= dst { dst } else { dst + 1 };
+        v.insert(insert_at, elem);
+    }
+
+    // --- SubList ---
+
+    /// Return a new list containing elements from index `first` to `last` (inclusive).
+    pub fn GetSubList(&self, first: usize, last: usize) -> emList<T> {
+        emList {
+            data: Rc::new(self.data[first..=last].to_vec()),
+        }
+    }
+
+    /// Return a new list containing the first `count` elements.
+    pub fn GetSubListOfFirst(&self, count: usize) -> emList<T> {
+        emList {
+            data: Rc::new(self.data[..count].to_vec()),
+        }
+    }
+
+    /// Return a new list containing the last `count` elements.
+    pub fn GetSubListOfLast(&self, count: usize) -> emList<T> {
+        let start = self.data.len().saturating_sub(count);
+        emList {
+            data: Rc::new(self.data[start..].to_vec()),
+        }
+    }
+
+    /// Remove and return elements from index `first` to `last` (inclusive) as a new list.
+    pub fn Extract(&mut self, first: usize, last: usize) -> emList<T> {
+        let v = Rc::make_mut(&mut self.data);
+        let extracted: Vec<T> = v.drain(first..=last).collect();
+        emList {
+            data: Rc::new(extracted),
+        }
+    }
+
     // --- Query ---
 
     /// Whether the list has no elements.
@@ -283,6 +426,29 @@ impl<T: Clone> emList<T> {
     /// Ensure this list has its own unique copy of the data.
     pub fn MakeNonShared(&mut self) {
         Rc::make_mut(&mut self.data);
+    }
+
+    // --- Constructors ---
+
+    /// Construct a list by concatenating two lists.
+    pub fn from_two(a: &emList<T>, b: &emList<T>) -> Self {
+        let mut v = a.data.as_ref().clone();
+        v.extend_from_slice(&b.data);
+        emList { data: Rc::new(v) }
+    }
+
+    /// Construct a list from a subrange (first..=last) of another list.
+    pub fn from_sublist(src: &emList<T>, first: usize, last: usize) -> Self {
+        emList {
+            data: Rc::new(src.data[first..=last].to_vec()),
+        }
+    }
+
+    // --- Sort ---
+
+    /// Sort this list using a custom comparator.
+    pub fn Sort_by(&mut self, compare: impl FnMut(&T, &T) -> std::cmp::Ordering) {
+        Rc::make_mut(&mut self.data).sort_by(compare);
     }
 
     // --- Cursor factories ---

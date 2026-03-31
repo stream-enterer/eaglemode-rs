@@ -262,3 +262,165 @@ fn default_is_empty() {
     let l: emList<i32> = emList::default();
     assert!(l.IsEmpty());
 }
+
+#[test]
+fn test_get_next_writable() {
+    let mut list = emList::from_element(10);
+    list.Add_one(20);
+    list.Add_one(30);
+    let (idx, val) = list.GetNextWritable(0).unwrap();
+    assert_eq!(idx, 1);
+    *val = 99;
+    assert_eq!(list.GetAtIndex(1), Some(&99));
+    assert!(list.GetNextWritable(2).is_none());
+}
+
+#[test]
+fn test_get_prev_writable() {
+    let mut list = emList::from_element(10);
+    list.Add_one(20);
+    let (idx, val) = list.GetPrevWritable(1).unwrap();
+    assert_eq!(idx, 0);
+    *val = 99;
+    assert_eq!(list.GetAtIndex(0), Some(&99));
+    assert!(list.GetPrevWritable(0).is_none());
+}
+
+#[test]
+fn test_move_to_beg() {
+    let mut list = emList::new();
+    list.Add_one(1);
+    list.Add_one(2);
+    list.Add_one(3);
+    list.MoveToBeg(2);
+    assert_eq!(list.GetAtIndex(0), Some(&3));
+    assert_eq!(list.GetAtIndex(1), Some(&1));
+    assert_eq!(list.GetAtIndex(2), Some(&2));
+}
+
+#[test]
+fn test_move_to_end() {
+    let mut list = emList::new();
+    list.Add_one(1);
+    list.Add_one(2);
+    list.Add_one(3);
+    list.MoveToEnd(0);
+    assert_eq!(list.GetAtIndex(0), Some(&2));
+    assert_eq!(list.GetAtIndex(1), Some(&3));
+    assert_eq!(list.GetAtIndex(2), Some(&1));
+}
+
+#[test]
+fn test_move_before() {
+    let mut list = emList::new();
+    list.Add_one(1);
+    list.Add_one(2);
+    list.Add_one(3);
+    list.MoveBefore(2, 1);
+    assert_eq!(list.GetAtIndex(0), Some(&1));
+    assert_eq!(list.GetAtIndex(1), Some(&3));
+    assert_eq!(list.GetAtIndex(2), Some(&2));
+}
+
+#[test]
+fn test_move_after() {
+    let mut list = emList::new();
+    list.Add_one(1);
+    list.Add_one(2);
+    list.Add_one(3);
+    list.MoveAfter(0, 1);
+    assert_eq!(list.GetAtIndex(0), Some(&2));
+    assert_eq!(list.GetAtIndex(1), Some(&1));
+    assert_eq!(list.GetAtIndex(2), Some(&3));
+}
+
+#[test]
+fn test_get_sub_list() {
+    let mut list = emList::new();
+    for i in 0..5 {
+        list.Add_one(i);
+    }
+    let sub = list.GetSubList(1, 3);
+    assert_eq!(sub.GetCount(), 3);
+    assert_eq!(sub.GetAtIndex(0), Some(&1));
+    assert_eq!(sub.GetAtIndex(2), Some(&3));
+}
+
+#[test]
+fn test_get_sub_list_of_first() {
+    let mut list = emList::new();
+    for i in 0..5 {
+        list.Add_one(i);
+    }
+    let sub = list.GetSubListOfFirst(2);
+    assert_eq!(sub.GetCount(), 2);
+    assert_eq!(sub.GetAtIndex(0), Some(&0));
+    assert_eq!(sub.GetAtIndex(1), Some(&1));
+}
+
+#[test]
+fn test_get_sub_list_of_last() {
+    let mut list = emList::new();
+    for i in 0..5 {
+        list.Add_one(i);
+    }
+    let sub = list.GetSubListOfLast(2);
+    assert_eq!(sub.GetCount(), 2);
+    assert_eq!(sub.GetAtIndex(0), Some(&3));
+    assert_eq!(sub.GetAtIndex(1), Some(&4));
+}
+
+#[test]
+fn test_extract() {
+    let mut list = emList::new();
+    for i in 0..5 {
+        list.Add_one(i);
+    }
+    let extracted = list.Extract(1, 3);
+    assert_eq!(extracted.GetCount(), 3);
+    assert_eq!(list.GetCount(), 2);
+    assert_eq!(list.GetAtIndex(0), Some(&0));
+    assert_eq!(list.GetAtIndex(1), Some(&4));
+}
+
+#[test]
+fn test_insert_at_beg_slice() {
+    let mut list = emList::from_element(3);
+    list.InsertAtBeg_slice(&[1, 2]);
+    assert_eq!(list.GetCount(), 3);
+    assert_eq!(list.GetAtIndex(0), Some(&1));
+    assert_eq!(list.GetAtIndex(2), Some(&3));
+}
+
+#[test]
+fn test_insert_at_end_fill() {
+    let mut list = emList::new();
+    list.InsertAtEnd_fill(42, 3);
+    assert_eq!(list.GetCount(), 3);
+    assert_eq!(list.GetAtIndex(2), Some(&42));
+}
+
+#[test]
+fn test_sort_by() {
+    let mut list = emList::new();
+    list.Add_one(3);
+    list.Add_one(1);
+    list.Add_one(2);
+    list.Sort_by(|a, b| b.cmp(a));
+    assert_eq!(list.GetAtIndex(0), Some(&3));
+    assert_eq!(list.GetAtIndex(2), Some(&1));
+}
+
+#[test]
+fn test_from_two() {
+    let mut a = emList::new();
+    a.Add_one(1);
+    a.Add_one(2);
+    let mut b = emList::new();
+    b.Add_one(3);
+    b.Add_one(4);
+    let merged = emList::from_two(&a, &b);
+    assert_eq!(merged.GetCount(), 4);
+    assert_eq!(merged.GetAtIndex(0), Some(&1));
+    assert_eq!(merged.GetAtIndex(3), Some(&4));
+}
