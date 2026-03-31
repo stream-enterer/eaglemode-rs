@@ -2506,6 +2506,21 @@ mod tests {
     }
 
     #[test]
+    fn test_inject_menu_key_produces_press_release() {
+        let mut vif = emDefaultTouchVIF::new();
+        vif.gesture_tracker
+            .pending_actions
+            .push(GestureAction::InjectMenuKey);
+        let (_tree, mut view) = setup();
+        let events = vif.drain_gesture_actions(&mut view);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].key, InputKey::Menu);
+        assert_eq!(events[0].variant, InputVariant::Press);
+        assert_eq!(events[1].key, InputKey::Menu);
+        assert_eq!(events[1].variant, InputVariant::Release);
+    }
+
+    #[test]
     fn test_emulate_middle_button() {
         let mut vif = emMouseZoomScrollVIF::new();
         let mut state = emInputState::new();
