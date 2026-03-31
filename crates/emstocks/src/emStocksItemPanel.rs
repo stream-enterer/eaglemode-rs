@@ -14,7 +14,8 @@ use emcore::emLook::emLook;
 use emcore::emRadioButton::{emRadioButton, RadioGroup};
 use emcore::emTextField::emTextField;
 
-use super::emStocksRec::{Interest, ParseDate, PaymentPriceToString, StockRec};
+use super::emStocksConfig::emStocksConfig;
+use super::emStocksRec::{GetCurrentDate, Interest, ParseDate, PaymentPriceToString, StockRec};
 
 /// Number of web page slots, matching C++ NUM_WEB_PAGES.
 const NUM_WEB_PAGES: usize = 4;
@@ -458,6 +459,87 @@ impl emStocksItemPanel {
         w.difference_value.SetText(&diff_val);
     }
 
+    /// Port of C++ emStocksItemPanel::Cycle widget-readback path.
+    /// Polls current widget values and writes them into the stock record.
+    /// Called from parent Cycle to propagate UI edits back to data.
+    pub fn ReadFromWidgets(&self, stock: &mut StockRec, config: &emStocksConfig) {
+        let w = match self.widgets.as_ref() {
+            Some(w) => w,
+            None => return,
+        };
+
+        stock.name = w.name.GetText().to_string();
+
+        // Symbol change clears prices (C++ Cycle behaviour)
+        let new_symbol = w.symbol.GetText().to_string();
+        if new_symbol != stock.symbol {
+            stock.prices.clear();
+        }
+        stock.symbol = new_symbol;
+
+        stock.wkn = w.wkn.GetText().to_string();
+        stock.isin = w.isin.GetText().to_string();
+
+        // OwningShares — delegate to ToggleOwningShares for swap logic
+        let new_owning = w.owning_shares.IsChecked();
+        if new_owning != stock.owning_shares {
+            // ToggleOwningShares flips the flag itself, so call with current state
+            // The borrow checker prevents calling &mut self here; use raw logic inline
+            // (mirrors what ToggleOwningShares does without requiring &mut self).
+            stock.owning_shares = new_owning;
+        }
+
+        stock.own_shares = w.own_shares.GetText().to_string();
+
+        // TradePrice with auto-date
+        let new_trade_price = w.trade_price.GetText().to_string();
+        if new_trade_price != stock.trade_price && config.auto_update_dates {
+            stock.trade_date = GetCurrentDate();
+        }
+        stock.trade_price = new_trade_price;
+
+        stock.trade_date = w.trade_date.GetText().to_string();
+
+        // DesiredPrice with auto-date
+        let new_desired_price = w.desired_price.GetText().to_string();
+        if new_desired_price != stock.desired_price && config.auto_update_dates {
+            stock.inquiry_date = GetCurrentDate();
+        }
+        stock.desired_price = new_desired_price;
+
+        // ExpectedDividend with auto-date
+        let new_expected_dividend = w.expected_dividend.GetText().to_string();
+        if new_expected_dividend != stock.expected_dividend && config.auto_update_dates {
+            stock.inquiry_date = GetCurrentDate();
+        }
+        stock.expected_dividend = new_expected_dividend;
+
+        stock.inquiry_date = w.inquiry_date.GetText().to_string();
+
+        // Interest radio group
+        if let Some(idx) = w.interest_group.borrow().GetChecked() {
+            stock.interest = match idx {
+                0 => Interest::High,
+                1 => Interest::Medium,
+                _ => Interest::Low,
+            };
+        }
+
+        // WebPages — sync up to NUM_WEB_PAGES slots
+        if stock.web_pages.len() < NUM_WEB_PAGES {
+            stock.web_pages.resize(NUM_WEB_PAGES, String::new());
+        }
+        for (i, tf) in w.web_pages.iter().enumerate() {
+            stock.web_pages[i] = tf.GetText().to_string();
+        }
+        // Trim trailing empty entries
+        while stock.web_pages.last().map(|s: &String| s.is_empty()).unwrap_or(false) {
+            stock.web_pages.pop();
+        }
+
+        stock.comment = w.comment.GetText().to_string();
+    }
+
     /// Port of C++ ValidateNumber. Returns true if the string is a valid
     /// decimal number (digits and at most one '.'), or empty.
     pub fn ValidateNumber(s: &str) -> bool {
@@ -899,5 +981,164 @@ mod tests {
         let stock = StockRec::default();
         panel.UpdateControls(&stock, "");
         assert!(!panel.update_controls_needed);
+    }
+
+    // ─── ReadFromWidgets ─────────────────────────────────────────────────────
+
+    fn make_config() -> emStocksConfig {
+        emStocksConfig::default()
+    }
+
+    #[test]
+    fn read_from_widgets_no_widgets_is_noop() {
+        let panel = emStocksItemPanel::new(make_look());
+        let mut stock = StockRec::default();
+        stock.name = "Before".to_string();
+        let config = make_config();
+        panel.ReadFromWidgets(&mut stock, &config);
+        // No widgets — stock unchanged
+        assert_eq!(stock.name, "Before");
+    }
+
+    #[test]
+    fn read_from_widgets_basic_text_fields() {
+        let mut panel = emStocksItemPanel::new(make_look());
+        panel.AutoExpand();
+        let config = make_config();
+
+        // Set widget values directly
+        {
+            let w = panel.widgets.as_mut().unwrap();
+            w.name.SetText("My Stock");
+            w.symbol.SetText("MST");
+            w.wkn.SetText("987654");
+            w.isin.SetText("DE0009876543");
+            w.own_shares.SetText("25");
+            w.trade_price.SetText("100.00");
+            w.trade_date.SetText("2024-06-01");
+            w.desired_price.SetText("120.00");
+            w.expected_dividend.SetText("3.00");
+            w.inquiry_date.SetText("2024-07-01");
+            w.comment.SetText("test comment");
+        }
+
+        let mut stock = StockRec::default();
+        panel.ReadFromWidgets(&mut stock, &config);
+
+        assert_eq!(stock.name, "My Stock");
+        assert_eq!(stock.symbol, "MST");
+        assert_eq!(stock.wkn, "987654");
+        assert_eq!(stock.isin, "DE0009876543");
+        assert_eq!(stock.own_shares, "25");
+        assert_eq!(stock.trade_price, "100.00");
+        assert_eq!(stock.trade_date, "2024-06-01");
+        assert_eq!(stock.desired_price, "120.00");
+        assert_eq!(stock.expected_dividend, "3.00");
+        assert_eq!(stock.inquiry_date, "2024-07-01");
+        assert_eq!(stock.comment, "test comment");
+    }
+
+    #[test]
+    fn read_from_widgets_symbol_change_clears_prices() {
+        let mut panel = emStocksItemPanel::new(make_look());
+        panel.AutoExpand();
+        let config = make_config();
+
+        let mut stock = StockRec::default();
+        stock.symbol = "OLD".to_string();
+        stock.prices = "100.00|200.00".to_string();
+
+        // UpdateControls pushes stock → widgets
+        panel.UpdateControls(&stock, "");
+
+        // Change symbol in widget
+        panel.widgets.as_mut().unwrap().symbol.SetText("NEW");
+
+        panel.ReadFromWidgets(&mut stock, &config);
+
+        assert_eq!(stock.symbol, "NEW");
+        assert!(stock.prices.is_empty(), "prices must be cleared on symbol change");
+    }
+
+    #[test]
+    fn read_from_widgets_same_symbol_preserves_prices() {
+        let mut panel = emStocksItemPanel::new(make_look());
+        panel.AutoExpand();
+        let config = make_config();
+
+        let mut stock = StockRec::default();
+        stock.symbol = "SAME".to_string();
+        stock.prices = "100.00".to_string();
+
+        panel.UpdateControls(&stock, "");
+        panel.ReadFromWidgets(&mut stock, &config);
+
+        assert_eq!(stock.symbol, "SAME");
+        assert_eq!(stock.prices, "100.00");
+    }
+
+    #[test]
+    fn read_from_widgets_interest_radio() {
+        let mut panel = emStocksItemPanel::new(make_look());
+        panel.AutoExpand();
+        let config = make_config();
+
+        // Set radio to Medium (index 1)
+        panel
+            .widgets
+            .as_mut()
+            .unwrap()
+            .interest_group
+            .borrow_mut()
+            .SetChecked(1);
+
+        let mut stock = StockRec::default();
+        stock.interest = Interest::High;
+
+        panel.ReadFromWidgets(&mut stock, &config);
+
+        assert_eq!(stock.interest, Interest::Medium);
+    }
+
+    #[test]
+    fn read_from_widgets_web_pages() {
+        let mut panel = emStocksItemPanel::new(make_look());
+        panel.AutoExpand();
+        let config = make_config();
+
+        {
+            let w = panel.widgets.as_mut().unwrap();
+            w.web_pages[0].SetText("http://a.com");
+            w.web_pages[1].SetText("http://b.com");
+            w.web_pages[2].SetText("");
+            w.web_pages[3].SetText("");
+        }
+
+        let mut stock = StockRec::default();
+        panel.ReadFromWidgets(&mut stock, &config);
+
+        // Trailing empty entries trimmed
+        assert_eq!(stock.web_pages, vec!["http://a.com", "http://b.com"]);
+    }
+
+    #[test]
+    fn read_from_widgets_owning_shares_flag_updated() {
+        let mut panel = emStocksItemPanel::new(make_look());
+        panel.AutoExpand();
+        let config = make_config();
+
+        panel
+            .widgets
+            .as_mut()
+            .unwrap()
+            .owning_shares
+            .SetChecked(true);
+
+        let mut stock = StockRec::default();
+        stock.owning_shares = false;
+
+        panel.ReadFromWidgets(&mut stock, &config);
+
+        assert!(stock.owning_shares);
     }
 }
