@@ -165,9 +165,8 @@ impl emDirPanel {
 
     pub(crate) fn SelectAll(&self) {
         if let Some(ref dm_rc) = self.dir_model {
+            let show_hidden = self.config.borrow().GetShowHiddenFiles();
             let dm = dm_rc.borrow();
-            let cfg = self.config.borrow();
-            let show_hidden = cfg.GetShowHiddenFiles();
             let mut fm = self.file_man.borrow_mut();
             for i in 0..dm.GetEntryCount() {
                 let entry = dm.GetEntry(i);

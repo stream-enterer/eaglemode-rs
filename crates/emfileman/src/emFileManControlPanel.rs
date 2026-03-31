@@ -272,23 +272,30 @@ impl PanelBehavior for emFileManControlPanel {
         let widget_w = content_w * 0.45;
         let mut y = margin;
 
+        // Helper: paint a widget at position (margin, y) via translate
+        macro_rules! paint_widget {
+            ($widget:expr) => {
+                painter.translate(margin, y);
+                $widget.Paint(painter, widget_w, widget_h, true);
+                painter.translate(-margin, -y);
+                y += widget_h;
+            };
+        }
+
         // --- Sort Criterion section ---
         y = Self::paint_section_label(painter, margin, y, content_w, row_h, "Sort Criterion", fg);
         for radio in &mut self.sort_radios {
-            radio.Paint(painter, widget_w, widget_h, true);
-            // Translate painter for next widget position
-            y += widget_h;
+            paint_widget!(radio);
         }
 
-        y += row_h * 0.5; // spacing
+        y += row_h * 0.5;
 
         // --- Name Sorting Style section ---
         y = Self::paint_section_label(
             painter, margin, y, content_w, row_h, "Name Sorting Style", fg,
         );
         for radio in &mut self.nss_radios {
-            radio.Paint(painter, widget_w, widget_h, true);
-            y += widget_h;
+            paint_widget!(radio);
         }
 
         y += row_h * 0.5;
@@ -298,8 +305,7 @@ impl PanelBehavior for emFileManControlPanel {
             painter, margin, y, content_w, row_h, "Theme Style:", fg,
         );
         for radio in &mut self.theme_style_radios {
-            radio.Paint(painter, widget_w, widget_h, true);
-            y += widget_h;
+            paint_widget!(radio);
         }
 
         y += row_h * 0.5;
@@ -309,45 +315,28 @@ impl PanelBehavior for emFileManControlPanel {
             painter, margin, y, content_w, row_h, "Aspect Ratio:", fg,
         );
         for radio in &mut self.theme_ar_radios {
-            radio.Paint(painter, widget_w, widget_h, true);
-            y += widget_h;
+            paint_widget!(radio);
         }
 
         y += row_h * 0.5;
 
         // --- Options section ---
         y = Self::paint_section_label(painter, margin, y, content_w, row_h, "Options", fg);
-        self.dirs_first_check
-            .Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
-        self.show_hidden_check
-            .Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
-        self.autosave_check
-            .Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
+        paint_widget!(self.dirs_first_check);
+        paint_widget!(self.show_hidden_check);
+        paint_widget!(self.autosave_check);
 
         y += row_h * 0.5;
 
         // --- Actions section ---
         y = Self::paint_section_label(painter, margin, y, content_w, row_h, "Actions", fg);
-        self.save_button.Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
-        self.select_all_button
-            .Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
-        self.clear_sel_button
-            .Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
-        self.swap_sel_button
-            .Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
-        self.paths_clip_button
-            .Paint(painter, widget_w, widget_h, true);
-        y += widget_h;
-        self.names_clip_button
-            .Paint(painter, widget_w, widget_h, true);
-        let _ = y + widget_h; // suppress unused warning for final y
+        paint_widget!(self.save_button);
+        paint_widget!(self.select_all_button);
+        paint_widget!(self.clear_sel_button);
+        paint_widget!(self.swap_sel_button);
+        paint_widget!(self.paths_clip_button);
+        paint_widget!(self.names_clip_button);
+        let _ = y; // final y unused
     }
 
     fn Input(
