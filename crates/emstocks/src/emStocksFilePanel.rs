@@ -4,7 +4,7 @@ use emcore::emColor::emColor;
 use emcore::emFilePanel::emFilePanel;
 use emcore::emInput::{emInputEvent, InputKey, InputVariant};
 use emcore::emInputState::emInputState;
-use emcore::emPainter::{emPainter, TextAlignment, VAlign};
+use emcore::emPainter::emPainter;
 use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 
@@ -33,21 +33,7 @@ impl PanelBehavior for emStocksFilePanel {
             // C++: ListBox->Paint(...) checks GetItemCount()==0 and paints
             // "empty stock list" message.
             if let Some(ref list_box) = self.list_box {
-                if let Some(msg) = list_box.GetEmptyMessage() {
-                    painter.PaintTextBoxed(
-                        0.0, 0.0, w, h,
-                        msg,
-                        h * 0.1,
-                        emColor::rgb(255, 255, 255),
-                        self.bg_color,
-                        TextAlignment::Center,
-                        VAlign::Center,
-                        TextAlignment::Center,
-                        0.0,
-                        false,
-                        0.0,
-                    );
-                }
+                list_box.PaintEmptyMessage(painter, w, h, self.bg_color);
             }
         }
         // C++: if (!IsVFSGood()) emFilePanel::Paint(painter,canvasColor);
@@ -161,35 +147,17 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('X') => {
                     // C++: ListBox->CutStocks()
-                    if let Some(clipboard_text) = list_box.CutStocks(&mut self.rec) {
-                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                            let _ = clipboard.set_text(&clipboard_text);
-                        }
-                    }
+                    list_box.CutStocks(&mut self.rec);
                     return true;
                 }
                 InputKey::Key('C') => {
                     // C++: ListBox->CopyStocks()
-                    if let Some(clipboard_text) = list_box.CopyStocks(&self.rec) {
-                        if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                            let _ = clipboard.set_text(&clipboard_text);
-                        }
-                    }
+                    list_box.CopyStocks(&self.rec);
                     return true;
                 }
                 InputKey::Key('V') => {
                     // C++: ListBox->PasteStocks()
-                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                        if let Ok(clipboard_text) = clipboard.get_text() {
-                            if !clipboard_text.is_empty() {
-                                let _result = list_box.PasteStocks(
-                                    &mut self.rec,
-                                    &self.config,
-                                    &clipboard_text,
-                                );
-                            }
-                        }
-                    }
+                    let _ = list_box.PasteStocks(&mut self.rec, &self.config);
                     return true;
                 }
                 InputKey::Key('P') => {
@@ -200,24 +168,12 @@ impl PanelBehavior for emStocksFilePanel {
                 }
                 InputKey::Key('W') => {
                     // C++: ListBox->ShowFirstWebPages()
-                    let pages = list_box.ShowFirstWebPages(&self.rec);
-                    for url in &pages {
-                        let _ = open::that(url);
-                    }
+                    list_box.ShowFirstWebPages(&self.rec);
                     return true;
                 }
                 InputKey::Key('H') => {
                     // C++: ListBox->FindSelected()
-                    let text = if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                        clipboard.get_text().unwrap_or_else(|_| self.config.search_text.clone())
-                    } else {
-                        self.config.search_text.clone()
-                    };
-                    let _found = list_box.FindSelected(
-                        &self.rec,
-                        &mut self.config,
-                        &text,
-                    );
+                    let _found = list_box.FindSelected(&self.rec, &mut self.config);
                     return true;
                 }
                 InputKey::Key('G') => {
@@ -235,10 +191,7 @@ impl PanelBehavior for emStocksFilePanel {
             match event.key {
                 InputKey::Key('W') => {
                     // C++: ListBox->ShowAllWebPages()
-                    let pages = list_box.ShowAllWebPages(&self.rec);
-                    for url in &pages {
-                        let _ = open::that(url);
-                    }
+                    list_box.ShowAllWebPages(&self.rec);
                     return true;
                 }
                 InputKey::Key('G') => {

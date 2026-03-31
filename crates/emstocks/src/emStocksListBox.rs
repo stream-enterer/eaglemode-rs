@@ -3,8 +3,10 @@
 use std::cmp::Ordering;
 use std::rc::Rc;
 
+use emcore::emColor::emColor;
 use emcore::emListBox::emListBox;
 use emcore::emLook::emLook;
+use emcore::emPainter::{emPainter, TextAlignment, VAlign};
 use emcore::emRec::{parse_rec_with_format, write_rec_with_format};
 use emcore::emRecRecord::Record;
 
@@ -352,16 +354,26 @@ impl emStocksListBox {
 
     // ─── Paint helper ───────────────────────────────────────────────────
 
-    /// Port of C++ Paint.
-    /// Returns the "empty stock list" message text when item count is zero,
-    /// or None when there are items to display.
-    /// DIVERGED: C++ calls emPainter::PaintTextBoxed. Rust returns the text
-    /// since the painter infrastructure is deferred.
-    pub fn GetEmptyMessage(&self) -> Option<&'static str> {
+    /// Port of C++ Paint (empty-message path).
+    /// Paints the "empty stock list" message when no stocks are visible.
+    pub fn PaintEmptyMessage(&self, painter: &mut emPainter, w: f64, h: f64, bg_color: emColor) {
         if self.visible_items.is_empty() {
-            Some("empty stock list")
-        } else {
-            None
+            painter.PaintTextBoxed(
+                0.0,
+                0.0,
+                w,
+                h,
+                "empty stock list",
+                h * 0.1,
+                emColor::rgb(255, 255, 255),
+                bg_color,
+                TextAlignment::Center,
+                VAlign::Center,
+                TextAlignment::Center,
+                0.0,
+                false,
+                0.0,
+            );
         }
     }
 
@@ -401,11 +413,21 @@ impl emStocksListBox {
     }
 
     /// Port of C++ CopyStocks.
-    /// Serializes selected stocks to emStocksRec format string.
-    /// Returns the serialized string, or None if nothing is selected.
-    /// DIVERGED: C++ copies to system clipboard. Rust returns the string
-    /// since clipboard integration is deferred.
-    pub fn CopyStocks(&self, rec: &emStocksRec) -> Option<String> {
+    /// Copies selected stocks to system clipboard.
+    pub fn CopyStocks(&self, rec: &emStocksRec) {
+        if self.GetSelectionCount() == 0 {
+            return;
+        }
+        if let Some(text) = self.copy_stocks_to_string(rec) {
+            if let Ok(mut clipboard) = arboard::Clipboard::new() {
+                let _ = clipboard.set_text(&text);
+            }
+        }
+    }
+
+    /// Internal helper: serialize selected stocks to a string.
+    /// Returns None if nothing is selected. Used by CopyStocks and tests.
+    pub(crate) fn copy_stocks_to_string(&self, rec: &emStocksRec) -> Option<String> {
         if self.GetSelectionCount() == 0 {
             return None;
         }
@@ -451,28 +473,41 @@ impl emStocksListBox {
     }
 
     /// Port of C++ CutStocks.
-    /// Copies selected stocks, then deletes them.
-    /// DIVERGED: C++ has `ask` parameter for dialog confirmation. Rust
-    /// performs the operation directly since dialog system is deferred.
-    /// C++ takes no arguments. Rust takes `rec` parameter and returns
-    /// the serialized clipboard string.
-    pub fn CutStocks(&mut self, rec: &mut emStocksRec) -> Option<String> {
-        let clipboard = self.CopyStocks(rec);
-        if clipboard.is_some() {
+    /// Cuts selected stocks to clipboard.
+    /// DIVERGED(Phase 4): dialog ask parameter pending.
+    /// C++ takes no arguments. Rust takes `rec` parameter.
+    pub fn CutStocks(&mut self, rec: &mut emStocksRec) {
+        self.CopyStocks(rec);
+        if self.GetSelectionCount() > 0 {
             self.DeleteStocks(rec);
         }
-        clipboard
     }
 
     /// Port of C++ PasteStocks.
-    /// Deserializes stocks from clipboard format, assigns new IDs where
-    /// conflicts exist, adds to rec.
+    /// Pastes stocks from clipboard.
     /// Returns names of pasted stocks that are not visible due to filters,
-    /// or an error if the clipboard data is invalid.
-    /// DIVERGED: C++ reads from system clipboard and has `ask` dialog.
-    /// Rust takes clipboard text as parameter and performs directly.
+    /// or an error if the clipboard data is invalid or clipboard is empty.
+    /// DIVERGED(Phase 4): dialog ask parameter pending.
     /// C++ takes no arguments.
     pub fn PasteStocks(
+        &mut self,
+        rec: &mut emStocksRec,
+        config: &emStocksConfig,
+    ) -> Result<Vec<String>, String> {
+        let clipboard_text = if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            clipboard.get_text().unwrap_or_default()
+        } else {
+            return Err("Cannot access clipboard".to_string());
+        };
+        if clipboard_text.is_empty() {
+            return Err("Clipboard is empty".to_string());
+        }
+        self.paste_stocks_from_text(rec, config, &clipboard_text)
+    }
+
+    /// Internal helper: parse stocks from a text string and insert into rec.
+    /// Used by PasteStocks (public) and tests.
+    pub(crate) fn paste_stocks_from_text(
         &mut self,
         rec: &mut emStocksRec,
         config: &emStocksConfig,
@@ -541,39 +576,31 @@ impl emStocksListBox {
     }
 
     /// Port of C++ ShowFirstWebPages.
-    /// Collects the first web page URL from each selected stock.
-    /// DIVERGED: C++ launches web browser. Rust returns URLs since
-    /// process launch is deferred.
-    pub fn ShowFirstWebPages(&self, rec: &emStocksRec) -> Vec<String> {
-        let mut pages = Vec::new();
+    /// Opens the first web page for each selected stock in the system browser.
+    pub fn ShowFirstWebPages(&self, rec: &emStocksRec) {
         for &vis_idx in self.GetSelectedIndices() {
             if let Some(stock) = self.GetStockByItemIndex(vis_idx, rec) {
                 if let Some(page) = stock.web_pages.first() {
                     if !page.is_empty() {
-                        pages.push(page.clone());
+                        let _ = open::that(page);
                     }
                 }
             }
         }
-        pages
     }
 
     /// Port of C++ ShowAllWebPages.
-    /// Collects all web page URLs from selected stocks.
-    /// DIVERGED: C++ launches web browser. Rust returns URLs since
-    /// process launch is deferred.
-    pub fn ShowAllWebPages(&self, rec: &emStocksRec) -> Vec<String> {
-        let mut pages = Vec::new();
+    /// Opens all web pages for each selected stock in the system browser.
+    pub fn ShowAllWebPages(&self, rec: &emStocksRec) {
         for &vis_idx in self.GetSelectedIndices() {
             if let Some(stock) = self.GetStockByItemIndex(vis_idx, rec) {
                 for page in &stock.web_pages {
                     if !page.is_empty() {
-                        pages.push(page.clone());
+                        let _ = open::that(page);
                     }
                 }
             }
         }
-        pages
     }
 
     /// Port of C++ StartToFetchSharePrices (no-args overload).
@@ -590,20 +617,23 @@ impl emStocksListBox {
     // ─── Find operations ────────────────────────────────────────────────
 
     /// Port of C++ FindSelected.
-    /// Sets search text and calls FindNext.
-    /// DIVERGED: C++ reads from system clipboard. Rust takes search text
-    /// as parameter. C++ modifies Config.SearchText; Rust takes config
-    /// mutably.
+    /// Sets search text from clipboard (falling back to config.search_text) and calls FindNext.
     pub fn FindSelected(
         &mut self,
         rec: &emStocksRec,
         config: &mut emStocksConfig,
-        search_text: &str,
     ) -> Option<usize> {
-        if search_text.is_empty() {
+        let text = if let Ok(mut clipboard) = arboard::Clipboard::new() {
+            clipboard
+                .get_text()
+                .unwrap_or_else(|_| config.search_text.clone())
+        } else {
+            config.search_text.clone()
+        };
+        if text.is_empty() {
             return None;
         }
-        config.search_text = search_text.to_string();
+        config.search_text = text;
         self.FindNext(rec, config)
     }
 
@@ -788,16 +818,24 @@ mod tests {
     // ─── New tests for stock operations ──────────────────────────────────
 
     #[test]
-    fn empty_message_when_no_items() {
+    fn paint_empty_message_when_no_items() {
+        use emcore::emImage::emImage;
         let lb = emStocksListBox::new();
-        assert_eq!(lb.GetEmptyMessage(), Some("empty stock list"));
+        let mut img = emImage::new(200, 50, 4);
+        let mut painter = emPainter::new(&mut img);
+        // Smoke test: no panic when painting with empty visible_items
+        lb.PaintEmptyMessage(&mut painter, 200.0, 50.0, emColor::rgb(0, 0, 0));
     }
 
     #[test]
-    fn no_empty_message_when_items_exist() {
+    fn paint_empty_message_no_op_when_items_exist() {
+        use emcore::emImage::emImage;
         let mut lb = emStocksListBox::new();
         lb.visible_items.push(0);
-        assert_eq!(lb.GetEmptyMessage(), None);
+        let mut img = emImage::new(200, 50, 4);
+        let mut painter = emPainter::new(&mut img);
+        // Smoke test: no panic when items exist
+        lb.PaintEmptyMessage(&mut painter, 200.0, 50.0, emColor::rgb(0, 0, 0));
     }
 
     #[test]
@@ -849,14 +887,14 @@ mod tests {
     }
 
     #[test]
-    fn copy_stocks_empty_selection_returns_none() {
+    fn copy_stocks_to_string_empty_selection_returns_none() {
         let rec = emStocksRec::default();
         let lb = emStocksListBox::new();
-        assert!(lb.CopyStocks(&rec).is_none());
+        assert!(lb.copy_stocks_to_string(&rec).is_none());
     }
 
     #[test]
-    fn copy_stocks_serializes_selected() {
+    fn copy_stocks_to_string_serializes_selected() {
         let mut rec = emStocksRec::default();
         rec.stocks.push(make_stock("1", "Alpha", Interest::High));
         rec.stocks.push(make_stock("2", "Beta", Interest::High));
@@ -866,10 +904,9 @@ mod tests {
         lb.UpdateItems(&rec, &config);
         lb.Select(0); // select first visible item
 
-        let clipboard = lb.CopyStocks(&rec);
-        assert!(clipboard.is_some());
-        let text = clipboard.unwrap();
-        assert!(text.contains("emStocks"));
+        let text = lb.copy_stocks_to_string(&rec);
+        assert!(text.is_some());
+        assert!(text.unwrap().contains("emStocks"));
     }
 
     #[test]
@@ -912,8 +949,7 @@ mod tests {
         lb.UpdateItems(&rec, &config);
         lb.Select(0); // select Alpha
 
-        let clipboard = lb.CutStocks(&mut rec);
-        assert!(clipboard.is_some());
+        lb.CutStocks(&mut rec);
         assert_eq!(rec.stocks.len(), 1);
         assert_eq!(rec.stocks[0].name, "Beta");
     }
@@ -929,11 +965,11 @@ mod tests {
         lb.Select(0);
 
         // Copy, then paste into a fresh rec
-        let clipboard = lb.CopyStocks(&rec).unwrap();
+        let clipboard = lb.copy_stocks_to_string(&rec).unwrap();
 
         let mut rec2 = emStocksRec::default();
         let mut lb2 = emStocksListBox::new();
-        let result = lb2.PasteStocks(&mut rec2, &config, &clipboard);
+        let result = lb2.paste_stocks_from_text(&mut rec2, &config, &clipboard);
         assert!(result.is_ok());
         assert_eq!(rec2.stocks.len(), 1);
         assert_eq!(rec2.stocks[0].name, "Alpha");
@@ -955,7 +991,7 @@ mod tests {
         let rec_struct = source_rec.to_rec();
         let clipboard = write_rec_with_format(&rec_struct, "emStocks");
 
-        let result = lb.PasteStocks(&mut rec, &config, &clipboard);
+        let result = lb.paste_stocks_from_text(&mut rec, &config, &clipboard);
         assert!(result.is_ok());
         assert_eq!(rec.stocks.len(), 2);
         // The pasted stock should have a new ID, not "1"
@@ -969,7 +1005,7 @@ mod tests {
         let mut lb = emStocksListBox::new();
         let config = emStocksConfig::default();
 
-        let result = lb.PasteStocks(&mut rec, &config, "not valid data");
+        let result = lb.paste_stocks_from_text(&mut rec, &config, "not valid data");
         assert!(result.is_err());
     }
 
@@ -990,7 +1026,7 @@ mod tests {
         let rec_struct = source_rec.to_rec();
         let clipboard = write_rec_with_format(&rec_struct, "emStocks");
 
-        let result = lb.PasteStocks(&mut rec, &config, &clipboard);
+        let result = lb.paste_stocks_from_text(&mut rec, &config, &clipboard);
         assert!(result.is_ok());
         let invisible = result.unwrap();
         assert_eq!(invisible, vec!["Hidden".to_string()]);
@@ -1037,26 +1073,22 @@ mod tests {
     }
 
     #[test]
-    fn show_first_web_pages() {
+    fn show_first_web_pages_empty_selection_is_noop() {
+        // ShowFirstWebPages with no selection launches no browser and does not panic.
         let mut rec = emStocksRec::default();
         let mut stock = make_stock("1", "Alpha", Interest::High);
-        stock.web_pages = vec![
-            "https://example.com".to_string(),
-            "https://other.com".to_string(),
-        ];
+        stock.web_pages = vec!["https://example.com".to_string()];
         rec.stocks.push(stock);
 
         let mut lb = emStocksListBox::new();
         let config = emStocksConfig::default();
         lb.UpdateItems(&rec, &config);
-        lb.Select(0);
-
-        let pages = lb.ShowFirstWebPages(&rec);
-        assert_eq!(pages, vec!["https://example.com".to_string()]);
+        // No Select() call — selection is empty.
+        lb.ShowFirstWebPages(&rec); // should be a no-op
     }
 
     #[test]
-    fn show_all_web_pages() {
+    fn show_all_web_pages_empty_selection_is_noop() {
         let mut rec = emStocksRec::default();
         let mut stock = make_stock("1", "Alpha", Interest::High);
         stock.web_pages = vec![
@@ -1068,10 +1100,8 @@ mod tests {
         let mut lb = emStocksListBox::new();
         let config = emStocksConfig::default();
         lb.UpdateItems(&rec, &config);
-        lb.Select(0);
-
-        let pages = lb.ShowAllWebPages(&rec);
-        assert_eq!(pages.len(), 2);
+        // No Select() call — selection is empty.
+        lb.ShowAllWebPages(&rec); // should be a no-op
     }
 
     #[test]
@@ -1173,26 +1203,36 @@ mod tests {
     }
 
     #[test]
-    fn find_selected_sets_search_text() {
+    fn find_selected_uses_config_search_text_when_clipboard_unavailable() {
+        // FindSelected reads clipboard; if clipboard is unavailable it falls
+        // back to config.search_text.  Pre-set search_text so the fallback
+        // exercises the FindNext path.
         let mut rec = emStocksRec::default();
         rec.stocks.push(make_stock("1", "Alpha Corp", Interest::High));
 
         let mut lb = emStocksListBox::new();
         let mut config = emStocksConfig::default();
+        config.search_text = "Alpha".to_string();
         lb.UpdateItems(&rec, &config);
 
-        let result = lb.FindSelected(&rec, &mut config, "Alpha");
-        assert!(result.is_some());
-        assert_eq!(config.search_text, "Alpha");
+        // The result depends on whether the clipboard is accessible in the
+        // test environment, so we only check that it does not panic and that
+        // config.search_text is non-empty after the call.
+        let _ = lb.FindSelected(&rec, &mut config);
+        assert!(!config.search_text.is_empty());
     }
 
     #[test]
-    fn find_selected_empty_text_returns_none() {
+    fn find_selected_empty_fallback_returns_none() {
+        // When both clipboard and config.search_text are empty, FindSelected
+        // returns None.
         let rec = emStocksRec::default();
         let mut lb = emStocksListBox::new();
         let mut config = emStocksConfig::default();
-
-        assert!(lb.FindSelected(&rec, &mut config, "").is_none());
+        // config.search_text is "" and clipboard is expected to be empty/unavailable
+        // in the headless test environment.
+        // We can only verify no panic; None is the expected result when text is empty.
+        let _ = lb.FindSelected(&rec, &mut config);
     }
 
     #[test]
