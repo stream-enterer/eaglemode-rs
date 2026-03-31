@@ -2556,7 +2556,8 @@ impl emView {
     /// Handle a custom cheat code. Override in subclasses for app-specific cheats.
     /// C++ `emView::DoCustomCheat(const char* func)`.
     pub(crate) fn DoCustomCheat(&self, func: &str) {
-        // Default: propagate to parent view context (C++ walks parent contexts)
+        // DIVERGED: C++ default walks GetParentContext() chain to find ancestor
+        // emView and delegates. Needs emContext parent traversal to be ported.
         log::debug!("Unknown cheat code: {}", func);
     }
 }
