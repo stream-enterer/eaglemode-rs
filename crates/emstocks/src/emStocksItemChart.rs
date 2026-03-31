@@ -3,6 +3,7 @@
 use emcore::emColor::emColor;
 use emcore::emPainter::emPainter;
 use emcore::emPainter::{TextAlignment, VAlign};
+use emcore::emTexture::emTexture;
 
 use super::emStocksConfig::emStocksConfig;
 use super::emStocksRec::{
@@ -998,13 +999,24 @@ impl emStocksItemChart {
         };
         let c1 = c2.GetBlended(emColor::rgba(128, 128, 255, 224), 50.0);
 
-        // DIVERGED: C++ uses emLinearGradientTexture for gradient fill.
-        // We use a single blended color for the rect since Rust emPainter
-        // does not support gradient textures directly.
-        let bar_color = c1.GetBlended(c2, 50.0);
         let bar_y = f64::min(y1, y2);
         let bar_h = (y2 - y1).abs();
-        painter.PaintRect(x, bar_y, w, bar_h, bar_color, emColor::TRANSPARENT);
+        let gradient = emTexture::LinearGradient {
+            color_a: c1.GetTransparented(30.0),
+            color_b: c2.GetTransparented(10.0),
+            start: (x, y1),
+            end: (x, y2),
+        };
+        painter.paint_polygon_textured(
+            &[
+                (x, bar_y),
+                (x + w, bar_y),
+                (x + w, bar_y + bar_h),
+                (x, bar_y + bar_h),
+            ],
+            &gradient,
+            emColor::TRANSPARENT,
+        );
 
         if params.panel_to_view_delta_y(text_height) < 4.0 {
             return;
