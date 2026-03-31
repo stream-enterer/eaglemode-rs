@@ -2,3 +2,4 @@
 #![allow(non_camel_case_types)]
 
 pub mod emMainConfig;
+pub mod static_plugins;
