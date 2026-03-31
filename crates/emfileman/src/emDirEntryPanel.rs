@@ -501,7 +501,15 @@ impl PanelBehavior for emDirEntryPanel {
     }
 
     fn CreateControlPanel(&mut self, parent_ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
-        let panel = crate::emFileManControlPanel::emFileManControlPanel::new(Rc::clone(&self.ctx));
+        let parent_dir = std::path::Path::new(self.dir_entry.GetPath())
+            .parent()
+            .and_then(|p| p.to_str())
+            .unwrap_or("");
+        let mut panel =
+            crate::emFileManControlPanel::emFileManControlPanel::new(Rc::clone(&self.ctx));
+        if !parent_dir.is_empty() {
+            panel = panel.with_dir_path(parent_dir);
+        }
         Some(parent_ctx.create_child_with(name, Box::new(panel)))
     }
 

@@ -40,7 +40,7 @@ const NSS_LABELS: [&str; 3] = ["Per Locale", "Case Sensitive", "Case Insensitive
 /// computed y offsets — widgets are painted directly rather than
 /// composed as child panels in a layout tree.
 pub struct emFileManControlPanel {
-    _ctx: Rc<emContext>,
+    ctx: Rc<emContext>,
     config: Rc<RefCell<emFileManViewConfig>>,
     file_man: Rc<RefCell<emFileManModel>>,
     theme_names: Rc<RefCell<emFileManThemeNames>>,
@@ -77,6 +77,10 @@ pub struct emFileManControlPanel {
 
     /// Tracks config generation to detect external changes.
     last_config_gen: u64,
+
+    /// Path of the directory panel that created this control panel.
+    /// Used by SelectAll to enumerate entries.
+    dir_path: Option<String>,
 }
 
 impl emFileManControlPanel {
@@ -148,7 +152,7 @@ impl emFileManControlPanel {
         let last_config_gen = config.borrow().GetChangeSignal();
 
         let mut panel = Self {
-            _ctx: ctx,
+            ctx,
             config,
             file_man,
             theme_names,
@@ -171,6 +175,7 @@ impl emFileManControlPanel {
             paths_clip_button,
             names_clip_button,
             last_config_gen,
+            dir_path: None,
         };
         panel.sync_from_config();
         panel
@@ -213,6 +218,31 @@ impl emFileManControlPanel {
             }
             if let Some(ar_idx) = tn.GetThemeAspectRatioIndex(&theme_name) {
                 self.theme_ar_group.borrow_mut().SetChecked(ar_idx);
+            }
+        }
+    }
+
+    pub(crate) fn with_dir_path(mut self, path: &str) -> Self {
+        self.dir_path = Some(path.to_string());
+        self
+    }
+
+    /// DIVERGED: C++ SelectAll finds active DirPanel by walking from
+    /// content_view's focused panel. Rust receives the dir_path from the
+    /// creating DirPanel and accesses the emDirModel directly.
+    fn select_all(&self) {
+        let Some(ref dir_path) = self.dir_path else {
+            return;
+        };
+        let dm = crate::emDirModel::emDirModel::Acquire(&self.ctx, dir_path);
+        let dm = dm.borrow();
+        let cfg = self.config.borrow();
+        let show_hidden = cfg.GetShowHiddenFiles();
+        let mut fm = self.file_man.borrow_mut();
+        for i in 0..dm.GetEntryCount() {
+            let entry = dm.GetEntry(i);
+            if !entry.IsHidden() || show_hidden {
+                fm.SelectAsTarget(entry.GetPath());
             }
         }
     }
@@ -455,9 +485,7 @@ impl PanelBehavior for emFileManControlPanel {
             return true;
         }
         if self.select_all_button.Input(event, state, input_state) {
-            // DIVERGED: C++ SelectAll finds active DirPanel via content_view;
-            // Rust defers this to direct DirPanel Input (Alt+A)
-            log::debug!("SelectAll: TODO — requires content_view reference to find active DirPanel");
+            self.select_all();
             return true;
         }
         if self.clear_sel_button.Input(event, state, input_state) {

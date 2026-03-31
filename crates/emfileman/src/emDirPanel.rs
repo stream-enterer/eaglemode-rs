@@ -456,7 +456,8 @@ impl PanelBehavior for emDirPanel {
     }
 
     fn CreateControlPanel(&mut self, parent_ctx: &mut PanelCtx, name: &str) -> Option<PanelId> {
-        let panel = crate::emFileManControlPanel::emFileManControlPanel::new(Rc::clone(&self.ctx));
+        let panel = crate::emFileManControlPanel::emFileManControlPanel::new(Rc::clone(&self.ctx))
+            .with_dir_path(&self.path);
         Some(parent_ctx.create_child_with(name, Box::new(panel)))
     }
 
