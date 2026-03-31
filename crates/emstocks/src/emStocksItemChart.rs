@@ -34,6 +34,8 @@ impl Price {
 /// Port of C++ emStocksItemChart.
 /// DIVERGED: No emBorder/emPanel inheritance. Data model, update logic, and
 /// paint pipeline are ported. No golden test infrastructure for emStocks.
+/// View context (pixels_per_unit, viewed state) is provided by the parent
+/// panel via set_view_context() instead of C++ emBorder/emPanel inheritance.
 pub struct emStocksItemChart {
     // Data state
     data_up_to_date: bool,
@@ -73,6 +75,12 @@ pub struct emStocksItemChart {
 
     // Selected date from listbox
     pub selected_date: String,
+
+    // View context (set by parent panel before painting)
+    pub(crate) pixels_per_unit_x: f64,
+    pub(crate) pixels_per_unit_y: f64,
+    pub(crate) max_label_height: f64,
+    pub(crate) viewed: bool,
 }
 
 impl Default for emStocksItemChart {
@@ -127,6 +135,10 @@ impl emStocksItemChart {
             upper_price: 1.0,
             stock_rec_index: None,
             selected_date: String::new(),
+            pixels_per_unit_x: 800.0,
+            pixels_per_unit_y: 400.0,
+            max_label_height: 0.032,
+            viewed: false,
         }
     }
 
@@ -151,6 +163,26 @@ impl emStocksItemChart {
         }
     }
 
+    pub(crate) fn ViewToPanelDeltaX(&self, pixels: f64) -> f64 {
+        pixels / self.pixels_per_unit_x
+    }
+
+    pub(crate) fn ViewToPanelDeltaY(&self, pixels: f64) -> f64 {
+        pixels / self.pixels_per_unit_y
+    }
+
+    pub(crate) fn PanelToViewDeltaY(&self, panel_dist: f64) -> f64 {
+        panel_dist * self.pixels_per_unit_y
+    }
+
+    /// Set view context values. Called by the parent panel before painting.
+    pub fn set_view_context(&mut self, pixels_per_unit_x: f64, pixels_per_unit_y: f64, viewed: bool) {
+        self.pixels_per_unit_x = pixels_per_unit_x;
+        self.pixels_per_unit_y = pixels_per_unit_y;
+        self.max_label_height = self.ViewToPanelDeltaY(14.0).min(0.032);
+        self.viewed = viewed;
+    }
+
     /// Mark data as needing update.
     pub fn InvalidateData(&mut self) {
         self.data_up_to_date = false;
@@ -167,7 +199,7 @@ impl emStocksItemChart {
             self.UpdateTimeRange(rec, config);
             self.UpdatePrices1(rec);
             self.UpdatePrices2(rec);
-            self.UpdateTransformation();
+            self.UpdateTransformation(0.0, 0.0, 1.0, 1.0);
         } else {
             // No stock rec: clear everything
             self.owning_shares = false;
@@ -214,22 +246,15 @@ impl emStocksItemChart {
     }
 
     /// Port of C++ CalculateDaysPerPrice.
-    /// DIVERGED: No IsViewed() check (no panel context). Uses simplified version
-    /// that only depends on TotalDays, equivalent to C++ non-viewed path returning
-    /// TotalDays but with the power-of-2/256 division for viewed panels.
-    /// Since we have no view context, we use a fixed divisor approach.
     fn CalculateDaysPerPrice(&self) -> i32 {
-        // C++: if (!IsViewed()) return TotalDays;
-        // For the data-model-only port, we use the power-of-2 approach with
-        // m = TotalDays/2 (the simpler bound when no view is available).
+        if !self.viewed {
+            return self.total_days;
+        }
         let m = self.total_days / 2;
         let mut d = 1;
         while d < m {
             d <<= 1;
         }
-        // C++ divides by 256 when using the view-based path, but since we
-        // don't have a view, we just use 1 as minimum.
-        // For tests: use the task-specified algorithm (d/256, min 1)
         d /= 256;
         if d <= 0 {
             d = 1;
@@ -421,14 +446,11 @@ impl emStocksItemChart {
     }
 
     /// Port of C++ UpdateTransformation.
-    /// DIVERGED: No GetContentRect() call (no panel context). Uses unit rect
-    /// (x=0, y=0, w=1, h=1) with the same margin logic as C++.
-    fn UpdateTransformation(&mut self) {
-        // C++ calls GetContentRect(&x,&y,&w,&h) — we use unit rect
-        let x: f64 = 0.0;
-        let mut y: f64 = 0.0;
-        let w: f64 = 1.0;
-        let mut h: f64 = 1.0;
+    fn UpdateTransformation(&mut self, cx: f64, cy: f64, cw: f64, ch: f64) {
+        let x: f64 = cx;
+        let mut y: f64 = cy;
+        let w: f64 = cw;
+        let mut h: f64 = ch;
         let d = h * 0.008;
         y += d;
         h -= 2.0 * d;
@@ -484,21 +506,20 @@ impl emStocksItemChart {
 
     /// Port of C++ PaintContent. Orchestrator that calls all 7 sub-paint methods.
     /// DIVERGED: C++ takes (painter, x, y, w, h, canvasColor) from emBorder override.
-    /// Rust accepts painter plus a `PaintParams` bundle that replaces the view/panel
-    /// context queries (ViewToPanelDeltaX/Y, PanelToViewDeltaY, GetClip*, GetMaxLabelHeight).
-    pub fn PaintContent(&self, painter: &mut emPainter, params: &PaintParams) {
-        self.PaintXScaleLines(painter, params);
-        self.PaintYScaleLines(painter, params);
-        self.PaintXScaleLabels(painter, params);
-        self.PaintYScaleLabels(painter, params);
-        self.PaintPriceBar(painter, params);
-        self.PaintDesiredPrice(painter, params);
-        self.PaintGraph(painter, params);
+    /// Rust accepts only painter; view context is stored on the struct via set_view_context().
+    pub fn PaintContent(&self, painter: &mut emPainter) {
+        self.PaintXScaleLines(painter);
+        self.PaintYScaleLines(painter);
+        self.PaintXScaleLabels(painter);
+        self.PaintYScaleLabels(painter);
+        self.PaintPriceBar(painter);
+        self.PaintDesiredPrice(painter);
+        self.PaintGraph(painter);
     }
 
     /// Port of C++ PaintXScaleLines. Draws vertical grid lines at day/month/year/decade intervals.
-    fn PaintXScaleLines(&self, painter: &mut emPainter, params: &PaintParams) {
-        let f = params.view_to_panel_delta_x(14.0) / self.x_factor;
+    fn PaintXScaleLines(&self, painter: &mut emPainter) {
+        let f = self.ViewToPanelDeltaX(14.0) / self.x_factor;
         let min_level: i32;
         if f <= 1.0 {
             min_level = 0; // days
@@ -512,7 +533,7 @@ impl emStocksItemChart {
             return;
         }
 
-        let max_thickness = f64::min(0.002, params.view_to_panel_delta_x(2.6));
+        let max_thickness = f64::min(0.002, self.ViewToPanelDeltaX(2.6));
 
         let f_day = f64::max(
             0.0,
@@ -609,7 +630,7 @@ impl emStocksItemChart {
     }
 
     /// Port of C++ PaintXScaleLabels. Draws date labels below the chart area.
-    fn PaintXScaleLabels(&self, painter: &mut emPainter, params: &PaintParams) {
+    fn PaintXScaleLabels(&self, painter: &mut emPainter) {
         const MONTH_TEXTS: [&str; 12] = [
             "January",
             "February",
@@ -625,8 +646,8 @@ impl emStocksItemChart {
             "December",
         ];
 
-        let max_text_height = params.max_label_height;
-        let min_text_height = params.view_to_panel_delta_y(6.0);
+        let max_text_height = self.max_label_height;
+        let min_text_height = self.ViewToPanelDeltaY(6.0);
 
         let text_width: [f64; 4] = [
             0.8 * self.x_factor,
@@ -778,13 +799,13 @@ impl emStocksItemChart {
     }
 
     /// Port of C++ PaintYScaleLines. Draws horizontal grid lines at price levels.
-    fn PaintYScaleLines(&self, painter: &mut emPainter, params: &PaintParams) {
-        let (min_level, min_dist, max_level) = self.CalculateYScaleLevelRange(params);
+    fn PaintYScaleLines(&self, painter: &mut emPainter) {
+        let (min_level, min_dist, max_level) = self.CalculateYScaleLevelRange();
         if min_level > max_level {
             return;
         }
 
-        let max_thickness = f64::min(0.002, params.view_to_panel_delta_y(2.6));
+        let max_thickness = f64::min(0.002, self.ViewToPanelDeltaY(2.6));
 
         let mut price = f64::max(
             self.lower_price,
@@ -835,14 +856,14 @@ impl emStocksItemChart {
     }
 
     /// Port of C++ PaintYScaleLabels. Draws price labels on the left side.
-    fn PaintYScaleLabels(&self, painter: &mut emPainter, params: &PaintParams) {
-        let (min_level, min_dist, max_level) = self.CalculateYScaleLevelRange(params);
+    fn PaintYScaleLabels(&self, painter: &mut emPainter) {
+        let (min_level, min_dist, max_level) = self.CalculateYScaleLevelRange();
         if min_level > max_level {
             return;
         }
 
-        let max_text_height = params.max_label_height;
-        let min_text_height = params.view_to_panel_delta_y(6.0);
+        let max_text_height = self.max_label_height;
+        let min_text_height = self.ViewToPanelDeltaY(6.0);
 
         let mut price = f64::max(
             self.lower_price,
@@ -918,10 +939,9 @@ impl emStocksItemChart {
 
     /// Port of C++ CalculateYScaleLevelRange. Computes price grid spacing
     /// using 1-2-5 progression (logarithmic).
-    /// DIVERGED: C++ takes output pointers (pMinLevel, pMinDist, pMaxLevel).
-    /// Rust returns a tuple (min_level, min_dist, max_level).
-    /// C++ uses ViewToPanelDeltaY(14.0) for minimum distance; we take it from PaintParams.
-    pub(crate) fn CalculateYScaleLevelRange(&self, params: &PaintParams) -> (i32, f64, i32) {
+    /// DIVERGED: Returns (min_level, min_dist, max_level) tuple instead of C++ output
+    /// pointers — Rust has no out-parameters; tuples are the idiomatic equivalent.
+    pub(crate) fn CalculateYScaleLevelRange(&self) -> (i32, f64, i32) {
         let mut max_level: i32 = 0;
         let mut max_dist: f64 = 1.0;
 
@@ -946,7 +966,7 @@ impl emStocksItemChart {
 
         let f = f64::max(
             f64::max(self.lower_price.abs(), self.upper_price.abs()) * 0.0001,
-            params.view_to_panel_delta_y(14.0) / (-self.y_factor),
+            self.ViewToPanelDeltaY(14.0) / (-self.y_factor),
         );
 
         while min_dist < f {
@@ -968,7 +988,7 @@ impl emStocksItemChart {
 
     /// Port of C++ PaintPriceBar. Draws a colored rectangle between trade/desired price
     /// and current price, with gradient coloring and text labels.
-    fn PaintPriceBar(&self, painter: &mut emPainter, params: &PaintParams) {
+    fn PaintPriceBar(&self, painter: &mut emPainter) {
         if !self.price_on_selected_date.valid
             || (!self.trade_price.valid && !self.desired_price.valid)
         {
@@ -1018,7 +1038,7 @@ impl emStocksItemChart {
             emColor::TRANSPARENT,
         );
 
-        if params.panel_to_view_delta_y(text_height) < 4.0 {
+        if self.PanelToViewDeltaY(text_height) < 4.0 {
             return;
         }
 
@@ -1103,13 +1123,13 @@ impl emStocksItemChart {
     }
 
     /// Port of C++ PaintDesiredPrice. Draws a horizontal yellow line at the desired price.
-    fn PaintDesiredPrice(&self, painter: &mut emPainter, params: &PaintParams) {
+    fn PaintDesiredPrice(&self, painter: &mut emPainter) {
         if !self.desired_price.valid {
             return;
         }
 
         let thickness = f64::max(
-            params.view_to_panel_delta_y(1.5),
+            self.ViewToPanelDeltaY(1.5),
             f64::min(
                 (self.lower_price - self.upper_price) * self.y_factor * 0.002,
                 self.x_factor * 0.5,
@@ -1123,7 +1143,7 @@ impl emStocksItemChart {
 
         painter.PaintRect(x, y, w, thickness, c, emColor::TRANSPARENT);
 
-        if params.panel_to_view_delta_y(text_height) < 4.0 {
+        if self.PanelToViewDeltaY(text_height) < 4.0 {
             return;
         }
 
@@ -1169,7 +1189,7 @@ impl emStocksItemChart {
 
     /// Port of C++ PaintGraph. Draws the price line graph with optional point markers
     /// and date/price text labels at high zoom.
-    fn PaintGraph(&self, painter: &mut emPainter, params: &PaintParams) {
+    fn PaintGraph(&self, painter: &mut emPainter) {
         if self.prices.len() < 2 {
             return;
         }
@@ -1197,15 +1217,15 @@ impl emStocksItemChart {
         }
 
         let thickness = f64::max(
-            params.view_to_panel_delta_y(1.5),
+            self.ViewToPanelDeltaY(1.5),
             f64::min(
                 (self.lower_price - self.upper_price) * self.y_factor * 0.002,
                 self.x_factor * 0.1,
             ),
         );
         let r = f64::min(0.002, self.x_factor * 0.1) * 3.0;
-        let have_points = self.days_per_price == 1 && r > params.view_to_panel_delta_y(1.2);
-        let have_texts = have_points && r > params.view_to_panel_delta_y(5.0);
+        let have_points = self.days_per_price == 1 && r > self.ViewToPanelDeltaY(1.2);
+        let have_texts = have_points && r > self.ViewToPanelDeltaY(5.0);
 
         let c1 = emColor::rgb(255, 255, 255);
         let c2 = emColor::rgb(64, 64, 64);
@@ -1306,45 +1326,6 @@ impl emStocksItemChart {
     }
 }
 
-/// Parameters that replace the C++ view/panel context queries.
-/// DIVERGED: C++ PaintContent and helpers query ViewToPanelDeltaX/Y, PanelToViewDeltaY,
-/// GetClipX1/Y1/X2/Y2, and GetMaxLabelHeight from the panel's view context.
-/// Rust has no view context, so these are provided explicitly.
-pub struct PaintParams {
-    /// Pixels per panel-unit in X direction (approximation of 1.0/ViewToPanelDeltaX(1.0)).
-    pub pixels_per_unit_x: f64,
-    /// Pixels per panel-unit in Y direction (approximation of 1.0/ViewToPanelDeltaY(1.0)).
-    pub pixels_per_unit_y: f64,
-    /// Maximum label height in panel coordinates.
-    pub max_label_height: f64,
-}
-
-impl Default for PaintParams {
-    fn default() -> Self {
-        Self {
-            pixels_per_unit_x: 800.0,
-            pixels_per_unit_y: 400.0,
-            max_label_height: 0.032,
-        }
-    }
-}
-
-impl PaintParams {
-    /// Simulates C++ ViewToPanelDeltaX(pixels): converts a pixel distance to panel units.
-    pub(crate) fn view_to_panel_delta_x(&self, pixels: f64) -> f64 {
-        pixels / self.pixels_per_unit_x
-    }
-
-    /// Simulates C++ ViewToPanelDeltaY(pixels): converts a pixel distance to panel units.
-    pub(crate) fn view_to_panel_delta_y(&self, pixels: f64) -> f64 {
-        pixels / self.pixels_per_unit_y
-    }
-
-    /// Simulates C++ PanelToViewDeltaY(panel_dist): converts panel units to pixel distance.
-    pub(crate) fn panel_to_view_delta_y(&self, panel_dist: f64) -> f64 {
-        panel_dist * self.pixels_per_unit_y
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -1410,6 +1391,12 @@ mod tests {
     #[test]
     fn calculate_days_per_price() {
         let mut chart = emStocksItemChart::new();
+        // viewed=false: returns total_days directly
+        chart.total_days = 365;
+        assert_eq!(chart.CalculateDaysPerPrice(), 365);
+
+        // viewed=true: uses power-of-2 / 256 algorithm
+        chart.viewed = true;
         chart.total_days = 365;
         assert_eq!(chart.CalculateDaysPerPrice(), 1); // 256/256=1, next power 512/256=2 but m=182, d=256 >= 182 so d=256, 256/256=1
 
@@ -1487,15 +1474,12 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[test]
-    fn paint_params_view_to_panel_delta() {
-        let params = PaintParams {
-            pixels_per_unit_x: 800.0,
-            pixels_per_unit_y: 400.0,
-            max_label_height: 0.032,
-        };
-        assert!((params.view_to_panel_delta_x(14.0) - 14.0 / 800.0).abs() < 1e-12);
-        assert!((params.view_to_panel_delta_y(14.0) - 14.0 / 400.0).abs() < 1e-12);
-        assert!((params.panel_to_view_delta_y(0.01) - 0.01 * 400.0).abs() < 1e-12);
+    fn view_context_methods() {
+        let mut chart = emStocksItemChart::new();
+        chart.set_view_context(800.0, 400.0, true);
+        assert!((chart.ViewToPanelDeltaX(14.0) - 14.0 / 800.0).abs() < 1e-12);
+        assert!((chart.ViewToPanelDeltaY(14.0) - 14.0 / 400.0).abs() < 1e-12);
+        assert!((chart.PanelToViewDeltaY(0.01) - 0.01 * 400.0).abs() < 1e-12);
     }
 
     #[test]
@@ -1505,9 +1489,9 @@ mod tests {
         chart.lower_price = 50.0;
         chart.upper_price = 150.0;
         chart.y_factor = -0.01; // negative = price increases upward
+        chart.set_view_context(800.0, 400.0, true);
 
-        let params = PaintParams::default();
-        let (min_level, min_dist, max_level) = chart.CalculateYScaleLevelRange(&params);
+        let (min_level, min_dist, max_level) = chart.CalculateYScaleLevelRange();
 
         // With range 100, f = 100*0.4 = 40. maxDist starts at 1, grows to 10, then stops
         // (100 > 40). So maxDist=10, maxLevel=2.
@@ -1521,13 +1505,9 @@ mod tests {
         chart.lower_price = 99.0;
         chart.upper_price = 101.0;
         chart.y_factor = -0.5;
+        chart.set_view_context(800.0, 4000.0, true); // high zoom
 
-        let params = PaintParams {
-            pixels_per_unit_x: 800.0,
-            pixels_per_unit_y: 4000.0, // high zoom
-            max_label_height: 0.032,
-        };
-        let (min_level, min_dist, max_level) = chart.CalculateYScaleLevelRange(&params);
+        let (min_level, min_dist, max_level) = chart.CalculateYScaleLevelRange();
         assert!(max_level >= min_level);
         // With small price range, min_dist should be small
         assert!(min_dist <= 1.0, "min_dist={} should be <= 1.0 for small range", min_dist);
@@ -1535,12 +1515,12 @@ mod tests {
 
     #[test]
     fn paint_content_no_crash_empty() {
-        let chart = emStocksItemChart::new();
+        let mut chart = emStocksItemChart::new();
+        chart.set_view_context(800.0, 400.0, true);
         let mut img = emcore::emImage::emImage::new(100, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        let params = PaintParams::default();
         // Should not panic with default (empty) chart
-        chart.PaintContent(&mut painter, &params);
+        chart.PaintContent(&mut painter);
     }
 
     #[test]
@@ -1564,12 +1544,12 @@ mod tests {
         stock.AddPrice("2024-06-15", "55");
 
         chart.UpdateData(Some(&stock), &config);
+        chart.set_view_context(800.0, 400.0, true);
 
         let mut img = emcore::emImage::emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        let params = PaintParams::default();
         // Should not panic
-        chart.PaintContent(&mut painter, &params);
+        chart.PaintContent(&mut painter);
     }
 
     #[test]
@@ -1584,11 +1564,11 @@ mod tests {
         stock.desired_price = "100.00".to_string();
         stock.AddPrice("2024-06-15", "95");
         chart.UpdateData(Some(&stock), &config);
+        chart.set_view_context(800.0, 400.0, true);
 
         let mut img = emcore::emImage::emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        let params = PaintParams::default();
-        chart.PaintDesiredPrice(&mut painter, &params);
+        chart.PaintDesiredPrice(&mut painter);
     }
 
     #[test]
@@ -1607,11 +1587,11 @@ mod tests {
         stock.AddPrice("2024-06-14", "103");
         stock.AddPrice("2024-06-15", "107");
         chart.UpdateData(Some(&stock), &config);
+        chart.set_view_context(800.0, 400.0, true);
 
         let mut img = emcore::emImage::emImage::new(200, 100, 4);
         let mut painter = emPainter::new(&mut img);
-        let params = PaintParams::default();
-        chart.PaintGraph(&mut painter, &params);
+        chart.PaintGraph(&mut painter);
     }
 
     #[test]
@@ -1630,6 +1610,7 @@ mod tests {
             stock.trade_date = "2024-06-12".to_string();
             stock.AddPrice("2024-06-15", price_str);
             chart.UpdateData(Some(&stock), &config);
+            chart.set_view_context(800.0, 400.0, true);
 
             assert!(chart.price_on_selected_date.valid, "price should be valid");
             let y1 = chart.y_offset + chart.y_factor * chart.trade_price.value;
@@ -1639,8 +1620,7 @@ mod tests {
 
             let mut img = emcore::emImage::emImage::new(200, 100, 4);
             let mut painter = emPainter::new(&mut img);
-            let params = PaintParams::default();
-            chart.PaintPriceBar(&mut painter, &params);
+            chart.PaintPriceBar(&mut painter);
         }
     }
 }
