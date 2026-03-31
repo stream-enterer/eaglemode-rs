@@ -290,10 +290,17 @@ impl PanelBehavior for emStocksFilePanel {
         false
     }
 
-    fn LayoutChildren(&mut self, _ctx: &mut PanelCtx) {
+    fn LayoutChildren(&mut self, ctx: &mut PanelCtx) {
         // C++: if (ListBox) ListBox->Layout(0.0, 0.0, 1.0, GetHeight(), BgColor);
-        // ListBox is logically a panel child occupying the full panel area.
-        // Full panel child positioning will use ctx when the panel tree is integrated.
+        // ListBox is not a registered panel child (it's a struct field), so we
+        // store the layout rect on it for use during painting.
+        if let Some(ref mut list_box) = self.list_box {
+            let rect = ctx.layout_rect();
+            list_box.layout_x = 0.0;
+            list_box.layout_y = 0.0;
+            list_box.layout_w = rect.w;  // width = 1.0
+            list_box.layout_h = rect.h;  // height = tallness
+        }
     }
 
     fn Cycle(&mut self, _ctx: &mut PanelCtx) -> bool {

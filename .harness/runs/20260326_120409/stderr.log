@@ -1,0 +1,11 @@
+warning: unused variable: `i`
+   --> tests/golden/common.rs:427:10
+    |
+427 |     for (i, ((a_active, a_path), e)) in actual.iter().zip(expected.iter()).enumerate() {
+    |          ^ help: if this is intentional, prefix it with an underscore: `_i`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `eaglemode-rs` (test "golden") generated 1 warning (run `cargo fix --test "golden" -p eaglemode-rs` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running tests/golden/main.rs (target/debug/deps/golden-3520816a4ad07f50)

@@ -34,6 +34,13 @@ pub struct emStocksListBox {
 
     /// Look used for confirmation dialogs. Set by attach_list_box.
     pub(crate) look: Option<Rc<emLook>>,
+
+    /// Layout rect fields set by parent panel's LayoutChildren.
+    /// The ListBox occupies a rectangular area within the parent panel.
+    pub(crate) layout_x: f64,
+    pub(crate) layout_y: f64,
+    pub(crate) layout_w: f64,
+    pub(crate) layout_h: f64,
 }
 
 impl Default for emStocksListBox {
@@ -51,6 +58,10 @@ impl emStocksListBox {
             selected_indices: Vec::new(),
             active_index: None,
             look: None,
+            layout_x: 0.0,
+            layout_y: 0.0,
+            layout_w: 1.0,
+            layout_h: 1.0,
         }
     }
 

@@ -1,0 +1,219 @@
+{
+  "run_id": "2026-03-26T12:04:23.822526",
+  "commit": "9b67bdc",
+  "source_jsonl": ".harness/runs/20260326_120409/divergence.jsonl",
+  "contract_total": 214,
+  "reported": 182,
+  "pass": 180,
+  "fail": 0,
+  "suspicious": 20,
+  "unreported": 34,
+  "unreported_cases": [
+    "animator_magnetic_approach",
+    "linear_adaptive_tall",
+    "linear_adaptive_wide",
+    "linear_h_align_center",
+    "linear_h_align_right",
+    "linear_h_equal",
+    "linear_h_spacing",
+    "linear_h_tallness",
+    "linear_h_weighted",
+    "linear_min_cell_count",
+    "linear_min_max_tallness",
+    "linear_mixed_weights",
+    "linear_v_align_bottom",
+    "linear_v_equal",
+    "linear_v_spacing",
+    "linear_v_tallness",
+    "linear_v_weighted",
+    "pack_equal",
+    "pack_extreme",
+    "pack_min_cell_count",
+    "pack_single",
+    "pack_weighted",
+    "raster_2row",
+    "raster_3col",
+    "raster_alignment_br",
+    "raster_alignment_center",
+    "raster_auto_cols",
+    "raster_min_cell_count",
+    "raster_min_max_tallness",
+    "raster_pref_tall",
+    "raster_spacing",
+    "raster_strict",
+    "widget_checkbutton_checked",
+    "widget_checkbutton_unchecked"
+  ],
+  "extra": 2,
+  "extra_cases": [
+    "stress_test_overlay",
+    "composition_click_through_tree"
+  ],
+  "suspicious_cases": [
+    {
+      "test": "tktest_1x",
+      "reason": "fail_pct=8.3100 approaching threshold 2.0; max_diff=239 approaching ch_tol 300",
+      "pct": 8.31,
+      "max_diff": 239
+    },
+    {
+      "test": "tktest_2x",
+      "reason": "fail_pct=69.1146 approaching threshold 0.5; max_diff=239 approaching ch_tol 2",
+      "pct": 69.1146,
+      "max_diff": 239
+    },
+    {
+      "test": "bezier_stroked",
+      "reason": "max_diff=53 approaching ch_tol 1",
+      "pct": 0.0961,
+      "max_diff": 53
+    },
+    {
+      "test": "testpanel_expanded",
+      "reason": "fail_pct=4.0336 approaching threshold 0.5; max_diff=255 approaching ch_tol 2",
+      "pct": 4.0336,
+      "max_diff": 255
+    },
+    {
+      "test": "testpanel_root",
+      "reason": "fail_pct=2.6203 approaching threshold 0.5; max_diff=255 approaching ch_tol 2",
+      "pct": 2.6203,
+      "max_diff": 255
+    },
+    {
+      "test": "colorfield_expanded",
+      "reason": "max_diff=54 approaching ch_tol 3",
+      "pct": 0.043,
+      "max_diff": 54
+    },
+    {
+      "test": "composed_border_nest",
+      "reason": "fail_pct=2.0335 approaching threshold 2.0; max_diff=153 approaching ch_tol 1",
+      "pct": 2.0335,
+      "max_diff": 153
+    },
+    {
+      "test": "widget_border_roundrect_thin",
+      "reason": "max_diff=24 approaching ch_tol 3",
+      "pct": 0.0008,
+      "max_diff": 24
+    },
+    {
+      "test": "widget_colorfield_alpha_near",
+      "reason": "max_diff=24 approaching ch_tol 1",
+      "pct": 0.0685,
+      "max_diff": 24
+    },
+    {
+      "test": "listbox_expanded",
+      "reason": "max_diff=33 approaching ch_tol 3",
+      "pct": 0.0464,
+      "max_diff": 33
+    },
+    {
+      "test": "widget_button_normal",
+      "reason": "max_diff=31 approaching ch_tol 2",
+      "pct": 0.0279,
+      "max_diff": 31
+    },
+    {
+      "test": "widget_checkbox_checked",
+      "reason": "max_diff=236 approaching ch_tol 2",
+      "pct": 0.0679,
+      "max_diff": 236
+    },
+    {
+      "test": "widget_checkbox_unchecked",
+      "reason": "max_diff=22 approaching ch_tol 2",
+      "pct": 0.0362,
+      "max_diff": 22
+    },
+    {
+      "test": "widget_colorfield",
+      "reason": "max_diff=24 approaching ch_tol 3",
+      "pct": 0.0602,
+      "max_diff": 24
+    },
+    {
+      "test": "widget_file_selection_box",
+      "reason": "fail_pct=2.9352 approaching threshold 5.0; max_diff=237 approaching ch_tol 3",
+      "pct": 2.9352,
+      "max_diff": 237
+    },
+    {
+      "test": "widget_listbox",
+      "reason": "max_diff=25 approaching ch_tol 2",
+      "pct": 0.0281,
+      "max_diff": 25
+    },
+    {
+      "test": "widget_radiobutton",
+      "reason": "max_diff=31 approaching ch_tol 2",
+      "pct": 0.0356,
+      "max_diff": 31
+    },
+    {
+      "test": "widget_scalarfield",
+      "reason": "max_diff=12 approaching ch_tol 2",
+      "pct": 0.0196,
+      "max_diff": 12
+    },
+    {
+      "test": "widget_textfield_content",
+      "reason": "max_diff=26 approaching ch_tol 2",
+      "pct": 0.0348,
+      "max_diff": 26
+    },
+    {
+      "test": "widget_textfield_empty",
+      "reason": "max_diff=26 approaching ch_tol 2",
+      "pct": 0.0348,
+      "max_diff": 26
+    }
+  ],
+  "crash": false,
+  "hang": false,
+  "converged": false,
+  "categories": {
+    "painter": {
+      "total": 42,
+      "pass": 42,
+      "fail": 0
+    },
+    "compositor": {
+      "total": 61,
+      "pass": 59,
+      "fail": 0
+    },
+    "layout": {
+      "total": 31,
+      "pass": 0,
+      "fail": 0
+    },
+    "behavioral": {
+      "total": 25,
+      "pass": 25,
+      "fail": 0
+    },
+    "trajectory": {
+      "total": 20,
+      "pass": 19,
+      "fail": 0
+    },
+    "widget_state": {
+      "total": 16,
+      "pass": 16,
+      "fail": 0
+    },
+    "notice": {
+      "total": 13,
+      "pass": 13,
+      "fail": 0
+    },
+    "input": {
+      "total": 6,
+      "pass": 6,
+      "fail": 0
+    }
+  }
+}
