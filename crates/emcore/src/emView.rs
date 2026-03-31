@@ -2560,6 +2560,17 @@ impl emView {
         // emView and delegates. Needs emContext parent traversal to be ported.
         log::debug!("Unknown cheat code: {}", func);
     }
+
+    /// Activate the magnetic view animator.
+    /// C++ `emMagneticViewAnimator::Activate()`.
+    pub(crate) fn activate_magnetic_view_animator(&mut self) {
+        // TODO(magnetic): Full activation requires finding the nearest focusable
+        // panel and setting it as the snap target. The emMagneticViewAnimator
+        // struct exists in emViewAnimator.rs but the view doesn't own it — it's
+        // managed by the window loop. This stub signals the intent; the actual
+        // wiring needs the window loop to check a flag and activate the animator.
+        log::trace!("magnetic view animator: activation requested (not yet wired to window loop)");
+    }
 }
 
 // ── Highlight arrow helpers (C++ emView.cpp:2300-2479) ──

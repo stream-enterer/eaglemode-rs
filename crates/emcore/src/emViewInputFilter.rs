@@ -782,10 +782,9 @@ impl emViewInputFilter for emMouseZoomScrollVIF {
                     self.grip_inst_vel_x = self.grip_velocity_x;
                     self.grip_inst_vel_y = self.grip_velocity_y;
                     self.grip_inst_vel_z = self.grip_velocity_z;
-                    // C++: if !MagnetismAvoidance, activate emMagneticViewAnimator.
-                    // TODO(PF-2): When emMagneticViewAnimator is ported, call
-                    // view.activate_magnetic_view_animator() here when
-                    // !self.magnetism_avoidance.
+                    if !self.magnetism_avoidance {
+                        view.activate_magnetic_view_animator();
+                    }
                     let speed_sq = self.grip_velocity_x * self.grip_velocity_x
                         + self.grip_velocity_y * self.grip_velocity_y
                         + self.grip_velocity_z * self.grip_velocity_z;
