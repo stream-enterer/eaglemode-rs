@@ -1,5 +1,7 @@
 // Port of C++ emStocksFilePanel.h / emStocksFilePanel.cpp
 
+use std::path::PathBuf;
+
 use emcore::emColor::emColor;
 use emcore::emFilePanel::emFilePanel;
 use emcore::emInput::{emInputEvent, InputKey, InputVariant};
@@ -9,17 +11,16 @@ use emcore::emPanel::{PanelBehavior, PanelState};
 use emcore::emPanelCtx::PanelCtx;
 
 use super::emStocksConfig::{emStocksConfig, Sorting};
+use super::emStocksFileModel::emStocksFileModel;
 use super::emStocksListBox::emStocksListBox;
-use super::emStocksRec::{emStocksRec, Interest};
+use super::emStocksRec::Interest;
 
 /// Port of C++ emStocksFilePanel.
 pub struct emStocksFilePanel {
     pub(crate) bg_color: emColor,
     pub(crate) config: emStocksConfig,
     pub(crate) list_box: Option<emStocksListBox>,
-    /// DIVERGED(Phase 4): FileModel ownership pending. C++ FileModel is emStocksFileModel*
-    /// with full lifecycle. Rust uses emStocksRec directly until Phase 4.
-    pub(crate) rec: emStocksRec,
+    pub(crate) model: emStocksFileModel,
     pub(crate) file_panel: emFilePanel,
 }
 
@@ -130,55 +131,64 @@ impl PanelBehavior for emStocksFilePanel {
 
         // ── Ctrl shortcuts: ListBox operations ──
         if input_state.IsCtrlMod() {
-            let list_box = self.list_box.as_mut().unwrap();
             match event.key {
                 InputKey::Key('J') => {
-                    list_box.GoBackInHistory(&self.rec);
+                    let list_box = self.list_box.as_mut().unwrap();
+                    list_box.GoBackInHistory(self.model.GetRec());
                     return true;
                 }
                 InputKey::Key('K') => {
-                    list_box.GoForwardInHistory(&self.rec);
+                    let list_box = self.list_box.as_mut().unwrap();
+                    list_box.GoForwardInHistory(self.model.GetRec());
                     return true;
                 }
                 InputKey::Key('N') => {
                     // C++: ListBox->NewStock()
-                    list_box.NewStock(&mut self.rec, &self.config);
+                    let Self { list_box, model, config, .. } = self;
+                    list_box.as_mut().unwrap().NewStock(model.GetWritableRec(), config);
                     return true;
                 }
                 InputKey::Key('X') => {
                     // C++: ListBox->CutStocks()
-                    list_box.CutStocks(&mut self.rec);
+                    let Self { list_box, model, .. } = self;
+                    list_box.as_mut().unwrap().CutStocks(model.GetWritableRec());
                     return true;
                 }
                 InputKey::Key('C') => {
                     // C++: ListBox->CopyStocks()
-                    list_box.CopyStocks(&self.rec);
+                    let list_box = self.list_box.as_mut().unwrap();
+                    list_box.CopyStocks(self.model.GetRec());
                     return true;
                 }
                 InputKey::Key('V') => {
                     // C++: ListBox->PasteStocks()
-                    let _ = list_box.PasteStocks(&mut self.rec, &self.config);
+                    let Self { list_box, model, config, .. } = self;
+                    let _ = list_box.as_mut().unwrap().PasteStocks(model.GetWritableRec(), config);
                     return true;
                 }
                 InputKey::Key('P') => {
                     // C++: ListBox->StartToFetchSharePrices()
-                    let _ids = list_box.GetVisibleStockIds(&self.rec);
+                    let list_box = self.list_box.as_mut().unwrap();
+                    let _ids = list_box.GetVisibleStockIds(self.model.GetRec());
                     // TODO(Phase 4): create real emStocksFetchPricesDialog
                     return true;
                 }
                 InputKey::Key('W') => {
                     // C++: ListBox->ShowFirstWebPages()
-                    list_box.ShowFirstWebPages(&self.rec);
+                    let list_box = self.list_box.as_mut().unwrap();
+                    list_box.ShowFirstWebPages(self.model.GetRec());
                     return true;
                 }
                 InputKey::Key('H') => {
                     // C++: ListBox->FindSelected()
-                    let _found = list_box.FindSelected(&self.rec, &mut self.config);
+                    let Self { list_box, model, config, .. } = self;
+                    let _found = list_box.as_mut().unwrap().FindSelected(model.GetRec(), config);
                     return true;
                 }
                 InputKey::Key('G') => {
                     // C++: ListBox->FindNext()
-                    let _found = list_box.FindNext(&self.rec, &self.config);
+                    let Self { list_box, model, config, .. } = self;
+                    let _found = list_box.as_mut().unwrap().FindNext(model.GetRec(), config);
                     return true;
                 }
                 _ => {}
@@ -187,16 +197,17 @@ impl PanelBehavior for emStocksFilePanel {
 
         // ── Shift+Ctrl shortcuts ──
         if input_state.IsShiftCtrlMod() {
-            let list_box = self.list_box.as_mut().unwrap();
             match event.key {
                 InputKey::Key('W') => {
                     // C++: ListBox->ShowAllWebPages()
-                    list_box.ShowAllWebPages(&self.rec);
+                    let list_box = self.list_box.as_mut().unwrap();
+                    list_box.ShowAllWebPages(self.model.GetRec());
                     return true;
                 }
                 InputKey::Key('G') => {
                     // C++: ListBox->FindPrevious()
-                    let _found = list_box.FindPrevious(&self.rec, &self.config);
+                    let Self { list_box, model, config, .. } = self;
+                    let _found = list_box.as_mut().unwrap().FindPrevious(model.GetRec(), config);
                     return true;
                 }
                 _ => {}
@@ -206,8 +217,8 @@ impl PanelBehavior for emStocksFilePanel {
         // ── No-modifier shortcuts ──
         if input_state.IsNoMod() && event.key == InputKey::Delete {
             // C++: ListBox->DeleteStocks()
-            let list_box = self.list_box.as_mut().unwrap();
-            list_box.DeleteStocks(&mut self.rec);
+            let Self { list_box, model, .. } = self;
+            list_box.as_mut().unwrap().DeleteStocks(model.GetWritableRec());
             return true;
         }
 
@@ -216,20 +227,20 @@ impl PanelBehavior for emStocksFilePanel {
             match event.key {
                 InputKey::Key('H') => {
                     // C++: ListBox->SetInterest(HIGH_INTEREST)
-                    let list_box = self.list_box.as_ref().unwrap();
-                    list_box.SetInterest(&mut self.rec, Interest::High);
+                    let Self { list_box, model, .. } = self;
+                    list_box.as_ref().unwrap().SetInterest(model.GetWritableRec(), Interest::High);
                     return true;
                 }
                 InputKey::Key('M') => {
                     // C++: ListBox->SetInterest(MEDIUM_INTEREST)
-                    let list_box = self.list_box.as_ref().unwrap();
-                    list_box.SetInterest(&mut self.rec, Interest::Medium);
+                    let Self { list_box, model, .. } = self;
+                    list_box.as_ref().unwrap().SetInterest(model.GetWritableRec(), Interest::Medium);
                     return true;
                 }
                 InputKey::Key('L') => {
                     // C++: ListBox->SetInterest(LOW_INTEREST)
-                    let list_box = self.list_box.as_ref().unwrap();
-                    list_box.SetInterest(&mut self.rec, Interest::Low);
+                    let Self { list_box, model, .. } = self;
+                    list_box.as_ref().unwrap().SetInterest(model.GetWritableRec(), Interest::Low);
                     return true;
                 }
                 _ => {}
@@ -252,6 +263,7 @@ impl PanelBehavior for emStocksFilePanel {
         if state_changed && new_state.is_good() && self.list_box.is_none() {
             self.list_box = Some(emStocksListBox::new());
         }
+        self.model.CheckSaveTimer();
         // TODO(Phase 4): ListBox as real panel child.
         state_changed
     }
@@ -267,11 +279,10 @@ impl emStocksFilePanel {
             bg_color: emColor::from_packed(0x131520FF),
             config: emStocksConfig::default(),
             list_box: None,
-            rec: emStocksRec::default(),
+            model: emStocksFileModel::new(PathBuf::from("")),
             file_panel: emFilePanel::new(),
         }
     }
-
 }
 
 impl Default for emStocksFilePanel {
@@ -456,7 +467,7 @@ mod tests {
         let mut stock = crate::emStocksRec::StockRec::default();
         stock.AddPrice("2024-06-14", "100");
         stock.AddPrice("2024-06-15", "101");
-        panel.rec.stocks.push(stock);
+        panel.model.GetWritableRec().stocks.push(stock);
         panel.list_box.as_mut().unwrap().SetSelectedDate("2024-06-15");
 
         let mut input_state = emInputState::new();
@@ -476,7 +487,7 @@ mod tests {
         let mut stock = crate::emStocksRec::StockRec::default();
         stock.AddPrice("2024-06-14", "100");
         stock.AddPrice("2024-06-15", "101");
-        panel.rec.stocks.push(stock);
+        panel.model.GetWritableRec().stocks.push(stock);
         panel.list_box.as_mut().unwrap().SetSelectedDate("2024-06-14");
 
         let mut input_state = emInputState::new();

@@ -7,23 +7,20 @@ use emcore::emCrossPtr::emCrossPtr;
 use emcore::emFileModel::FileState;
 use emcore::emRecFileModel::emRecFileModel;
 
+use super::emStocksFetchPricesDialog::emStocksFetchPricesDialog;
 use super::emStocksRec::emStocksRec;
 
 /// Save delay matching C++ AUTOSAVE_DELAY_MS = 15000.
 const AUTOSAVE_DELAY: Duration = Duration::from_millis(15000);
 
-/// Placeholder for the dialog type until emStocksFetchPricesDialog is ported (Task 15).
-/// DIVERGED: C++ forward declaration replaced by empty struct placeholder.
-pub struct emStocksFetchPricesDialogPlaceholder;
-
 /// Port of C++ emStocksFileModel.
-/// DIVERGED: Composition instead of multiple inheritance.
-/// emRecFileModel<emStocksRec> handles file I/O state machine.
-/// Save timer uses Instant instead of emTimer (no scheduler dependency needed for
-/// a simple delayed-save pattern).
+/// DIVERGED: Composition instead of C++ multiple inheritance — Rust has no MI;
+/// composition with delegation is the idiomatic equivalent.
+/// Save timer uses std::time::Instant instead of emTimer — emTimer::TimerCentral is
+/// internal to emcore; Instant provides the same delayed-save behavior.
 pub struct emStocksFileModel {
     pub file_model: emRecFileModel<emStocksRec>,
-    pub PricesFetchingDialog: emCrossPtr<emStocksFetchPricesDialogPlaceholder>,
+    pub PricesFetchingDialog: emCrossPtr<emStocksFetchPricesDialog>,
     save_timer_deadline: Option<Instant>,
 }
 
