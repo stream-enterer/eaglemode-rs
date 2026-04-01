@@ -3,10 +3,13 @@
 // into 4 child quadrants when zoomed in enough.
 
 use emcore::emColor::emColor;
+use emcore::emImage::emImage;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
 use emcore::emPainter::emPainter;
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::ViewConditionType;
+use emcore::emResTga::load_tga;
+use emcore::emTexture::ImageExtension;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +85,7 @@ pub struct emStarFieldPanel {
     depth: i32,
     child_random_seeds: [u32; 4],
     stars: Vec<Star>,
+    star_shape: emImage,
     /// Cached viewport width from the last `notice()` call; used by
     /// `LayoutChildren` to decide whether children should exist.
     noticed_viewed_w: f64,
@@ -127,10 +131,14 @@ impl emStarFieldPanel {
             child_random_seeds[i] = get_random_u32(&mut random_seed) ^ xor;
         }
 
+        let star_shape = load_tga(include_bytes!("../../../res/emMain/Star.tga"))
+            .expect("failed to load Star.tga");
+
         Self {
             depth,
             child_random_seeds,
             stars,
+            star_shape,
             noticed_viewed_w: 0.0,
         }
     }
@@ -166,25 +174,61 @@ impl PanelBehavior for emStarFieldPanel {
         let bg = emColor::from_packed(BG_COLOR);
         painter.Clear(bg);
 
-        for star in &self.stars {
-            // View radius of the star in pixels.
-            // state.viewed_rect.w gives the pixel width of the panel.
-            // star.Radius is in panel-fraction units.
-            // We need to know if the star is large enough to paint.
-            // Use the painter's scale to determine pixel size.
-            let (sx, _sy) = painter.scaling();
-            let vr = sx * star.Radius;
+        let (sx, _sy) = painter.scaling();
+        let src_w = self.star_shape.GetWidth();
+        let src_h = self.star_shape.GetHeight();
 
-            if vr < MIN_STAR_RADIUS {
+        // DIVERGED: C++ PaintOverlay — Rust has no PaintOverlay trait method;
+        // stars render in Paint (before children) instead of after.
+        for star in &self.stars {
+            let mut r = star.Radius;
+            let vr = sx * r;
+
+            if vr <= MIN_STAR_RADIUS {
                 continue;
             }
 
-            // For simplicity (no .tga resource loading), paint as ellipse.
-            // C++ uses Star.tga for vr >= 4px; we fall back to ellipse for all sizes.
-            // DIVERGED: C++ PaintStarImage — replaced with PaintEllipse because
-            // Star.tga resource loading is not yet available.
-            let r = star.Radius;
-            painter.PaintEllipse(star.X, star.Y, r, r, star.Color, bg);
+            if vr > 4.0 {
+                // Tier 1: textured star with glow
+                let hue = star.Color.GetHue();
+                let sat = star.Color.GetSat();
+                let alpha = (sat * 18.0).min(255.0) as u8;
+                let x = star.X - r;
+                let y = star.Y - r;
+                let d = r * 2.0;
+                // Glow pass
+                let glow_color = emColor::SetHSVA_with_alpha(hue, 100.0, 100.0, alpha);
+                painter.PaintImageColored(
+                    x, y, d, d,
+                    &self.star_shape, 0, 0, src_w, src_h,
+                    emColor::TRANSPARENT, // color1: black bg → transparent
+                    glow_color,           // color2: white star → glow
+                    emColor::TRANSPARENT, ImageExtension::Zero,
+                );
+                // Star pass
+                let star_color = emColor::SetHSVA(hue, (sat - 10.0).max(0.0), 100.0);
+                painter.PaintImageColored(
+                    x, y, d, d,
+                    &self.star_shape, 0, 0, src_w, src_h,
+                    emColor::TRANSPARENT, // color1: black bg → transparent
+                    star_color,           // color2: white star → star color
+                    emColor::TRANSPARENT, ImageExtension::Zero,
+                );
+            } else {
+                r *= 0.6;
+                let vr = sx * r;
+                if vr > 1.2 {
+                    // Tier 2: ellipse
+                    painter.PaintEllipse(star.X, star.Y, r, r, star.Color, bg);
+                } else {
+                    // Tier 3: rect
+                    r *= 0.8862;
+                    let x = star.X - r;
+                    let y = star.Y - r;
+                    let d = r * 2.0;
+                    painter.PaintRect(x, y, d, d, star.Color, bg);
+                }
+            }
         }
     }
 
@@ -319,6 +363,14 @@ mod tests {
         let p1 = emStarFieldPanel::new(3, 0xCAFEBABE);
         let p2 = emStarFieldPanel::new(3, 0xCAFEBABE);
         assert_eq!(p1.child_random_seeds, p2.child_random_seeds);
+    }
+
+    #[test]
+    fn test_star_shape_loaded() {
+        let img = emcore::emResTga::load_tga(include_bytes!("../../../res/emMain/Star.tga"))
+            .expect("failed to load Star.tga");
+        assert!(img.GetWidth() > 0);
+        assert!(img.GetHeight() > 0);
     }
 
     #[test]
