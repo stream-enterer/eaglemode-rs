@@ -2,10 +2,9 @@
 //
 // DIVERGED: C++ emMainWindow creates an OS window + emMainPanel + detached
 // control window + StartupEngine.  Rust creates a single ZuiWindow with
-// emMainPanel as the root panel.  CreateControlWindow and DoCustomCheat are
-// added (see create_control_window / do_custom_cheat below) but full runtime
-// wiring (raise existing window, link to content view) requires Phase 3's
-// startup engine integration.  The startup animation remains deferred.
+// emMainPanel as the root panel.  StartupEngine drives staged panel creation,
+// autoplay input is wired via emAutoplayViewModel, and the window is persisted
+// across frames via thread_local (set_main_window / with_main_window).
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -75,6 +74,7 @@ pub struct emMainWindow {
     pub(crate) _visit_subject: String,
     pub(crate) _visit_valid: bool,
     pub(crate) config: emMainWindowConfig,
+    pub(crate) autoplay_view_model: Option<crate::emAutoplay::emAutoplayViewModel>,
 }
 
 impl emMainWindow {
@@ -97,6 +97,7 @@ impl emMainWindow {
             _visit_subject: String::new(),
             _visit_valid: false,
             config,
+            autoplay_view_model: None,
         }
     }
 
@@ -193,7 +194,7 @@ impl emMainWindow {
         input_state: &emInputState,
         app: &mut App,
     ) -> bool {
-        match event.key {
+        let handled = match event.key {
             InputKey::F4
                 if !input_state.GetShift()
                     && !input_state.GetCtrl()
@@ -235,8 +236,42 @@ impl emMainWindow {
                 true
             }
             _ => false,
+        };
+
+        if handled {
+            return true;
         }
+
+        // Delegate to autoplay view model (handles F12 toggle).
+        if let Some(ref mut avm) = self.autoplay_view_model
+            && avm.Input(event, input_state)
+        {
+            return true;
+        }
+
+        false
     }
+}
+
+thread_local! {
+    static MAIN_WINDOW: RefCell<Option<emMainWindow>> = const { RefCell::new(None) };
+}
+
+/// Store the main window for frame-loop access.
+pub fn set_main_window(mw: emMainWindow) {
+    MAIN_WINDOW.with(|cell| {
+        *cell.borrow_mut() = Some(mw);
+    });
+}
+
+/// Access the main window from the frame loop.
+pub fn with_main_window<F, R>(f: F) -> Option<R>
+where
+    F: FnOnce(&mut emMainWindow) -> R,
+{
+    MAIN_WINDOW.with(|cell| {
+        cell.borrow_mut().as_mut().map(f)
+    })
 }
 
 /// Startup engine registered with the scheduler.
@@ -397,6 +432,8 @@ pub fn create_main_window(
         .register_engine(Priority::Low, Box::new(startup_engine));
     app.scheduler.borrow_mut().wake_up(engine_id);
     mw.startup_engine_id = Some(engine_id);
+
+    mw.autoplay_view_model = Some(crate::emAutoplay::emAutoplayViewModel::new());
 
     mw
 }
