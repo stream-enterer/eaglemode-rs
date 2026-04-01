@@ -1235,9 +1235,6 @@ impl<'a> emPainter<'a> {
             xfm.stride_y = stride_y;
             xfm.off_x = off_x;
             xfm.off_y = off_y;
-            // Carry origin: un-clipped left edge of the image in pixel space.
-            // C++ starts carry (pCy=NULL, ox=0) at the first rendered pixel.
-            xfm.carry_origin_x = px;
             let sec = emPainterInterpolation::SectionBounds {
                 ox: 0,
                 oy: 0,
@@ -1246,11 +1243,12 @@ impl<'a> emPainter<'a> {
             };
             let mut coverages = vec![0i32; max_batch];
             for row in start_y..end_y {
+                let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
                 let mut col = start_x;
                 while col < end_x {
                     let batch = ((end_x - col) as usize).min(max_batch);
                     emPainterInterpolation::interpolate_scanline_area_sampled(
-                        image, col, row, batch, &xfm, &sec, ext, &mut ibuf,
+                        image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
                     );
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
@@ -1450,7 +1448,6 @@ impl<'a> emPainter<'a> {
             xfm.stride_y = stride_y;
             xfm.off_x = off_x;
             xfm.off_y = off_y;
-            xfm.carry_origin_x = px;
             let sec = emPainterInterpolation::SectionBounds {
                 ox: src_x as i32,
                 oy: src_y as i32,
@@ -1459,12 +1456,13 @@ impl<'a> emPainter<'a> {
             };
 
             for row in start_y..end_y {
+                let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
                 let mut col = start_x;
                 while col < end_x {
                     let batch = ((end_x - col) as usize).min(max_batch);
                     // Interpolate, then apply lum->color mapping in-place
                     emPainterInterpolation::interpolate_scanline_area_sampled(
-                        image, col, row, batch, &xfm, &sec, ext, &mut ibuf,
+                        image, col, row, batch, &xfm, &sec, ext, &mut ibuf, &mut carry,
                     );
                     for i in 0..batch {
                         let p = ibuf.pixel_rgba(i);
@@ -2937,7 +2935,6 @@ impl<'a> emPainter<'a> {
             xfm.stride_y = stride_y;
             xfm.off_x = off_x;
             xfm.off_y = off_y;
-            xfm.carry_origin_x = px;
             let sec = emPainterInterpolation::SectionBounds {
                 ox: sx as i32,
                 oy: sy as i32,
@@ -2946,6 +2943,7 @@ impl<'a> emPainter<'a> {
             };
 
             for row in start_y..end_y {
+                let mut carry = emPainterInterpolation::AreaSampleCarryState::new();
                 let mut col = start_x;
                 while col < end_x {
                     let batch = ((end_x - col) as usize).min(max_batch);
@@ -2958,6 +2956,7 @@ impl<'a> emPainter<'a> {
                         &sec,
                         super::emTexture::ImageExtension::Clamp,
                         &mut ibuf,
+                        &mut carry,
                     );
                     let all_full =
                         sp.batch_coverages(row, col, &mut coverages[..batch]);
@@ -5987,8 +5986,6 @@ impl<'a> emPainter<'a> {
             stride_y: 1,
             off_x: 0,
             off_y: 0,
-            // Set by caller to the un-clipped start_x of the paint operation.
-            carry_origin_x: 0,
         }
     }
 

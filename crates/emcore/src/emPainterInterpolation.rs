@@ -157,13 +157,34 @@ pub(crate) struct AreaSampleTransform {
     pub off_x: i32,
     /// Centering offset Y.
     pub off_y: i32,
-    /// Carry origin: the leftmost dest_x for carry-chain computation on each
-    /// row.  Every call to `interpolate_scanline_area_sampled` simulates the
-    /// C++ carry chain from this pixel forward to its own `dest_x_start`,
-    /// ensuring identical first-column weights regardless of how the scanline
-    /// is partitioned into tiles or batches.  Set to the un-clipped pixel-space
-    /// left edge of the paint operation (typically `px`).
-    pub carry_origin_x: i32,
+}
+
+/// Carry state for area sampling across batch boundaries.
+///
+/// C++ `InterpolateImageAreaSampled` processes an entire scanline in one call,
+/// so `cy`, `pCy`, and `ox` naturally flow between pixels. Rust callers batch
+/// scanlines into 256px chunks (limited by InterpolationBuffer = 1024 bytes =
+/// 256 RGBA pixels). This struct bridges batch boundaries, created fresh at the
+/// start of each scanline row and passed to each batch call.
+pub(crate) struct AreaSampleCarryState {
+    /// Y-accumulated column value (up to 4 channels), after FINPREMUL.
+    /// Corresponds to C++ `cy` (cyr, cyg, cyb, cya).
+    pub cy: [u64; 4],
+    /// Column index of cached cy. `i32::MIN` means NULL/invalid.
+    /// Corresponds to C++ `pCy` (as pointer → column index).
+    pub pcy_col: i32,
+    /// Carried column weight from `ox -= oxs` (C++ line 823).
+    pub ox: u32,
+}
+
+impl AreaSampleCarryState {
+    pub fn new() -> Self {
+        Self {
+            cy: [0; 4],
+            pcy_col: i32::MIN,
+            ox: 0,
+        }
+    }
 }
 
 /// 24-bit fixed-point scaling transform matching C++ emPainter_ScTl.
@@ -1193,14 +1214,13 @@ pub(crate) fn sample_linear_gradient(
 /// Scanline area-sampled interpolation: fills `buf` with `count` consecutive
 /// output pixels starting at `(dest_x_start, dest_y)`.
 ///
-/// Optimizations over per-pixel `sample_area_fp`:
-/// 1. Y setup (ty1, ty2, ody, oy1, yw) computed once per row
-/// 2. pCy column-reuse: when consecutive dest pixels map to the same source
-///    column, the Y-accumulated result is reused (critical for downscaling)
-/// 3. Compile-time monomorphization on channel count (1/3/4) eliminates
-///    per-pixel branching on y_accumulate variant and output conversion
+/// Literal translation of C++ `InterpolateImageAreaSampled` (non-tiled path,
+/// emPainter_ScTlIntImg.cpp lines 677-828). Carry state (`cy`, `pCy`, `ox`)
+/// is maintained across batch calls via `carry`.
 ///
-/// Output format matches `sample_area_fp`: straight-alpha RGBA in `buf`.
+/// The caller creates a fresh `AreaSampleCarryState` at the start of each
+/// scanline row and passes it to each batch call. This reproduces the C++
+/// behavior where carry flows naturally across all pixels on a scanline.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn interpolate_scanline_area_sampled(
     image: &emImage,
@@ -1211,143 +1231,37 @@ pub(crate) fn interpolate_scanline_area_sampled(
     sec: &SectionBounds,
     ext: ImageExtension,
     buf: &mut crate::emPainterScanlineTool::InterpolationBuffer,
+    carry: &mut AreaSampleCarryState,
 ) {
     match image.GetChannelCount() {
-        4 => interpolate_scanline_area_inner::<4>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
-        3 => interpolate_scanline_area_inner::<3>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
-        1 => interpolate_scanline_area_inner::<1>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
-        _ => interpolate_scanline_area_inner::<1>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf),
+        4 => interpolate_scanline_area_inner::<4>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf, carry),
+        3 => interpolate_scanline_area_inner::<3>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf, carry),
+        1 => interpolate_scanline_area_inner::<1>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf, carry),
+        _ => interpolate_scanline_area_inner::<1>(image, dest_x_start, dest_y, count, xfm, sec, ext, buf, carry),
     }
-}
-
-/// Simulate the C++ carry chain from `start_x` to `end_x` (exclusive),
-/// returning `(carry_ox, pcy_col)` — the carry state after processing all
-/// pixels in `[start_x, end_x)`.  Only integer arithmetic; no pixel data.
-///
-/// This reproduces the C++ `ox -= oxs` + `pCy` logic exactly, allowing
-/// any tile/batch to determine its initial carry state by simulating from
-/// the paint operation's carry origin.
-fn simulate_carry_chain(
-    start_x: i32,
-    end_x: i32,
-    xfm: &AreaSampleTransform,
-    ext: ImageExtension,
-) -> (u32, i32, u32) {
-    let tx_end = (xfm.img_w as i64) << 24;
-    let mut carry_ox: u32 = 0;
-    let mut pcy_col: i32 = i32::MIN;
-    let mut last_odx: u32 = 0;
-
-    for pixel_idx in start_x..end_x {
-        let dest_x = pixel_idx;
-        let mut tx1 = dest_x as i64 * xfm.tdx - xfm.tx;
-        let tx2_raw = tx1 + xfm.tdx;
-        let mut tx2 = tx2_raw;
-        let odx: u32;
-
-        // Edge handling (must match interpolate_scanline_area_inner exactly)
-        let mut x_oob = false;
-        if tx1 < 0 {
-            tx1 = 0;
-            if tx2 <= 0 {
-                if ext == ImageExtension::Zero {
-                    x_oob = true;
-                } else {
-                    tx2 = 1 << 24;
-                }
-            } else if tx2 > tx_end {
-                tx2 = tx_end;
-            }
-            odx = if x_oob { 0 } else { rational_inv(tx2) };
-        } else if tx2 > tx_end {
-            if tx1 >= tx_end {
-                if ext == ImageExtension::Zero {
-                    x_oob = true;
-                } else {
-                    tx1 = tx_end - (1 << 24);
-                }
-            }
-            odx = if x_oob { 0 } else { rational_inv(tx_end - tx1) };
-        } else {
-            odx = xfm.odx;
-        }
-
-        if x_oob {
-            // C++ `continue`: carry state unchanged
-            continue;
-        }
-
-        let ox_computed = {
-            let w =
-                ((0x100_0000i64 - (tx1 & 0xFF_FFFF)) as u64 * odx as u64 + 0xFF_FFFF) >> 24;
-            if odx == 0x7FFF_FFFF { 0x7FFF_FFFF } else { w as u32 }
-        };
-        let col0 = (tx1 >> 24) as i32;
-
-        // C++ carry structure: the outer loop computes ox independently (line
-        // 777) and checks pCy ONCE per chunk.  The inner loop carries ox
-        // unconditionally between consecutive pixels in the same chunk.
-        //
-        // At a chunk boundary (odx changes): ox = independent, pCy check.
-        // Within a chunk (odx same): ox = carry from previous pixel (no pCy check).
-        let at_chunk_boundary = odx != last_odx;
-
-        let (sim_ox_init, sim_ox1_init, sim_start_col) = if at_chunk_boundary {
-            // New chunk: compute ox independently, check pCy
-            if pcy_col == col0 {
-                // Match: ox = independent, ox1 = odx, skip col0
-                (ox_computed, odx, col0 + 1)
-            } else {
-                // Mismatch: ox = 0, ox1 = independent
-                (0u32, ox_computed, col0)
-            }
-        } else {
-            // Within chunk: ox = carry (unconditional, no pCy check).
-            // C++ inner loop just uses carried ox directly.
-            (carry_ox, odx, col0)
-        };
-
-        // Simulate the C++ while(ox < oxs) loop
-        let mut sim_ox = sim_ox_init;
-        let mut sim_ox1 = sim_ox1_init;
-        let mut sim_oxs: u32 = 0x10000;
-        let mut sim_col = sim_start_col;
-        while sim_ox < sim_oxs {
-            sim_oxs -= sim_ox;
-            pcy_col = sim_col;
-            sim_col += 1;
-            sim_ox = sim_ox1;
-            sim_ox1 = odx;
-        }
-        carry_ox = sim_ox - sim_oxs;
-        last_odx = odx;
-    }
-    (carry_ox, pcy_col, last_odx)
 }
 
 /// Channel-count-specialized inner loop for scanline area sampling.
-/// `CH` is 1, 3, or 4 — known at compile time so the compiler eliminates
+/// `CH` is 1, 3, or 4 -- known at compile time so the compiler eliminates
 /// dead branches in y_accumulate dispatch and output conversion.
 ///
-/// ## Carry-over weight reproduction
+/// Literal translation of C++ `InterpolateImageAreaSampled` (non-tiled path,
+/// emPainter_ScTlIntImg.cpp lines 677-828).
 ///
-/// C++ carries the column weight `ox` between consecutive output pixels
-/// (emPainter_ScTlIntImg.cpp line 823: `ox -= oxs`), coupled with the `pCy`
-/// column identity (which determines whether the carry is applied or
-/// discarded at C++ lines 781-788).
+/// Carry state (`cy`, `pCy`, `ox`) is threaded through `carry` across batch
+/// calls. The caller creates `AreaSampleCarryState::new()` at the start of
+/// each scanline row and passes `&mut carry` to each batch call. Carry reset
+/// at batch/tile boundaries does not affect output because the first pixel
+/// always gets ox=0 (from pCy mismatch), making the stale cy contribute 0.
 ///
-/// This Rust implementation reproduces the C++ carry by simulating the carry
-/// chain from `xfm.carry_origin_x` (the paint operation's un-clipped left
-/// edge) forward to `dest_x_start`.  The simulation is pure integer
-/// arithmetic with no pixel data access, so it is cheap — O(dest_x_start -
-/// carry_origin_x) iterations of ~5 integer ops each.  Within the batch,
-/// carry state is maintained sequentially, matching C++ exactly.
+/// C++ has two nested loops:
+///   - Outer do..while(buf<bufEnd): per-chunk (edge/interior classification,
+///     fresh ox computation, pCy check once per chunk).
+///   - Inner do..while(tx<txStop): per-pixel within a chunk (ox carries via
+///     `ox -= oxs`, no fresh ox computation, no pCy re-check).
 ///
-/// Because every call derives its initial carry from the same deterministic
-/// origin, the output is identical regardless of how the scanline is
-/// partitioned into tiles or batches.  This satisfies the
-/// `parallel_benchmark` test (byte-identical output between `render()` and
-/// `render_parallel()`) while also matching C++ golden reference output.
+/// Rust preserves this two-level structure. Edge chunks process one pixel.
+/// Interior chunks process multiple pixels in an inner loop, carrying ox.
 #[allow(clippy::too_many_arguments)]
 fn interpolate_scanline_area_inner<const CH: usize>(
     image: &emImage,
@@ -1358,8 +1272,9 @@ fn interpolate_scanline_area_inner<const CH: usize>(
     sec: &SectionBounds,
     ext: ImageExtension,
     buf: &mut crate::emPainterScanlineTool::InterpolationBuffer,
+    carry: &mut AreaSampleCarryState,
 ) {
-    // --- Y setup (hoisted out of per-pixel loop) ---
+    // --- Y setup (C++ lines 686-725) ---
     let mut ty1 = dest_y as i64 * xfm.tdy - xfm.ty;
     let mut ty2 = ty1 + xfm.tdy;
     let ty_end = (xfm.img_h as i64) << 24;
@@ -1417,165 +1332,139 @@ fn interpolate_scanline_area_inner<const CH: usize>(
         row0: (ty1 >> 24) as i32,
     };
 
-    // Initialize carry state by simulating the C++ carry chain from the
-    // paint operation's carry origin to this batch's start pixel.
-    let (mut carry_ox, mut prev_cy_col, mut carry_odx) =
-        simulate_carry_chain(xfm.carry_origin_x, dest_x_start, xfm, ext);
-    // Pre-Y-accumulate the simulation's last column so cached_cy is correct
-    // when the first pixel hits a pCy cache match.  The column might be
-    // clamped by sec bounds (same logic as the rendering loop's read).
-    let mut cached_cy: (u64, u64, u64, u64) = if prev_cy_col != i32::MIN {
-        // Clamp to image bounds (matching read_area_pixel behaviour).
-        let clamped_col = prev_cy_col.max(0).min(xfm.img_w - 1);
-        let p = read_area_pixel(image, sec, clamped_col, yw.row0, xfm);
-        match CH {
-            4 => y_accumulate_4ch(image, sec, clamped_col, &yw, xfm, p),
-            3 => y_accumulate_3ch(image, sec, clamped_col, &yw, xfm, p),
-            _ => y_accumulate_1ch(image, sec, clamped_col, &yw, xfm, p),
-        }
-    } else {
-        (0, 0, 0, 0)
-    };
-
+    let tdx = xfm.tdx;
     let tx_end = (xfm.img_w as i64) << 24;
+    let odx0 = xfm.odx;
 
-    for pixel_idx in 0..count {
+    // Carry state (cy, pcy_col, ox) flows in from the caller's previous
+    // batch call.  For the first batch of a row, the caller passes
+    // AreaSampleCarryState::new() (cy=0, pcy=NULL, ox=0), matching C++'s
+    // fresh initialization at the start of InterpolateImageAreaSampled.
+
+    let mut pixel_idx: usize = 0;
+
+    // === C++ outer loop: do { ... } while (buf < bufEnd) ===
+    while pixel_idx < count {
         let dest_x = dest_x_start + pixel_idx as i32;
+        let tx = dest_x as i64 * tdx - xfm.tx;
+        let mut tx1 = tx;
+        let mut tx2 = tx + tdx;
+        let odx: u32;
+        let tx_stop: i64;
 
-        // --- X setup ---
-        let mut tx1 = dest_x as i64 * xfm.tdx - xfm.tx;
-        let mut tx2 = tx1 + xfm.tdx;
-        let mut odx = xfm.odx;
-
-        let mut x_oob = false;
         if tx1 < 0 {
             tx1 = 0;
             if tx2 <= 0 {
                 if ext == ImageExtension::Zero {
-                    x_oob = true;
-                } else {
-                    tx2 = 1 << 24;
+                    buf.set_pixel(pixel_idx, [0, 0, 0, 0]);
+                    pixel_idx += 1;
+                    continue;
                 }
+                tx2 = 1 << 24;
             } else if tx2 > tx_end {
                 tx2 = tx_end;
             }
-            if !x_oob {
-                odx = rational_inv(tx2);
-            }
+            odx = rational_inv(tx2);
+            tx_stop = tx;
         } else if tx2 > tx_end {
             if tx1 >= tx_end {
                 if ext == ImageExtension::Zero {
-                    x_oob = true;
-                } else {
-                    tx1 = tx_end - (1 << 24);
+                    buf.set_pixel(pixel_idx, [0, 0, 0, 0]);
+                    pixel_idx += 1;
+                    continue;
                 }
+                tx1 = tx_end - (1 << 24);
             }
-            if !x_oob {
-                odx = rational_inv(tx_end - tx1);
-            }
-        }
-
-        if x_oob {
-            buf.set_pixel(pixel_idx, [0, 0, 0, 0]);
-            // C++ `continue`: carry state unchanged
-            continue;
-        }
-
-        // Independent first-column weight (C++ line 777).
-        let ox_computed = {
-            let w =
-                ((0x100_0000i64 - (tx1 & 0xFF_FFFF)) as u64 * odx as u64 + 0xFF_FFFF) >> 24;
-            if odx == 0x7FFF_FFFF {
-                0x7FFF_FFFFu32
-            } else {
-                w as u32
-            }
-        };
-        let col0 = (tx1 >> 24) as i32;
-        let col_bound = ((tx2 - 1).max(tx1) >> 24) as i32 + 1;
-
-        // C++ carry structure (lines 735-826):
-        // The outer loop computes ox independently (line 777) at each chunk
-        // boundary.  The inner loop carries ox unconditionally between
-        // consecutive pixels in the same chunk (no pCy re-check).
-        //
-        // Chunk boundary = odx changes (edge vs interior).
-        // Within chunk = same odx, carry applies unconditionally.
-        let at_chunk_boundary = odx != carry_odx;
-        let ox = if at_chunk_boundary {
-            ox_computed
+            odx = rational_inv(tx_end - tx1);
+            tx_stop = tx;
         } else {
-            carry_ox
+            odx = odx0;
+            let tx_stop_max = tx_end - tdx + 1;
+            let remaining_pixels = count - pixel_idx;
+            let tx_stop_batch = tx + remaining_pixels as i64 * tdx;
+            tx_stop = tx_stop_max.min(tx_stop_batch);
+        }
+
+        // C++ line 777
+        let mut ox: u32 = {
+            let w = ((0x100_0000i64 - (tx1 & 0xFF_FFFF)) as u64 * odx as u64 + 0xFF_FFFF) >> 24;
+            if odx == 0x7FFF_FFFF { 0x7FFF_FFFF } else { w as u32 }
         };
+        let mut col = (tx1 >> 24) as i32;
 
-        // --- Column + row accumulation with pCy reuse ---
-        let mut cyx_r: u64 = 0x7F_FFFF;
-        let mut cyx_g: u64 = 0x7F_FFFF;
-        let mut cyx_b: u64 = 0x7F_FFFF;
-        let mut cyx_a: u64 = 0x7F_FFFF;
+        // C++ lines 781-788: pCy check
+        let mut ox1: u32;
+        if carry.pcy_col != col {
+            ox1 = ox;
+            ox = 0;
+        } else {
+            ox1 = odx;
+            col += 1;
+        }
 
-        let mut remaining = 0x10000u32;
-        let mut col = col0;
-        let mut col_weight = ox;
-        carry_ox = 0;
+        // === C++ inner loop ===
+        let mut cur_tx = tx;
+        loop {
+            let mut cyx: [u64; 4] = [0x7F_FFFF; 4];
+            let mut oxs: u32 = 0x10000;
 
-        while remaining > 0 && col <= col_bound {
-            let w = if col_weight >= remaining {
-                remaining
-            } else {
-                col_weight
-            };
-            // Carry-out = unused portion of this column's weight.
-            // Updated every iteration; final value is the carry to next pixel.
-            // Matches C++ `ox -= oxs` (line 823).
-            carry_ox = col_weight - w;
-
-            // pCy column-reuse: check if this column was already Y-accumulated.
-            // Compile-time CH dispatch eliminates the match in y_accumulate.
-            let (cy_r, cy_g, cy_b, cy_a) = if col == prev_cy_col {
-                cached_cy
-            } else {
+            while ox < oxs {
+                for (c, cy) in cyx.iter_mut().zip(carry.cy.iter()).take(CH) {
+                    *c += *cy * ox as u64;
+                }
+                oxs -= ox;
+                carry.pcy_col = col;
                 let p = read_area_pixel(image, sec, col, yw.row0, xfm);
-                let cy = match CH {
+                let cy_result = match CH {
                     4 => y_accumulate_4ch(image, sec, col, &yw, xfm, p),
                     3 => y_accumulate_3ch(image, sec, col, &yw, xfm, p),
                     _ => y_accumulate_1ch(image, sec, col, &yw, xfm, p),
                 };
-                prev_cy_col = col;
-                cached_cy = cy;
-                cy
-            };
-
-            cyx_r += cy_r * w as u64;
-            cyx_g += cy_g * w as u64;
-            cyx_b += cy_b * w as u64;
-            cyx_a += cy_a * w as u64;
-
-            remaining -= w;
-            col += 1;
-            col_weight = odx;
-        }
-        carry_odx = odx;
-
-        // Output: WRITE_NO_ROUND_SHR_COLOR(cyx, 24)
-        // C++ outputs premultiplied pixels directly. Do NOT unpremultiply here —
-        // the caller blends via blend_scanline_premul.
-        let out_r = (cyx_r >> 24) as u8;
-        let out_g = (cyx_g >> 24) as u8;
-        let out_b = (cyx_b >> 24) as u8;
-
-        let rgba = match CH {
-            4 => {
-                let out_a = (cyx_a >> 24) as u8;
-                [out_r, out_g, out_b, out_a]
+                carry.cy[0] = cy_result.0;
+                carry.cy[1] = cy_result.1;
+                carry.cy[2] = cy_result.2;
+                carry.cy[3] = cy_result.3;
+                col += 1;
+                ox = ox1;
+                ox1 = odx;
             }
-            3 => [out_r, out_g, out_b, 255],
-            _ => [out_r, out_r, out_r, 255],
-        };
-        buf.set_pixel(pixel_idx, rgba);
+
+            for (c, cy) in cyx.iter_mut().zip(carry.cy.iter()).take(CH) {
+                *c += *cy * oxs as u64;
+            }
+
+            let rgba = match CH {
+                4 => [
+                    (cyx[0] >> 24) as u8,
+                    (cyx[1] >> 24) as u8,
+                    (cyx[2] >> 24) as u8,
+                    (cyx[3] >> 24) as u8,
+                ],
+                3 => [
+                    (cyx[0] >> 24) as u8,
+                    (cyx[1] >> 24) as u8,
+                    (cyx[2] >> 24) as u8,
+                    255,
+                ],
+                _ => {
+                    let g = (cyx[0] >> 24) as u8;
+                    [g, g, g, 255]
+                }
+            };
+            buf.set_pixel(pixel_idx, rgba);
+            pixel_idx += 1;
+            ox -= oxs;
+            cur_tx += tdx;
+            if cur_tx >= tx_stop || pixel_idx >= count {
+                break;
+            }
+        }
+        carry.ox = ox;
     }
     buf.set_len(count);
 }
+
+
 
 /// Scanline adaptive premul interpolation: fills `buf` with `count` consecutive
 /// output pixels of premultiplied RGBA.
@@ -1774,7 +1663,6 @@ mod tests {
             stride_y: 1,
             off_x: 0,
             off_y: 0,
-            carry_origin_x: 0,
         }
     }
 
@@ -1878,7 +1766,6 @@ mod tests {
             stride_y: 1,
             off_x: 0,
             off_y: 0,
-            carry_origin_x: 0,
         };
         let sec = full_sec(2, 2);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
@@ -1913,7 +1800,6 @@ mod tests {
             stride_y: 1,
             off_x: 0,
             off_y: 0,
-            carry_origin_x: 0,
         };
         let sec = full_sec(2, 2);
         let c = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Zero);
@@ -1989,8 +1875,9 @@ mod tests {
         let mut ref_pixels = Vec::new();
         let mut buf_single = crate::emPainterScanlineTool::InterpolationBuffer::new(4);
         for dest_y in 0..4 {
+            let mut carry = AreaSampleCarryState::new();
             for dest_x in 0..4 {
-                interpolate_scanline_area_sampled(&img, dest_x, dest_y, 1, &xfm, &sec, ext, &mut buf_single);
+                interpolate_scanline_area_sampled(&img, dest_x, dest_y, 1, &xfm, &sec, ext, &mut buf_single, &mut carry);
                 ref_pixels.push(buf_single.pixel_rgba(0));
             }
         }
@@ -1999,7 +1886,8 @@ mod tests {
         let mut buf = crate::emPainterScanlineTool::InterpolationBuffer::new(4);
         let mut scan_pixels = Vec::new();
         for dest_y in 0..4 {
-            interpolate_scanline_area_sampled(&img, 0, dest_y, 4, &xfm, &sec, ext, &mut buf);
+            let mut carry = AreaSampleCarryState::new();
+            interpolate_scanline_area_sampled(&img, 0, dest_y, 4, &xfm, &sec, ext, &mut buf, &mut carry);
             for i in 0..4 {
                 scan_pixels.push(buf.pixel_rgba(i));
             }
@@ -2031,7 +1919,8 @@ mod tests {
         let mut buf = crate::emPainterScanlineTool::InterpolationBuffer::new(4);
         let mut scan_pixels = Vec::new();
         for dest_y in 0..3 {
-            interpolate_scanline_area_sampled(&img, 0, dest_y, 3, &xfm, &sec, ext, &mut buf);
+            let mut carry = AreaSampleCarryState::new();
+            interpolate_scanline_area_sampled(&img, 0, dest_y, 3, &xfm, &sec, ext, &mut buf, &mut carry);
             for i in 0..3 {
                 scan_pixels.push(buf.pixel_rgba(i));
             }
@@ -2074,7 +1963,8 @@ mod tests {
         let mut buf = crate::emPainterScanlineTool::InterpolationBuffer::new(4);
         let mut scan_pixels = Vec::new();
         for dest_y in 0..3 {
-            interpolate_scanline_area_sampled(&img, 0, dest_y, 3, &xfm, &sec, ext, &mut buf);
+            let mut carry = AreaSampleCarryState::new();
+            interpolate_scanline_area_sampled(&img, 0, dest_y, 3, &xfm, &sec, ext, &mut buf, &mut carry);
             for i in 0..3 {
                 scan_pixels.push(buf.pixel_rgba(i));
             }
@@ -2118,7 +2008,6 @@ mod tests {
             stride_y: 1,
             off_x: 0,
             off_y: 0,
-            carry_origin_x: 0,
         };
         let sec = full_sec(2, 2);
 
@@ -2128,6 +2017,7 @@ mod tests {
 
         // Scanline version
         let mut buf = crate::emPainterScanlineTool::InterpolationBuffer::new(4);
+        let mut carry = AreaSampleCarryState::new();
         interpolate_scanline_area_sampled(
             &img,
             0,
@@ -2137,8 +2027,234 @@ mod tests {
             &sec,
             ImageExtension::Zero,
             &mut buf,
+            &mut carry,
         );
         assert_eq!(buf.pixel_rgba(0), [0, 0, 0, 0]);
+    }
+
+    /// Diagnostic test: compare sample_area_fp vs interpolate_scanline_area_sampled
+    /// for a 4x4 RGBA -> 2x2 downscale with known pixel values.
+    /// Prints intermediate values (cy, ox, cyx) for arithmetic tracing.
+    #[test]
+    fn diag_area_fp_vs_scanline_4x4_to_2x2() {
+        // 4x4 RGBA with varying colors and some transparency.
+        let mut img = emImage::new(4, 4, 4);
+        // Row 0: fully opaque reds/greens
+        img.SetPixel(0, 0).copy_from_slice(&[255,   0,   0, 255]); // red
+        img.SetPixel(1, 0).copy_from_slice(&[  0, 255,   0, 255]); // green
+        img.SetPixel(2, 0).copy_from_slice(&[  0,   0, 255, 255]); // blue
+        img.SetPixel(3, 0).copy_from_slice(&[255, 255,   0, 255]); // yellow
+        // Row 1: mix with partial transparency
+        img.SetPixel(0, 1).copy_from_slice(&[128, 128, 128, 255]); // gray
+        img.SetPixel(1, 1).copy_from_slice(&[200,  50,  50, 128]); // semi-transparent red
+        img.SetPixel(2, 1).copy_from_slice(&[ 50, 200,  50, 128]); // semi-transparent green
+        img.SetPixel(3, 1).copy_from_slice(&[128, 128, 128, 255]); // gray
+        // Row 2: half transparent
+        img.SetPixel(0, 2).copy_from_slice(&[255, 255, 255,  64]); // faint white
+        img.SetPixel(1, 2).copy_from_slice(&[  0,   0,   0,   0]); // fully transparent
+        img.SetPixel(2, 2).copy_from_slice(&[100, 100, 100, 200]); // semi-opaque gray
+        img.SetPixel(3, 2).copy_from_slice(&[255,   0, 255, 255]); // magenta
+        // Row 3: fully opaque
+        img.SetPixel(0, 3).copy_from_slice(&[ 50,  50,  50, 255]);
+        img.SetPixel(1, 3).copy_from_slice(&[100, 100, 100, 255]);
+        img.SetPixel(2, 3).copy_from_slice(&[150, 150, 150, 255]);
+        img.SetPixel(3, 3).copy_from_slice(&[200, 200, 200, 255]);
+
+        let xfm = make_area_xfm(4, 4, 2.0, 2.0);
+        let sec = full_sec(4, 4);
+        let ext = ImageExtension::Zero; // 4ch images use EXTEND_ZERO
+
+        eprintln!("=== AreaSampleTransform ===");
+        eprintln!("  tdx={:#x} tdy={:#x} tx={:#x} ty={:#x}", xfm.tdx, xfm.tdy, xfm.tx, xfm.ty);
+        eprintln!("  odx={:#x} ody={:#x}", xfm.odx, xfm.ody);
+        eprintln!("  img_w={} img_h={} stride_x={} stride_y={} off_x={} off_y={}",
+            xfm.img_w, xfm.img_h, xfm.stride_x, xfm.stride_y, xfm.off_x, xfm.off_y);
+
+        // --- Per-pixel reference (sample_area_fp) ---
+        eprintln!("\n=== sample_area_fp (per-pixel, returns emColor = straight alpha) ===");
+        let mut fp_colors = Vec::new();
+        for dy in 0..2i32 {
+            for dx in 0..2i32 {
+                let c = sample_area_fp(&img, dx, dy, &xfm, &sec, ext);
+                eprintln!("  dest({},{}) => rgba({}, {}, {}, {})",
+                    dx, dy, c.GetRed(), c.GetGreen(), c.GetBlue(), c.GetAlpha());
+                fp_colors.push(c);
+            }
+        }
+
+        // --- Scanline (one pixel at a time, fresh carry each pixel) ---
+        eprintln!("\n=== interpolate_scanline_area_sampled (single-pixel, fresh carry) ===");
+        let mut buf = crate::emPainterScanlineTool::InterpolationBuffer::new(4);
+        let mut scan_single = Vec::new();
+        for dy in 0..2i32 {
+            for dx in 0..2i32 {
+                let mut carry = AreaSampleCarryState::new();
+                interpolate_scanline_area_sampled(&img, dx, dy, 1, &xfm, &sec, ext, &mut buf, &mut carry);
+                let px = buf.pixel_rgba(0);
+                eprintln!("  dest({},{}) => premul_rgba({}, {}, {}, {})",
+                    dx, dy, px[0], px[1], px[2], px[3]);
+                scan_single.push(px);
+            }
+        }
+
+        // --- Scanline (full row, carry flows between pixels) ---
+        eprintln!("\n=== interpolate_scanline_area_sampled (full row, carry flows) ===");
+        let mut scan_row = Vec::new();
+        for dy in 0..2i32 {
+            let mut carry = AreaSampleCarryState::new();
+            interpolate_scanline_area_sampled(&img, 0, dy, 2, &xfm, &sec, ext, &mut buf, &mut carry);
+            for dx in 0..2 {
+                let px = buf.pixel_rgba(dx);
+                eprintln!("  dest({},{}) => premul_rgba({}, {}, {}, {})",
+                    dx, dy, px[0], px[1], px[2], px[3]);
+                scan_row.push(px);
+            }
+        }
+
+        // --- Convert sample_area_fp (straight) to premul for comparison ---
+        eprintln!("\n=== sample_area_fp converted to premul ===");
+        let mut fp_premul = Vec::new();
+        for (i, c) in fp_colors.iter().enumerate() {
+            let a = c.GetAlpha();
+            let r = ((c.GetRed() as u16 * a as u16 + 127) / 255) as u8;
+            let g = ((c.GetGreen() as u16 * a as u16 + 127) / 255) as u8;
+            let b = ((c.GetBlue() as u16 * a as u16 + 127) / 255) as u8;
+            let dx = i % 2;
+            let dy = i / 2;
+            eprintln!("  dest({},{}) => premul_rgba({}, {}, {}, {})", dx, dy, r, g, b, a);
+            fp_premul.push([r, g, b, a]);
+        }
+
+        // --- Comparison ---
+        eprintln!("\n=== Comparison: single-pixel scanline vs full-row scanline ===");
+        let mut any_mismatch = false;
+        for i in 0..4 {
+            let dx = i % 2;
+            let dy = i / 2;
+            if scan_single[i] != scan_row[i] {
+                eprintln!("  MISMATCH dest({},{}) single={:?} row={:?}",
+                    dx, dy, scan_single[i], scan_row[i]);
+                any_mismatch = true;
+            } else {
+                eprintln!("  OK dest({},{}) {:?}", dx, dy, scan_single[i]);
+            }
+        }
+
+        eprintln!("\n=== Comparison: sample_area_fp (premul) vs scanline (single-pixel) ===");
+        for i in 0..4 {
+            let dx = i % 2;
+            let dy = i / 2;
+            let diff: Vec<i32> = (0..4).map(|c| fp_premul[i][c] as i32 - scan_single[i][c] as i32).collect();
+            if diff.iter().any(|d| d.abs() > 0) {
+                eprintln!("  DIFF dest({},{}) fp_premul={:?} scanline={:?} diff={:?}",
+                    dx, dy, fp_premul[i], scan_single[i], diff);
+            } else {
+                eprintln!("  EXACT dest({},{}) {:?}", dx, dy, scan_single[i]);
+            }
+        }
+
+        // The test passes as long as it runs; actual analysis is in the output.
+        // But also check: do single-pixel and row-batch agree?
+        if any_mismatch {
+            eprintln!("\nWARNING: single-pixel vs row-batch scanline DISAGREE");
+        }
+    }
+
+    /// Diagnostic: trace the Y-accumulate and X-accumulate steps for dest(0,0)
+    /// in a simple 4x4->2x2 downscale to identify exactly where divergence occurs.
+    #[test]
+    fn diag_area_trace_y_accumulate() {
+        // Simple gradient: pixel value = (x*64 + y*16), fully opaque
+        let mut img = emImage::new(4, 4, 4);
+        for y in 0..4u32 {
+            for x in 0..4u32 {
+                let v = (x * 64 + y * 16) as u8;
+                let p = img.SetPixel(x, y);
+                p[0] = v;
+                p[1] = v;
+                p[2] = v;
+                p[3] = 255;
+            }
+        }
+
+        let xfm = make_area_xfm(4, 4, 2.0, 2.0);
+        let sec = full_sec(4, 4);
+
+        eprintln!("\n=== Y-accumulate trace for 4x4->2x2 with opaque gradient ===");
+        eprintln!("  tdx={:#x} tdy={:#x}", xfm.tdx, xfm.tdy);
+        eprintln!("  odx={:#x} ody={:#x}", xfm.odx, xfm.ody);
+
+        // Trace Y setup for dest_y=0
+        let dest_y = 0i32;
+        let ty1 = dest_y as i64 * xfm.tdy - xfm.ty;
+        let ty2 = ty1 + xfm.tdy;
+        let ty_end = (xfm.img_h as i64) << 24;
+        eprintln!("  ty1={:#x} ty2={:#x} ty_end={:#x}", ty1, ty2, ty_end);
+
+        let oy1_raw = ((0x100_0000i64 - (ty1 & 0xFF_FFFF)) as u64 * xfm.ody as u64 + 0xFF_FFFF) >> 24;
+        let oy1 = if oy1_raw >= 0x10000 || xfm.ody == 0x7FFF_FFFF { 0x10000u32 } else { oy1_raw as u32 };
+        let oy1n = 0x10000u32 - oy1;
+        let row0 = (ty1 >> 24) as i32;
+        eprintln!("  oy1={:#x} oy1n={:#x} row0={}", oy1, oy1n, row0);
+
+        let yw = YWeights { oy1, oy1n, ody: xfm.ody, row0 };
+
+        // Y-accumulate for columns 0 and 1 (dest pixel (0,0) should cover source cols 0-1)
+        for col in 0..4 {
+            let p = read_area_pixel(&img, &sec, col, yw.row0, &xfm);
+            let (cy_r, cy_g, cy_b, cy_a) = y_accumulate_4ch(&img, &sec, col, &yw, &xfm, p);
+            eprintln!("  col={}: pixel[row0]=({},{},{},{}) cy=({:#x},{:#x},{:#x},{:#x})",
+                col, p[0], p[1], p[2], p[3], cy_r, cy_g, cy_b, cy_a);
+        }
+
+        // X setup for dest_x=0
+        let dest_x = 0i32;
+        let tx1 = dest_x as i64 * xfm.tdx - xfm.tx;
+        let tx2 = tx1 + xfm.tdx;
+        let tx_end = (xfm.img_w as i64) << 24;
+        eprintln!("  tx1={:#x} tx2={:#x} tx_end={:#x}", tx1, tx2, tx_end);
+
+        let ox_raw = ((0x100_0000i64 - (tx1 & 0xFF_FFFF)) as u64 * xfm.odx as u64 + 0xFF_FFFF) >> 24;
+        let ox = if xfm.odx == 0x7FFF_FFFF { 0x7FFF_FFFFu32 } else { ox_raw as u32 };
+        let col0 = (tx1 >> 24) as i32;
+        eprintln!("  ox={:#x} col0={}", ox, col0);
+
+        // Now get fp result and scanline result
+        let c_fp = sample_area_fp(&img, 0, 0, &xfm, &sec, ImageExtension::Clamp);
+        eprintln!("  sample_area_fp(0,0) = rgba({},{},{},{})",
+            c_fp.GetRed(), c_fp.GetGreen(), c_fp.GetBlue(), c_fp.GetAlpha());
+
+        let mut buf = crate::emPainterScanlineTool::InterpolationBuffer::new(4);
+        let mut carry = AreaSampleCarryState::new();
+        interpolate_scanline_area_sampled(&img, 0, 0, 1, &xfm, &sec, ImageExtension::Clamp, &mut buf, &mut carry);
+        let px = buf.pixel_rgba(0);
+        eprintln!("  scanline(0,0) = premul_rgba({},{},{},{})", px[0], px[1], px[2], px[3]);
+
+        // For all 4 output pixels
+        eprintln!("\n=== All 4 output pixels ===");
+        for dy in 0..2i32 {
+            for dx in 0..2i32 {
+                let c_fp = sample_area_fp(&img, dx, dy, &xfm, &sec, ImageExtension::Clamp);
+                let mut carry = AreaSampleCarryState::new();
+                interpolate_scanline_area_sampled(&img, dx, dy, 1, &xfm, &sec, ImageExtension::Clamp, &mut buf, &mut carry);
+                let px = buf.pixel_rgba(0);
+                // Convert fp (straight) to premul for comparison
+                let a = c_fp.GetAlpha();
+                let fp_pm_r = ((c_fp.GetRed() as u16 * a as u16 + 127) / 255) as u8;
+                let fp_pm_g = ((c_fp.GetGreen() as u16 * a as u16 + 127) / 255) as u8;
+                let fp_pm_b = ((c_fp.GetBlue() as u16 * a as u16 + 127) / 255) as u8;
+                let diff_r = fp_pm_r as i32 - px[0] as i32;
+                let diff_g = fp_pm_g as i32 - px[1] as i32;
+                let diff_b = fp_pm_b as i32 - px[2] as i32;
+                let diff_a = a as i32 - px[3] as i32;
+                eprintln!("  dest({},{}) fp_straight=({},{},{},{}) fp_premul=({},{},{},{}) scanline=({},{},{},{}) diff=({},{},{},{})",
+                    dx, dy,
+                    c_fp.GetRed(), c_fp.GetGreen(), c_fp.GetBlue(), a,
+                    fp_pm_r, fp_pm_g, fp_pm_b, a,
+                    px[0], px[1], px[2], px[3],
+                    diff_r, diff_g, diff_b, diff_a);
+            }
+        }
     }
 }
 
