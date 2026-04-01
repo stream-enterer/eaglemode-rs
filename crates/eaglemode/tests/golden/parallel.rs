@@ -356,8 +356,12 @@ fn parallel_benchmark() {
         single_elapsed.as_secs_f64() / multi_elapsed.as_secs_f64(),
     );
 
-    // Verify correctness: single-threaded and multi-threaded outputs must be
-    // byte-identical (same scene, same tile size, only thread GetCount differs).
+    // Verify correctness: single-threaded tiled and multi-threaded tiled
+    // outputs must be byte-identical (same scene, same tile size, only
+    // thread count differs).  Uses tiled rendering for both paths —
+    // consistent with the other parallel_* tests.  Non-tiled vs tiled
+    // comparison is not meaningful because float precision in TX/TY
+    // computation differs when offset_x varies between painters.
     let single_pixels = {
         let mut tree = PanelTree::new();
         let root = tree.create_root("verify");
@@ -374,8 +378,9 @@ fn parallel_benchmark() {
         let mut view = emView::new(root, 800.0, 600.0);
         view.flags.insert(ViewFlags::NO_ACTIVE_HIGHLIGHT);
         settle(&mut tree, &mut view);
+        let pool_1 = emcore::emRenderThreadPool::emRenderThreadPool::new(1);
         let mut comp = SoftwareCompositor::new(800, 600);
-        comp.render(&mut tree, &view);
+        comp.render_parallel(&mut tree, &view, &pool_1, 128);
         comp.framebuffer().GetMap().to_vec()
     };
     let multi_pixels = {
@@ -401,6 +406,6 @@ fn parallel_benchmark() {
     };
     assert_eq!(
         single_pixels, multi_pixels,
-        "Single-threaded and multi-threaded renders must produce byte-identical output"
+        "Single-threaded and multi-threaded tiled renders must produce byte-identical output"
     );
 }
