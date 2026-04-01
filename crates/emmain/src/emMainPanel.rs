@@ -8,6 +8,7 @@ use std::rc::Rc;
 use emcore::emColor::emColor;
 use emcore::emContext::emContext;
 use emcore::emCursor::emCursor;
+use emcore::emImage::emImage;
 use emcore::emInput::emInputEvent;
 use emcore::emInputState::emInputState;
 use emcore::emPanel::{NoticeFlags, PanelBehavior, PanelState};
@@ -15,6 +16,9 @@ use emcore::emPainter::emPainter;
 use emcore::emPainter::{TextAlignment, VAlign};
 use emcore::emPanelCtx::PanelCtx;
 use emcore::emPanelTree::PanelId;
+use emcore::emResTga::load_tga;
+use emcore::emSubViewPanel::emSubViewPanel;
+use emcore::emView::ViewFlags;
 
 use crate::emMainConfig::emMainConfig;
 use crate::emMainContentPanel::emMainContentPanel;
@@ -102,20 +106,22 @@ impl PanelBehavior for StartupOverlayPanel {
 /// sections with a draggable slider between them.
 ///
 /// Port of C++ `emMainPanel`.
-///
-/// DIVERGED: C++ uses emSubViewPanel for control/content with independent zoom.
-/// Rust creates direct child panels without independent views since emSubViewPanel
-/// integration with the rendering pipeline is not fully wired yet for nested views.
 pub struct emMainPanel {
     ctx: Rc<emContext>,
     config: Rc<RefCell<emMainConfig>>,
     control_tallness: f64,
     unified_slider_pos: f64,
-    control_panel: Option<PanelId>,
-    content_panel: Option<PanelId>,
+
+    // Panel IDs for children (in parent tree)
+    control_view_panel: Option<PanelId>,
+    content_view_panel: Option<PanelId>,
     slider_panel: Option<PanelId>,
-    startup_overlay: bool,
-    children_created: bool,
+    startup_overlay: Option<PanelId>,
+
+    // Control edges decoration
+    control_edges_color: emColor,
+    control_edges_image: emImage,
+
     // Cached coordinates
     control_x: f64,
     control_y: f64,
@@ -131,7 +137,18 @@ pub struct emMainPanel {
     slider_h: f64,
     slider_min_y: f64,
     slider_max_y: f64,
+
+    // Child panel IDs (created inside sub-views)
+    control_panel_created: bool,
+    content_panel_created: bool,
+
+    // State
     slider_pressed: bool,
+    _slider_hidden: bool,
+    _fullscreen_on: bool,
+    _old_mouse_x: f64,
+    _old_mouse_y: f64,
+    children_created: bool,
     last_height: f64,
 }
 
@@ -142,15 +159,27 @@ impl emMainPanel {
     pub fn new(ctx: Rc<emContext>, control_tallness: f64) -> Self {
         let config = emMainConfig::Acquire(&ctx);
         let unified_slider_pos = config.borrow().GetControlViewSize();
+        let control_edges_image =
+            load_tga(include_bytes!("../../../res/emMain/ControlEdges.tga"))
+                .expect("failed to load ControlEdges.tga");
         Self {
             ctx,
             config,
             control_tallness,
             unified_slider_pos,
-            control_panel: None,
-            content_panel: None,
+            control_view_panel: None,
+            content_view_panel: None,
             slider_panel: None,
-            startup_overlay: true,
+            startup_overlay: None,
+            control_edges_color: emColor::from_packed(0x515E84FF),
+            control_edges_image,
+            control_panel_created: false,
+            content_panel_created: false,
+            slider_pressed: false,
+            _slider_hidden: false,
+            _fullscreen_on: false,
+            _old_mouse_x: 0.0,
+            _old_mouse_y: 0.0,
             children_created: false,
             control_x: 0.0,
             control_y: 0.0,
@@ -166,7 +195,6 @@ impl emMainPanel {
             slider_h: 0.0,
             slider_min_y: 0.0,
             slider_max_y: 0.0,
-            slider_pressed: false,
             last_height: 1.0,
         }
     }
@@ -230,14 +258,42 @@ impl emMainPanel {
     ///
     /// Port of C++ `emMainPanel::SetStartupOverlay`.
     pub fn SetStartupOverlay(&mut self, overlay: bool) {
-        self.startup_overlay = overlay;
+        if !overlay {
+            self.startup_overlay = None;
+        }
+        // When overlay=true, creation happens in LayoutChildren.
     }
 
     /// Whether the startup overlay is active.
     ///
     /// Port of C++ `emMainPanel::HasStartupOverlay`.
     pub fn HasStartupOverlay(&self) -> bool {
-        self.startup_overlay
+        self.startup_overlay.is_some()
+    }
+
+    /// Get the control edges color.
+    ///
+    /// Port of C++ `emMainPanel::GetControlEdgesColor`.
+    pub fn GetControlEdgesColor(&self) -> emColor {
+        self.control_edges_color
+    }
+
+    /// Get the control edges image.
+    ///
+    /// Port of C++ `emMainPanel::GetControlEdgesImage`.
+    pub fn GetControlEdgesImage(&self) -> &emImage {
+        &self.control_edges_image
+    }
+
+    /// Set the control edges color.
+    ///
+    /// Port of C++ `emMainPanel::SetControlEdgesColor`.
+    pub fn SetControlEdgesColor(&mut self, color: emColor) {
+        // Force alpha to 255.
+        let c = emColor::from_packed(color.GetPacked() | 0xFF);
+        if self.control_edges_color != c {
+            self.control_edges_color = c;
+        }
     }
 }
 
@@ -272,41 +328,78 @@ impl PanelBehavior for emMainPanel {
         self.update_coordinates(h);
 
         if !self.children_created {
-            // Create control panel.
-            let ctrl_ctx = Rc::clone(&self.ctx);
-            let ctrl_id = ctx.create_child_with(
-                "control",
-                Box::new(emMainControlPanel::new(ctrl_ctx)),
+            // Create control sub-view panel.
+            let mut ctrl_svp = emSubViewPanel::new();
+            ctrl_svp.set_sub_view_flags(
+                ViewFlags::POPUP_ZOOM
+                    | ViewFlags::ROOT_SAME_TALLNESS
+                    | ViewFlags::NO_ACTIVE_HIGHLIGHT,
             );
-            self.control_panel = Some(ctrl_id);
+            let ctrl_id = ctx.create_child_with("control view", Box::new(ctrl_svp));
+            self.control_view_panel = Some(ctrl_id);
 
-            // Create content panel.
-            let content_ctx = Rc::clone(&self.ctx);
-            let content_id = ctx.create_child_with(
-                "content",
-                Box::new(emMainContentPanel::new(content_ctx)),
-            );
-            self.content_panel = Some(content_id);
+            // Create content sub-view panel.
+            let mut content_svp = emSubViewPanel::new();
+            content_svp.set_sub_view_flags(ViewFlags::ROOT_SAME_TALLNESS);
+            let content_id = ctx.create_child_with("content view", Box::new(content_svp));
+            self.content_view_panel = Some(content_id);
 
             // Create slider panel.
-            let slider_id =
-                ctx.create_child_with("slider", Box::new(SliderPanel));
+            let slider_id = ctx.create_child_with("slider", Box::new(SliderPanel));
             self.slider_panel = Some(slider_id);
+
+            // Create startup overlay.
+            let overlay_id =
+                ctx.create_child_with("startupOverlay", Box::new(StartupOverlayPanel));
+            self.startup_overlay = Some(overlay_id);
 
             self.children_created = true;
         }
 
-        // Position children.
-        if let Some(ctrl) = self.control_panel {
-            ctx.layout_child(
-                ctrl,
-                self.control_x,
-                self.control_y,
-                self.control_w,
-                self.control_h,
-            );
+        // Create control panel inside control sub-view.
+        if let Some(ctrl_id) = self.control_view_panel
+            && !self.control_panel_created
+        {
+            if let Some(mut behavior) = ctx.tree.take_behavior(ctrl_id) {
+                if let Some(svp) = behavior.as_any_mut().downcast_mut::<emSubViewPanel>() {
+                    let sub_tree = svp.sub_tree_mut();
+                    let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
+                    let child_id = sub_tree.create_child(sub_root, "ctrl");
+                    let ctrl_ctx = Rc::clone(&self.ctx);
+                    sub_tree.set_behavior(child_id, Box::new(emMainControlPanel::new(ctrl_ctx)));
+                    sub_tree.Layout(child_id, 0.0, 0.0, 1.0, self.control_tallness);
+                }
+                ctx.tree.put_behavior(ctrl_id, behavior);
+            }
+            self.control_panel_created = true;
         }
-        if let Some(content) = self.content_panel {
+
+        // Create content panel inside content sub-view.
+        if let Some(content_id) = self.content_view_panel
+            && !self.content_panel_created
+        {
+            if let Some(mut behavior) = ctx.tree.take_behavior(content_id) {
+                if let Some(svp) = behavior.as_any_mut().downcast_mut::<emSubViewPanel>() {
+                    let sub_tree = svp.sub_tree_mut();
+                    let sub_root = sub_tree.GetRootPanel().expect("sub-view has root");
+                    let child_id = sub_tree.create_child(sub_root, "");
+                    let content_ctx = Rc::clone(&self.ctx);
+                    sub_tree.set_behavior(
+                        child_id,
+                        Box::new(emMainContentPanel::new(content_ctx)),
+                    );
+                    sub_tree.Layout(child_id, 0.0, 0.0, 1.0, 1.0);
+                }
+                ctx.tree.put_behavior(content_id, behavior);
+            }
+            self.content_panel_created = true;
+        }
+
+        // Position children.
+        if let Some(ctrl) = self.control_view_panel {
+            ctx.layout_child(ctrl, self.control_x, self.control_y, self.control_w, self.control_h);
+        }
+        if let Some(content) = self.content_view_panel {
             ctx.layout_child(
                 content,
                 self.content_x,
@@ -323,6 +416,9 @@ impl PanelBehavior for emMainPanel {
                 self.slider_w,
                 self.slider_h,
             );
+        }
+        if let Some(overlay) = self.startup_overlay {
+            ctx.layout_child(overlay, 0.0, 0.0, 1.0, h);
         }
     }
 
@@ -345,7 +441,8 @@ mod tests {
         let ctx = emcore::emContext::emContext::NewRoot();
         let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
         assert!((panel.control_tallness - 5.0).abs() < 1e-10);
-        assert!(panel.HasStartupOverlay());
+        // startup_overlay is None until LayoutChildren creates it
+        assert!(!panel.HasStartupOverlay());
     }
 
     #[test]
@@ -441,5 +538,30 @@ mod tests {
         panel.update_coordinates(1.0);
         let expected_slider_y = 0.5 * 0.5; // (max-min)*pos + min = 0.5*0.5
         assert!((panel.slider_y - expected_slider_y).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_sub_view_panel_fields() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        assert!(panel.control_view_panel.is_none());
+        assert!(panel.content_view_panel.is_none());
+    }
+
+    #[test]
+    fn test_control_edges_color() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let mut panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        let color = emColor::from_packed(0xFF0000FF);
+        panel.SetControlEdgesColor(color);
+        assert_eq!(panel.GetControlEdgesColor(), color);
+    }
+
+    #[test]
+    fn test_control_edges_image_loaded() {
+        let ctx = emcore::emContext::emContext::NewRoot();
+        let panel = emMainPanel::new(Rc::clone(&ctx), 5.0);
+        assert!(panel.GetControlEdgesImage().GetWidth() > 0);
+        assert!(panel.GetControlEdgesImage().GetHeight() > 0);
     }
 }
