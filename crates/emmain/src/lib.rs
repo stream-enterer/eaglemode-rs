@@ -2,6 +2,7 @@
 #![allow(non_camel_case_types)]
 
 pub mod emAutoplay;
+pub mod emAutoplayControlPanel;
 pub mod emBookmarks;
 pub mod emMain;
 pub mod emMainConfig;
