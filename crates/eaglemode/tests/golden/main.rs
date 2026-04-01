@@ -7,6 +7,7 @@ mod input;
 mod input_filter;
 mod interaction;
 mod layout;
+mod main_panel;
 mod notice;
 mod painter;
 mod parallel;

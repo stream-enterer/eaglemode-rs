@@ -5031,6 +5031,90 @@ static void gen_starfield(const char* name, int depth, emUInt32 seed, int w, int
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Main Panel Layout
+// ═══════════════════════════════════════════════════════════════════
+
+struct MainPanelLayout {
+    double ControlX, ControlY, ControlW, ControlH;
+    double ContentX, ContentY, ContentW, ContentH;
+    double SliderX, SliderY, SliderW, SliderH;
+};
+
+static MainPanelLayout compute_main_panel_layout(
+    double h, double sliderPos, double controlTallness
+) {
+    MainPanelLayout L = {};
+    double SliderMinY = 0.0;
+    double SliderMaxY = emMin(controlTallness, h * 0.5);
+    L.SliderY = (SliderMaxY - SliderMinY) * sliderPos + SliderMinY;
+    L.SliderW = emMin(emMin(1.0, h) * 0.1, emMax(1.0, h) * 0.02);
+    L.SliderH = L.SliderW * 1.2;
+    L.SliderX = 1.0 - L.SliderW;
+
+    double spaceFac = 1.015;
+    double t = L.SliderH * 0.5;
+    if (L.SliderY < t) {
+        L.ControlH = L.SliderY + L.SliderH * L.SliderY / t;
+    } else {
+        L.ControlH = (L.SliderY + L.SliderH) / spaceFac;
+    }
+
+    if (L.ControlH < 1E-5) {
+        L.ControlH = 1E-5;
+        L.ControlW = L.ControlH / controlTallness;
+        L.ControlX = 0.5 * (1.0 - L.ControlW);
+        L.ControlY = 0.0;
+        L.ContentX = 0.0;
+        L.ContentY = 0.0;
+        L.ContentW = 1.0;
+        L.ContentH = h;
+    } else {
+        L.ControlW = L.ControlH / controlTallness;
+        L.ControlX = emMin((1.0 - L.ControlW) * 0.5, L.SliderX - L.ControlW);
+        L.ControlY = 0.0;
+        if (L.ControlX < 1E-5) {
+            L.ControlW = 1.0 - L.SliderW;
+            L.ControlX = 0.0;
+            L.ControlH = L.ControlW * controlTallness;
+            if (L.ControlH < L.SliderY) {
+                L.ControlH = L.SliderY;
+                L.ControlW = L.ControlH / controlTallness;
+            } else {
+                // slider_pressed=false: apply correction
+                L.SliderY = L.ControlH * spaceFac - L.SliderH;
+            }
+        }
+        L.ContentY = L.ControlY + L.ControlH * spaceFac;
+        L.ContentX = 0.0;
+        L.ContentW = 1.0;
+        L.ContentH = h - L.ContentY;
+    }
+    return L;
+}
+
+static void dump_main_panel_layout(const char* name, const MainPanelLayout& L) {
+    FILE* f = open_golden("layout", name, "layout.golden");
+    write_u32(f, 3);  // 3 rects: control, content, slider
+    write_f64(f, L.ControlX); write_f64(f, L.ControlY);
+    write_f64(f, L.ControlW); write_f64(f, L.ControlH);
+    write_f64(f, L.ContentX); write_f64(f, L.ContentY);
+    write_f64(f, L.ContentW); write_f64(f, L.ContentH);
+    write_f64(f, L.SliderX);  write_f64(f, L.SliderY);
+    write_f64(f, L.SliderW);  write_f64(f, L.SliderH);
+    fclose(f);
+    printf("  layout/%s\n", name);
+}
+
+static void gen_main_panel_layouts() {
+    dump_main_panel_layout("main_panel_layout_normal",
+        compute_main_panel_layout(2.0, 0.5, 0.0538));
+    dump_main_panel_layout("main_panel_layout_collapsed",
+        compute_main_panel_layout(2.0, 0.0, 0.0538));
+    dump_main_panel_layout("main_panel_layout_wide",
+        compute_main_panel_layout(0.5, 0.7, 0.0538));
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════════════════
 
@@ -5300,6 +5384,9 @@ int main() {
     printf("Generating starfield golden files...\n");
     gen_starfield("starfield_small", 3, 0x12345678, 256, 256);
     gen_starfield("starfield_large", 3, 0x12345678, 1024, 1024);
+
+    printf("Generating main panel layout golden files...\n");
+    gen_main_panel_layouts();
 
     printf("Done!\n");
 

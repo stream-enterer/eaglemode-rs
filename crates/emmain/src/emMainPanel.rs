@@ -390,6 +390,25 @@ impl emMainPanel {
         }
     }
 
+    /// Compute layout coordinates for testing.
+    /// Sets `unified_slider_pos` and `slider_pressed`, then runs
+    /// `update_coordinates`. Returns (control, content, slider) rects.
+    pub fn compute_layout_for_test(
+        &mut self,
+        h: f64,
+        slider_pos: f64,
+        slider_pressed: bool,
+    ) -> [(f64, f64, f64, f64); 3] {
+        self.unified_slider_pos = slider_pos;
+        self.slider_pressed = slider_pressed;
+        self.update_coordinates(h);
+        [
+            (self.control_x, self.control_y, self.control_w, self.control_h),
+            (self.content_x, self.content_y, self.content_w, self.content_h),
+            (self.slider_x, self.slider_y, self.slider_w, self.slider_h),
+        ]
+    }
+
     /// Compute all layout coordinates given the panel height.
     ///
     /// Port of C++ `emMainPanel::UpdateCoordinates`.
