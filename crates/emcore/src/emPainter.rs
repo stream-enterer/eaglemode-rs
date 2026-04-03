@@ -47,6 +47,18 @@ fn grad_sqrt_table() -> &'static [u8; GRAD_SQRT_TABLE_SIZE] {
 ///   6=LL  3=B   0=LR
 pub const BORDER_EDGES_ONLY: u16 = 0o757;
 
+/// Get span opacity at a given pixel position, matching C++ PaintPolygon span layout.
+#[inline]
+fn span_opacity_at(span: &emPainterScanline::Span, x: i32, x_start: i32, x_end: i32) -> i32 {
+    if x == x_start {
+        span.opacity_beg
+    } else if x == x_end - 1 {
+        span.opacity_end
+    } else {
+        span.opacity_mid
+    }
+}
+
 /// Pre-transformed texture with coordinates in pixel space.
 /// Used internally by the textured polygon rasterizer.
 enum PixelTexture<'t> {
@@ -5539,41 +5551,124 @@ impl<'a> emPainter<'a> {
         }
     }
 
-    /// Blit a single textured AA span onto the target.
+    /// Blit a single textured AA span matching C++ PaintScanlineInt G1G2.
+    ///
+    /// C++ integrates coverage INTO the gradient-to-color mapping:
+    ///   o1 = (opacity * Color1.alpha + 127) / 255
+    ///   a1 = ((255-g) * o1 + 0x800) >> 12
+    ///   a2 = (g * o2 + 0x800) >> 12
+    ///   pix = hash_255[((c1*a1 + c2*a2)*257 + 0x8073) >> 16]
+    /// Then source-over blend with combined alpha a = a1 + a2.
     fn blit_span_textured(&mut self, proof: DirectProof, y: i32, span: &emPainterScanline::Span, texture: &PixelTexture) {
         let tw = self.target_width as i32;
         let th = self.target_height as i32;
-        if y < 0 || y >= th {
-            return;
-        }
+        if y < 0 || y >= th { return; }
 
         let x_start = span.x_start.max(0);
         let x_end = span.x_end.min(tw);
-        if x_start >= x_end {
-            return;
-        }
+        if x_start >= x_end { return; }
 
-        let py = y as f64 + 0.5;
-        for x in x_start..x_end {
-            let opacity = if x == span.x_start && x_end - x_start > 1 {
-                span.opacity_beg
-            } else if x == x_end - 1 && x_end - x_start > 1 {
-                span.opacity_end
-            } else if x_end - x_start == 1 {
-                span.opacity_beg
-            } else {
-                span.opacity_mid
-            };
-            if opacity == 0 {
-                continue;
+        match texture {
+            PixelTexture::RadialGradient { color_inner, color_outer, fp_tx, fp_ty, fp_tdx, fp_tdy } => {
+                self.blit_span_radial_gradient_g1g2(
+                    proof, y, span, x_start, x_end,
+                    *color_inner, *color_outer, *fp_tx, *fp_ty, *fp_tdx, *fp_tdy,
+                );
             }
+            _ => {
+                // Fallback: per-pixel texture evaluation (used for other texture types).
+                let py = y as f64 + 0.5;
+                for x in x_start..x_end {
+                    let opacity = span_opacity_at(span, x, x_start, x_end);
+                    if opacity == 0 { continue; }
+                    let color = Self::sample_pixel_texture(texture, x as f64 + 0.5, py);
+                    if opacity >= 0x1000 {
+                        self.blend_pixel_unchecked(proof, x, y, color);
+                    } else {
+                        self.blend_with_coverage_unchecked(proof, x, y, color, opacity);
+                    }
+                }
+            }
+        }
+    }
 
-            let color = Self::sample_pixel_texture(texture, x as f64 + 0.5, py);
+    /// Radial gradient span matching C++ PaintScanlineInt G1G2 exactly.
+    #[allow(clippy::too_many_arguments)]
+    fn blit_span_radial_gradient_g1g2(
+        &mut self, proof: DirectProof, y: i32,
+        span: &emPainterScanline::Span, x_start: i32, x_end: i32,
+        color1: emColor, color2: emColor,
+        fp_tx: i64, fp_ty: i64, fp_tdx: i64, fp_tdy: i64,
+    ) {
+        let table = grad_sqrt_table();
+        let c1r = color1.GetRed() as u32;
+        let c1g = color1.GetGreen() as u32;
+        let c1b = color1.GetBlue() as u32;
+        let c2r = color2.GetRed() as u32;
+        let c2g = color2.GetGreen() as u32;
+        let c2b = color2.GetBlue() as u32;
 
-            if opacity >= 0x1000 {
-                self.blend_pixel_unchecked(proof, x, y, color);
+        // C++ ScanlineTool: ty = y * TDY - TY
+        let row = y as i64;
+        let ty = row * fp_tdy - fp_ty;
+        const LIMIT: i64 = 0xFF << 23;
+
+        // Precompute ty*ty + rounding constant (matching C++ line 213)
+        let ty_in_range = ty.unsigned_abs() < LIMIT as u64;
+        let tyty = if ty_in_range { ty * ty + ((1i64 << 45) - 1) } else { 0 };
+
+        let tw = self.target_width as usize;
+
+        for x in x_start..x_end {
+            let opacity = span_opacity_at(span, x, x_start, x_end);
+            if opacity == 0 { continue; }
+
+            // C++ PaintScanlineInt G1G2: o1 = (opacity * Color1.alpha + 127) / 255
+            let o1 = (opacity as u32 * color1.GetAlpha() as u32 + 127) / 255;
+            let o2 = (opacity as u32 * color2.GetAlpha() as u32 + 127) / 255;
+
+            // C++ InterpolateRadialGradient: tx = x * TDX - TX
+            let tx = x as i64 * fp_tdx - fp_tx;
+
+            let g = if !ty_in_range || tx.unsigned_abs() >= LIMIT as u64 {
+                255u32
             } else {
-                self.blend_with_coverage_unchecked(proof, x, y, color, opacity);
+                let t_idx = ((tx * tx + tyty) >> 46) as usize;
+                if t_idx < GRAD_SQRT_TABLE_SIZE { table[t_idx] as u32 } else { 255 }
+            };
+
+            // C++ PaintScanlineInt G1G2, CHANNELS=1:
+            //   a1 = ((255-g) * o1 + 0x800) >> 12
+            //   a2 = (g * o2 + 0x800) >> 12
+            let a1 = ((255 - g) * o1 + 0x800) >> 12;
+            let a2 = (g * o2 + 0x800) >> 12;
+            let a = a1 + a2;
+            if a == 0 { continue; }
+
+            // C++ pix = hR[((c1R*a1+c2R*a2)*257+0x8073)>>16] + ...
+            // where hR is hash at component=255 → hash_255[v] = (255*v*257+0x8073)>>16 ≈ v
+            let pr = ((c1r * a1 + c2r * a2) * 257 + 0x8073) >> 16;
+            let pg = ((c1g * a1 + c2g * a2) * 257 + 0x8073) >> 16;
+            let pb = ((c1b * a1 + c2b * a2) * 257 + 0x8073) >> 16;
+
+            // hash_255[pr] = (255 * pr * 257 + 0x8073) >> 16
+            let pix_r = (255 * pr * 257 + 0x8073) >> 16;
+            let pix_g = (255 * pg * 257 + 0x8073) >> 16;
+            let pix_b = (255 * pb * 257 + 0x8073) >> 16;
+
+            // Source-over blend: dest = dest * ((255-a)*257) + pix
+            let offset = (y as usize * tw + x as usize) * 4;
+            let data = self.GetImage(proof).GetWritableMap();
+            let dest = &mut data[offset..offset + 4];
+            if a >= 255 {
+                dest[0] = pix_r as u8;
+                dest[1] = pix_g as u8;
+                dest[2] = pix_b as u8;
+            } else {
+                let t = (255 - a) * 257;
+                dest[0] = (((dest[0] as u32 * t + 0x8073) >> 16) + pix_r) as u8;
+                dest[1] = (((dest[1] as u32 * t + 0x8073) >> 16) + pix_g) as u8;
+                dest[2] = (((dest[2] as u32 * t + 0x8073) >> 16) + pix_b) as u8;
             }
         }
     }
