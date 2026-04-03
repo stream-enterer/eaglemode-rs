@@ -2558,7 +2558,7 @@ impl<'a> emPainter<'a> {
                 color1,
                 color2,
                 canvas_color,
-                ImageExtension::EdgeOrZero,
+                ImageExtension::Clamp,
             );
         }
         if which_sub_rects & (1 << 2) != 0 {
@@ -2575,7 +2575,7 @@ impl<'a> emPainter<'a> {
                 color1,
                 color2,
                 canvas_color,
-                ImageExtension::EdgeOrZero,
+                ImageExtension::Clamp,
             );
         }
         if which_sub_rects & (1 << 6) != 0 {
@@ -2592,7 +2592,7 @@ impl<'a> emPainter<'a> {
                 color1,
                 color2,
                 canvas_color,
-                ImageExtension::EdgeOrZero,
+                ImageExtension::Clamp,
             );
         }
         if which_sub_rects & (1 << 0) != 0 {
@@ -2609,7 +2609,7 @@ impl<'a> emPainter<'a> {
                 color1,
                 color2,
                 canvas_color,
-                ImageExtension::EdgeOrZero,
+                ImageExtension::Clamp,
             );
         }
 
@@ -2629,7 +2629,7 @@ impl<'a> emPainter<'a> {
                     color1,
                     color2,
                     canvas_color,
-                    ImageExtension::EdgeOrZero,
+                    ImageExtension::Clamp,
                 );
             }
             if which_sub_rects & (1 << 3) != 0 {
@@ -2646,7 +2646,7 @@ impl<'a> emPainter<'a> {
                     color1,
                     color2,
                     canvas_color,
-                    ImageExtension::EdgeOrZero,
+                    ImageExtension::Clamp,
                 );
             }
         }
@@ -2665,7 +2665,7 @@ impl<'a> emPainter<'a> {
                     color1,
                     color2,
                     canvas_color,
-                    ImageExtension::EdgeOrZero,
+                    ImageExtension::Clamp,
                 );
             }
             if which_sub_rects & (1 << 1) != 0 {
@@ -2682,7 +2682,7 @@ impl<'a> emPainter<'a> {
                     color1,
                     color2,
                     canvas_color,
-                    ImageExtension::EdgeOrZero,
+                    ImageExtension::Clamp,
                 );
             }
         }
@@ -2702,7 +2702,7 @@ impl<'a> emPainter<'a> {
                 color1,
                 color2,
                 canvas_color,
-                ImageExtension::EdgeOrZero,
+                ImageExtension::Clamp,
             );
         }
 
