@@ -745,16 +745,24 @@ mod tests {
 
     /// Reference premul blend matching blend_pixel_premul_unchecked (canvas).
     fn ref_blend_premul_canvas(dest: &mut [u8], pm: [u8; 4], canvas: emColor) {
-        let a = pm[3] as u32;
+        use crate::emColor::blend_hash_lookup;
+        let a = pm[3];
         if a == 0 {
             return;
         }
-        let cr = (canvas.GetRed() as u32 * a + 127) / 255;
-        let cg = (canvas.GetGreen() as u32 * a + 127) / 255;
-        let cb = (canvas.GetBlue() as u32 * a + 127) / 255;
-        dest[0] = (dest[0] as i32 + pm[0] as i32 - cr as i32).clamp(0, 255) as u8;
-        dest[1] = (dest[1] as i32 + pm[1] as i32 - cg as i32).clamp(0, 255) as u8;
-        dest[2] = (dest[2] as i32 + pm[2] as i32 - cb as i32).clamp(0, 255) as u8;
+        // C++ uses packed u32 wrapping arithmetic — carries propagate between
+        // channels intentionally. Match that, not per-channel clamping.
+        let pix: u32 = pm[0] as u32 | ((pm[1] as u32) << 8) | ((pm[2] as u32) << 16);
+        let cr = blend_hash_lookup(canvas.GetRed(), a) as u32;
+        let cg = blend_hash_lookup(canvas.GetGreen(), a) as u32;
+        let cb = blend_hash_lookup(canvas.GetBlue(), a) as u32;
+        let cvs: u32 = cr | (cg << 8) | (cb << 16);
+        let dest_packed: u32 =
+            dest[0] as u32 | ((dest[1] as u32) << 8) | ((dest[2] as u32) << 16);
+        let result = dest_packed.wrapping_add(pix.wrapping_sub(cvs));
+        dest[0] = result as u8;
+        dest[1] = (result >> 8) as u8;
+        dest[2] = (result >> 16) as u8;
     }
 
     #[test]
