@@ -174,6 +174,27 @@ int main() {
          0.0, 0.0, 2.0, 2.0,
          0, 0, 16, 16,
          255, 0, 1},
+
+        // Case 11: Canvas color + full alpha (isolate canvas blend)
+        {"canvas_color_full_alpha", 200, 200, 8, 8,
+         200.0, 200.0, 0.0, 0.0,
+         0.0, 0.0, 1.0, 1.0,
+         0, 0, 8, 8,
+         255, 0xFFFFFFFF, 1},
+
+        // Case 12: Downscale with canvas color
+        {"downscale_canvas", 200, 200, 32, 32,
+         200.0, 200.0, 0.0, 0.0,
+         0.0, 0.0, 0.05, 0.05,
+         0, 0, 32, 32,
+         200, 0xFF808080, 1},
+
+        // Case 13: Exact 1:1 with partial alpha
+        {"exact_partial_alpha", 200, 200, 16, 16,
+         200.0, 200.0, 0.0, 0.0,
+         0.0, 0.0, 0.08, 0.08,
+         0, 0, 16, 16,
+         128, 0, 3},
     };
 
     int n_cases = (int)(sizeof(cases) / sizeof(cases[0]));
