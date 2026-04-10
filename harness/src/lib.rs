@@ -253,7 +253,7 @@ pub extern "C" fn rust_get_coverage(
 
 use emcore::emPainterScanlineTool::{blend_colored_scanline, BlendMode};
 use emcore::emColor::emColor;
-use emcore::emPainterInterpolation::{sample_adaptive_lum_section, sample_linear_gradient};
+use emcore::emPainterInterpolation::sample_adaptive_lum_section;
 
 /// C-compatible color struct (RGBA u8).
 #[repr(C)]
@@ -668,14 +668,9 @@ pub unsafe extern "C" fn rust_interpolate_linear_gradient(
 
     let start = (p.x1, p.y1);
     let end = (p.x2, p.y2);
-    let c0 = emColor::rgba(0, 0, 0, 255);
-    let c1 = emColor::rgba(255, 255, 255, 255);
 
-    for (i, pixel) in buf.iter_mut().enumerate() {
-        let px = scanline_x as f64 + i as f64 + 0.5;
-        let py = scanline_y as f64 + 0.5;
-        let color = sample_linear_gradient(start, end, c0, c1, (px, py));
-        *pixel = color.GetRed();
-    }
+    // Use the C++ 40-bit fixed-point walk directly.
+    let grad = emcore::emPainterInterpolation::LinearGradientParams::new(start, end);
+    grad.interpolate_scanline(scanline_x, scanline_y, buf);
     0
 }

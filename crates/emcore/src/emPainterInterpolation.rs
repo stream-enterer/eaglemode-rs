@@ -1264,6 +1264,65 @@ pub fn sample_linear_gradient(
     )
 }
 
+/// Pre-computed linear gradient parameters for the C++ 40-bit fixed-point walk.
+/// Matches C++ emPainter_ScTl.cpp:155-189 (ScanlineTool::Init gradient setup).
+pub struct LinearGradientParams {
+    tdx: i64,
+    tdy: i64,
+    tx: i64,
+}
+
+impl LinearGradientParams {
+    /// Compute fixed-point gradient parameters from pixel-space endpoints.
+    /// Matches C++ ScanlineTool::Init (emPainter_ScTl.cpp:155-189).
+    pub fn new(start: (f64, f64), end: (f64, f64)) -> Self {
+        let nx = end.0 - start.0;
+        let ny = end.1 - start.1;
+        let nn = nx * nx + ny * ny;
+        let f = if nn < 1e-3 { 0.0 } else { (255_i64 << 24) as f64 / nn };
+        let nx = nx * f;
+        let ny = ny * f;
+        // C++ uses (start - 0.5) for pixel-center offset
+        let tx_d = (start.0 - 0.5) * nx + (start.1 - 0.5) * ny;
+        Self {
+            tdx: nx as i64,
+            tdy: ny as i64,
+            tx: tx_d as i64 - 0x7fffff,
+        }
+    }
+
+    /// Fill `buf` with gradient interpolation values (0-255) for a scanline.
+    /// Matches C++ InterpolateLinearGradient (emPainter_ScTlIntGra.cpp:24-39).
+    pub fn interpolate_scanline(&self, x: i32, y: i32, buf: &mut [u8]) {
+        let mut t = x as i64 * self.tdx + y as i64 * self.tdy - self.tx;
+        for b in buf.iter_mut() {
+            let mut u = t >> 24;
+            // C++ clamping via sign extension: if (emUInt64)u > 255, u = ~(u >> 48)
+            if u as u64 > 255 {
+                u = !(u >> 48);
+            }
+            *b = u as u8;
+            t += self.tdx;
+        }
+    }
+}
+
+/// Blend a gradient interpolation value with two colors using the C++ hash formula.
+/// Matches C++ emPainter_ScTlPSInt.cpp:334-336.
+#[inline]
+pub fn blend_gradient_colors(g: u8, c0: emColor, c1: emColor) -> emColor {
+    let g = g as i32;
+    let mix = |a: i32, b: i32| -> u8 {
+        (((a * (255 - g) + b * g) * 257 + 0x8073) >> 16) as u8
+    };
+    emColor::rgba(
+        mix(c0.GetRed() as i32, c1.GetRed() as i32),
+        mix(c0.GetGreen() as i32, c1.GetGreen() as i32),
+        mix(c0.GetBlue() as i32, c1.GetBlue() as i32),
+        mix(c0.GetAlpha() as i32, c1.GetAlpha() as i32),
+    )
+}
+
 /// Scanline area-sampled interpolation: fills `buf` with `count` consecutive
 /// output pixels starting at `(dest_x_start, dest_y)`.
 ///

@@ -803,23 +803,23 @@ impl<'a> emPainter<'a> {
             ((px as f64, py as f64), (px as f64, (py + ph) as f64))
         };
 
+        // C++ 40-bit fixed-point gradient walk (emPainter_ScTlIntGra.cpp:24-39).
+        let grad = emPainterInterpolation::LinearGradientParams::new(start, end);
+
         let tw = self.target_width as usize;
         let mode = BlendMode::from_state(self.state.canvas_color, self.state.alpha);
         let mut ibuf = InterpolationBuffer::new(4);
         let max_batch = ibuf.max_pixels();
+        let mut grad_buf = vec![0u8; max_batch];
 
         for row in start_y..end_y {
             let mut col = start_x;
             while col < end_x {
                 let batch = ((end_x - col) as usize).min(max_batch);
-                for i in 0..batch {
-                    let c = col + i as i32;
-                    let color = emPainterInterpolation::sample_linear_gradient(
-                        start,
-                        end,
-                        color_a,
-                        color_b,
-                        (c as f64 + 0.5, row as f64 + 0.5),
+                grad.interpolate_scanline(col, row, &mut grad_buf[..batch]);
+                for (i, &g) in grad_buf[..batch].iter().enumerate() {
+                    let color = emPainterInterpolation::blend_gradient_colors(
+                        g, color_a, color_b,
                     );
                     ibuf.set_pixel(i, [color.GetRed(), color.GetGreen(), color.GetBlue(), color.GetAlpha()]);
                 }
