@@ -19,6 +19,18 @@ fn color_hex(c: emcore::emColor::emColor) -> String {
     format!("{:08x}", c.GetPacked())
 }
 
+fn hex_f64(v: f64) -> String {
+    format!("{:016x}", v.to_bits())
+}
+
+fn hex_fields(pairs: &[(&str, f64)]) -> String {
+    pairs
+        .iter()
+        .map(|(name, val)| format!(r#""{name}_hex":"{}""#, hex_f64(*val)))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
 fn vertices_json(verts: &[(f64, f64)]) -> String {
     let parts: Vec<String> = verts
         .iter()
@@ -55,6 +67,9 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
         DrawOp::SetOffset(dx, dy) => {
             format!(r#"{{"seq":{seq},"op":"SetOffset","dx":{dx},"dy":{dy}}}"#)
         }
+        DrawOp::SetTransformation { ox, oy, sx, sy } => {
+            format!(r#"{{"seq":{seq},"op":"SetTransformation","ox":{ox},"oy":{oy},"sx":{sx},"sy":{sy}}}"#)
+        }
         DrawOp::ClipRect { x, y, w, h } => {
             format!(r#"{{"seq":{seq},"op":"ClipRect","x":{x},"y":{y},"w":{w},"h":{h}}}"#)
         }
@@ -69,17 +84,20 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
         DrawOp::PaintRect { x, y, w, h, color, canvas_color } => {
             let color = color_hex(*color);
             let canvas_color = color_hex(*canvas_color);
-            format!(r#"{{"seq":{seq},"op":"PaintRect","x":{x},"y":{y},"w":{w},"h":{h},"color":"{color}","canvas_color":"{canvas_color}"}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h)]);
+            format!(r#"{{"seq":{seq},"op":"PaintRect","x":{x},"y":{y},"w":{w},"h":{h},"color":"{color}","canvas_color":"{canvas_color}",{hf}}}"#)
         }
         DrawOp::PaintRoundRect { x, y, w, h, radius, color, canvas_color } => {
             let color = color_hex(*color);
             let canvas_color = color_hex(*canvas_color);
-            format!(r#"{{"seq":{seq},"op":"PaintRoundRect","x":{x},"y":{y},"w":{w},"h":{h},"radius":{radius},"color":"{color}","canvas_color":"{canvas_color}"}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("radius", *radius)]);
+            format!(r#"{{"seq":{seq},"op":"PaintRoundRect","x":{x},"y":{y},"w":{w},"h":{h},"radius":{radius},"color":"{color}","canvas_color":"{canvas_color}",{hf}}}"#)
         }
         DrawOp::PaintEllipse { cx, cy, rx, ry, color, canvas_color } => {
             let color = color_hex(*color);
             let canvas_color = color_hex(*canvas_color);
-            format!(r#"{{"seq":{seq},"op":"PaintEllipse","cx":{cx},"cy":{cy},"rx":{rx},"ry":{ry},"color":"{color}","canvas_color":"{canvas_color}"}}"#)
+            let hf = hex_fields(&[("cx", *cx), ("cy", *cy), ("rx", *rx), ("ry", *ry)]);
+            format!(r#"{{"seq":{seq},"op":"PaintEllipse","cx":{cx},"cy":{cy},"rx":{rx},"ry":{ry},"color":"{color}","canvas_color":"{canvas_color}",{hf}}}"#)
         }
         DrawOp::PaintPolygon { vertices, color, canvas_color } => {
             let verts = vertices_json(vertices);
@@ -129,7 +147,8 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
                 (img.GetWidth(), img.GetHeight(), img.GetChannelCount())
             };
             let canvas_color = color_hex(*canvas_color);
-            format!(r#"{{"seq":{seq},"op":"PaintBorderImage","x":{x},"y":{y},"w":{w},"h":{h},"l":{l},"t":{t},"r":{r},"b":{b},"img_w":{img_w},"img_h":{img_h},"img_ch":{img_ch},"src_l":{src_l},"src_t":{src_t},"src_r":{src_r},"src_b":{src_b},"alpha":{alpha},"canvas_color":"{canvas_color}","which_sub_rects":{which_sub_rects}}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("l", *l), ("t", *t), ("r", *r), ("b", *b)]);
+            format!(r#"{{"seq":{seq},"op":"PaintBorderImage","x":{x},"y":{y},"w":{w},"h":{h},"l":{l},"t":{t},"r":{r},"b":{b},"img_w":{img_w},"img_h":{img_h},"img_ch":{img_ch},"src_l":{src_l},"src_t":{src_t},"src_r":{src_r},"src_b":{src_b},"alpha":{alpha},"canvas_color":"{canvas_color}","which_sub_rects":{which_sub_rects},{hf}}}"#)
         }
         DrawOp::PaintBorderImageColored {
             x, y, w, h, l, t, r, b, image_ptr, src_l, src_t, src_r, src_b,
@@ -143,14 +162,16 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
             let color1 = color_hex(*color1);
             let color2 = color_hex(*color2);
             let canvas_color = color_hex(*canvas_color);
-            format!(r#"{{"seq":{seq},"op":"PaintBorderImageColored","x":{x},"y":{y},"w":{w},"h":{h},"l":{l},"t":{t},"r":{r},"b":{b},"img_w":{img_w},"img_h":{img_h},"img_ch":{img_ch},"src_l":{src_l},"src_t":{src_t},"src_r":{src_r},"src_b":{src_b},"color1":"{color1}","color2":"{color2}","canvas_color":"{canvas_color}","which_sub_rects":{which_sub_rects},"alpha":{alpha}}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("l", *l), ("t", *t), ("r", *r), ("b", *b)]);
+            format!(r#"{{"seq":{seq},"op":"PaintBorderImageColored","x":{x},"y":{y},"w":{w},"h":{h},"l":{l},"t":{t},"r":{r},"b":{b},"img_w":{img_w},"img_h":{img_h},"img_ch":{img_ch},"src_l":{src_l},"src_t":{src_t},"src_r":{src_r},"src_b":{src_b},"color1":"{color1}","color2":"{color2}","canvas_color":"{canvas_color}","which_sub_rects":{which_sub_rects},"alpha":{alpha},{hf}}}"#)
         }
 
         DrawOp::PaintText { x, y, text, char_height, width_scale, color, canvas_color } => {
             let color = color_hex(*color);
             let canvas_color = color_hex(*canvas_color);
             let text = text.replace('\\', "\\\\").replace('"', "\\\"");
-            format!(r#"{{"seq":{seq},"op":"PaintText","x":{x},"y":{y},"text":"{text}","char_height":{char_height},"width_scale":{width_scale},"color":"{color}","canvas_color":"{canvas_color}"}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("char_height", *char_height), ("width_scale", *width_scale)]);
+            format!(r#"{{"seq":{seq},"op":"PaintText","x":{x},"y":{y},"text":"{text}","char_height":{char_height},"width_scale":{width_scale},"color":"{color}","canvas_color":"{canvas_color}",{hf}}}"#)
         }
         DrawOp::PaintTextBoxed {
             x, y, w, h, text, max_char_height, color, canvas_color,
@@ -162,7 +183,8 @@ fn serialize_op(seq: usize, op: &DrawOp) -> String {
             let box_h_align = format!("{box_h_align:?}");
             let box_v_align = format!("{box_v_align:?}");
             let text_alignment = format!("{text_alignment:?}");
-            format!(r#"{{"seq":{seq},"op":"PaintTextBoxed","x":{x},"y":{y},"w":{w},"h":{h},"text":"{text}","max_char_height":{max_char_height},"color":"{color}","canvas_color":"{canvas_color}","box_h_align":"{box_h_align}","box_v_align":"{box_v_align}","text_alignment":"{text_alignment}","min_width_scale":{min_width_scale},"formatted":{formatted},"rel_line_space":{rel_line_space}}}"#)
+            let hf = hex_fields(&[("x", *x), ("y", *y), ("w", *w), ("h", *h), ("max_char_height", *max_char_height)]);
+            format!(r#"{{"seq":{seq},"op":"PaintTextBoxed","x":{x},"y":{y},"w":{w},"h":{h},"text":"{text}","max_char_height":{max_char_height},"color":"{color}","canvas_color":"{canvas_color}","box_h_align":"{box_h_align}","box_v_align":"{box_v_align}","text_alignment":"{text_alignment}","min_width_scale":{min_width_scale},"formatted":{formatted},"rel_line_space":{rel_line_space},{hf}}}"#)
         }
 
         DrawOp::PaintLinearGradient { x, y, w, h, color_a, color_b, horizontal, canvas_color } => {
@@ -191,6 +213,7 @@ fn variant_name(op: &DrawOp) -> &'static str {
         DrawOp::PushState => "PushState",
         DrawOp::PopState => "PopState",
         DrawOp::SetOffset(..) => "SetOffset",
+        DrawOp::SetTransformation { .. } => "SetTransformation",
         DrawOp::ClipRect { .. } => "ClipRect",
         DrawOp::SetCanvasColor(..) => "SetCanvasColor",
         DrawOp::SetAlpha(..) => "SetAlpha",

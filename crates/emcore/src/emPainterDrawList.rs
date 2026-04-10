@@ -16,6 +16,7 @@ pub enum DrawOp {
     PushState,
     PopState,
     SetOffset(f64, f64),
+    SetTransformation { ox: f64, oy: f64, sx: f64, sy: f64 },
     ClipRect {
         x: f64,
         y: f64,
@@ -385,6 +386,14 @@ impl DrawList {
                 DrawOp::PopState => painter.pop_state(),
                 DrawOp::SetOffset(x, y) => {
                     painter.set_offset(x - tile_offset.0, y - tile_offset.1);
+                }
+                DrawOp::SetTransformation { ox, oy, sx, sy } => {
+                    painter.SetTransformation(
+                        ox - tile_offset.0,
+                        oy - tile_offset.1,
+                        *sx,
+                        *sy,
+                    );
                 }
                 DrawOp::ClipRect { x, y, w, h } => painter.SetClipping(*x, *y, *w, *h),
                 DrawOp::SetCanvasColor(c) => painter.SetCanvasColor(*c),

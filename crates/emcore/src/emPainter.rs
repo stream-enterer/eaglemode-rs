@@ -491,6 +491,20 @@ impl<'a> emPainter<'a> {
         self.state.scale_y = sy;
     }
 
+    /// Set the full coordinate transformation (origin + scale) in one call.
+    /// Matches C++ `emPainter::SetTransformation`.
+    ///
+    /// The transform from user coordinates to pixel coordinates is:
+    ///   pixel_x = user_x * sx + ox
+    ///   pixel_y = user_y * sy + oy
+    pub fn SetTransformation(&mut self, ox: f64, oy: f64, sx: f64, sy: f64) {
+        self.record_state(DrawOp::SetTransformation { ox, oy, sx, sy });
+        self.state.offset_x = ox;
+        self.state.offset_y = oy;
+        self.state.scale_x = sx;
+        self.state.scale_y = sy;
+    }
+
     /// Get the current origin (offset).
     pub fn origin(&self) -> (f64, f64) {
         (self.state.offset_x, self.state.offset_y)
